@@ -11,6 +11,7 @@ body, html {
     height: 100%;
     width: 100%;
     font-family: 'Slabo 27px', serif;
+    color: #232323;
 }
 
 .h2, h2 {
@@ -24,9 +25,16 @@ p, a {
     line-height: 25px;
 }
 
-a, a:hover {
-    color: #96281B;
+a {
+    color: #232323;
+    text-decoration-style: wavy;
 }
+
+    a:hover {
+        
+        text-decoration-style: double;
+        color: #232323;
+    }
 
 .row {
     margin: 0;
@@ -68,21 +76,24 @@ h1 {
 }
 
 .background-alt {
-    background: #96281B;
+    background: #fd0;
     padding-bottom: 100px;
-}
-
-.background-alt * {
-    color: #fefefe;
-}
-
-.has-background a, .has-background a:hover {
-    text-decoration: underline;
 }
 
 .top-40 {
     padding-top: 40px;
 }
+
+.bloglink, .bloglink:hover {
+    text-decoration: underline;
+    text-decoration-color: #fd0;
+    text-decoration-line: underline;
+    text-decoration-style: wavy;
+}
+
+    .bloglink:hover {
+        text-decoration-style: double;
+    }
 
 @media(min-width: 1200px) {
     .top-40 {
@@ -97,8 +108,7 @@ h1 {
     }
 
     .background-alt {
-        background: #96281B;
+        background: #fd0;
         padding-bottom: 0px;
     }
 }
-
