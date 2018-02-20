@@ -31,7 +31,6 @@ a {
 }
 
     a:hover {
-        
         text-decoration-style: double;
         color: #232323;
     }
@@ -94,6 +93,13 @@ h1 {
     .bloglink:hover {
         text-decoration-style: double;
     }
+
+@media(max-width: 500px) {
+    .offset-background::after{
+        display:none;
+    }
+}
+
 
 @media(min-width: 1200px) {
     .top-40 {
