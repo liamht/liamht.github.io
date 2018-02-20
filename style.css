@@ -97,9 +97,7 @@ h1 {
 
 @media(min-width: 1200px) {
     .top-40 {
-        padding: 0px;
-        position: absolute;
-        top: 40%;
+        padding: 4em;
     }
 
     .align-bottom {
