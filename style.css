@@ -21,8 +21,8 @@ body, html {
 }
 
 p, a {
-    font-size: 28px;
-    line-height: 25px;
+    font-size: 1.5rem;
+    line-height: 1.5rem;
 }
 
 a {
@@ -93,6 +93,21 @@ h1 {
     .bloglink:hover {
         text-decoration-style: double;
     }
+
+
+@media(max-width: 992px) {
+    body {
+        font-size: 1rem;
+    }
+
+    .pad-top-100 {
+         padding-top: 25px;
+    }
+
+    .background-alt {
+         padding-bottom: 0;
+    }
+}
 
 @media(max-width: 500px) {
     .offset-background::after{
