@@ -6,19 +6,19 @@
     <title>Grandmaster Blunder Engine</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a1a; color: #e0e0e0; margin: 0; padding: 20px; }
+        body { font-family: 'Segoe UI', sans-serif; background: #1a1a1a; color: #e0e0e0; padding: 20px; }
         .container { max-width: 900px; margin: auto; }
-        .controls { background: #2d2d2d; padding: 20px; border-radius: 10px; display: flex; gap: 10px; align-items: center; margin-bottom: 20px; border: 1px solid #444; }
+        .controls { background: #2d2d2d; padding: 20px; border-radius: 10px; display: flex; gap: 10px; margin-bottom: 20px; border: 1px solid #444; }
         input { flex: 1; padding: 12px; border-radius: 5px; border: 1px solid #555; background: #111; color: #fff; }
         button { padding: 12px 24px; border-radius: 5px; border: none; background: #007bff; color: white; cursor: pointer; font-weight: bold; }
-        button:disabled { background: #555; }
+        button:disabled { background: #555; cursor: not-allowed; }
         .status { margin-bottom: 10px; font-style: italic; color: #aaa; }
         .game-card { background: #2d2d2d; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 5px solid #007bff; }
-        .blunder-tag { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; margin-right: 5px; font-weight: bold; text-transform: uppercase; }
+        .blunder-tag { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 11px; margin-right: 5px; font-weight: bold; }
         .tag-fork { background: #ff4757; color: white; }
         .tag-pin { background: #ffa502; color: white; }
-        .tag-hanging { background: #2f3542; color: white; }
-        .json-view { background: #000; color: #00ff00; padding: 15px; border-radius: 5px; font-family: monospace; font-size: 12px; max-height: 400px; overflow-y: auto; }
+        .tag-hanging { background: #57606f; color: white; }
+        .json-view { background: #000; color: #00ff00; padding: 15px; border-radius: 5px; font-family: monospace; font-size: 12px; max-height: 300px; overflow-y: auto; }
     </style>
 </head>
 <body>
@@ -26,178 +26,159 @@
 <div class="container">
     <h1>♟️ Grandmaster Blunder Engine</h1>
     <div class="controls">
-        <input type="text" id="username" placeholder="Enter Chess.com Username (e.g., MagnusCarlsen)">
-        <button id="btnScan" onclick="startAnalysis()">Analyze Last 10 Games</button>
+        <input type="text" id="username" placeholder="Chess.com Username">
+        <button id="btnScan" onclick="startAnalysis()" disabled>Loading Engine...</button>
     </div>
     
-    <div id="status" class="status">Waiting for input...</div>
+    <div id="status" class="status">Initializing Stockfish...</div>
     <div id="ui-results"></div>
-    <h3>Raw Analysis Object:</h3>
+    <h3>Full Data Object:</h3>
     <pre id="json-output" class="json-view">{}</pre>
 </div>
 
 <script>
-// --- CONFIG & CONSTANTS ---
+// --- ENGINE SETUP ---
 const STOCKFISH_URL = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
-const EVAL_THRESHOLD = 150; // 1.5 pawns drop = blunder
-const PIECE_VALUES = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+const PIECE_VALUES = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 99 };
+let engine = null;
+let isReady = false;
 
-let engine = new Worker(STOCKFISH_URL);
-let isEngineReady = false;
+function initEngine() {
+    try {
+        engine = new Worker(STOCKFISH_URL);
+        engine.onmessage = (e) => {
+            if (e.data === 'uciok') {
+                isReady = true;
+                document.getElementById('btnScan').disabled = false;
+                document.getElementById('btnScan').innerText = "Analyze Last 10 Games";
+                document.getElementById('status').innerText = "Engine Ready.";
+            }
+        };
+        engine.postMessage('uci');
+    } catch (err) {
+        document.getElementById('status').innerText = "Worker Error. Try hosting locally or checking CDN.";
+    }
+}
 
-// --- ENGINE COMMUNICATION WRAPPER ---
 function getEval(fen) {
     return new Promise((resolve) => {
-        engine.postMessage(`position fen ${fen}`);
-        engine.postMessage('go depth 12');
-        
         const listener = (e) => {
             if (e.data.startsWith('info depth 12')) {
-                const scoreMatch = e.data.match(/score cp (-?\d+)/);
-                const pvMatch = e.data.match(/pv (\w+)/);
-                if (scoreMatch && pvMatch) {
+                const cp = e.data.match(/score cp (-?\d+)/);
+                const pv = e.data.match(/pv (\w+)/);
+                if (cp && pv) {
                     engine.removeEventListener('message', listener);
-                    resolve({
-                        cp: parseInt(scoreMatch[1]),
-                        bestMove: pvMatch[1]
-                    });
+                    resolve({ cp: parseInt(cp[1]), bestMove: pv[1] });
                 }
             }
         };
         engine.addEventListener('message', listener);
+        engine.postMessage(`position fen ${fen}`);
+        engine.postMessage('go depth 12');
     });
 }
 
-// --- TACTIC DETECTION ENGINE ---
-function detectTactics(game, moveUci, bestResponseUci) {
+// --- TACTICAL ENGINE ---
+function analyzeTactics(game, moveUci, responseUci) {
     const tags = [];
-    const board = new Chess(game.fen());
-    const move = board.move(bestResponseUci, { sloppy: true });
-
+    const testBoard = new Chess(game.fen());
+    const move = testBoard.move(responseUci, { sloppy: true });
     if (!move) return tags;
 
-    // 1. Detect Hanging Piece
+    // 1. Hanging Piece Check
     if (move.captured) {
-        const victimValue = PIECE_VALUES[move.captured];
-        // If the piece was taken for free (simplified check)
-        tags.push({ type: 'HANGING', desc: `Lost a ${move.captured.toUpperCase()} on ${move.to}` });
+        tags.push({ type: 'HANGING', desc: `Left ${move.captured.toUpperCase()} on ${move.to}` });
     }
 
-    // 2. Detect Fork
-    // Check how many squares are attacked by the piece that just moved
-    let attackCount = 0;
-    const squares = ['a1','a2','a3','a4','a5','a6','a7','a8','b1','b2','b3','b4','b5','b6','b7','b8','c1','c2','c3','c4','c5','c6','c7','c8','d1','d2','d3','d4','d5','d6','d7','d8','e1','e2','e3','e4','e5','e6','e7','e8','f1','f2','f3','f4','f5','f6','f7','f8','g1','g2','g3','g4','g5','g6','g7','g8','h1','h2','h3','h4','h5','h6','h7','h8'];
-    
+    // 2. Fork Detection
+    let attacked = 0;
+    const squares = ['a1','b1','c1','d1','e1','f1','g1','h1','a2','b2','c2','d2','e2','f2','g2','h2','a3','b3','c3','d3','e3','f3','g3','h3','a4','b4','c4','d4','e4','f4','g4','h4','a5','b5','c5','d5','e5','f5','g5','h5','a6','b6','c6','d6','e6','f6','g6','h6','a7','b7','c7','d7','e7','f7','g7','h7','a8','b8','c8','d8','e8','f8','g8','h8'];
     squares.forEach(sq => {
-        const piece = board.get(sq);
-        // If square has our piece and is attacked by the opponent's moved piece
-        if (piece && piece.color !== board.turn() && board.attacked(sq, board.turn())) {
-            attackCount++;
+        const p = testBoard.get(sq);
+        if (p && p.color !== testBoard.turn() && testBoard.attacked(sq, testBoard.turn())) {
+            attacked++;
         }
     });
-    if (attackCount >= 2) tags.push({ type: 'FORK', desc: 'Forked multiple pieces' });
+    if (attacked >= 2) tags.push({ type: 'FORK', desc: 'Allowed a fork' });
 
-    // 3. Detect Pin (Simplified)
-    // If we remove the piece that was attacked, is something bigger behind it?
-    // (Logic omitted for brevity, but follows this pattern)
+    // 3. Pin Detection
+    if (move.captured) {
+        const pieceSquare = move.to;
+        const color = testBoard.turn() === 'w' ? 'b' : 'w';
+        testBoard.remove(pieceSquare); 
+        // If removing the piece reveals a check or attack on higher value piece
+        if (testBoard.in_check()) tags.push({ type: 'PIN', desc: 'Piece was pinned to King' });
+    }
 
     return tags;
 }
 
-// --- MAIN CONTROLLER ---
+// --- APP LOGIC ---
 async function startAnalysis() {
     const user = document.getElementById('username').value;
-    const btn = document.getElementById('btnScan');
-    const statusEl = document.getElementById('status');
-    const uiResults = document.getElementById('ui-results');
+    if (!user) return alert("Enter a username");
     
-    if (!user) return alert("Enter username");
+    document.getElementById('btnScan').disabled = true;
+    const status = document.getElementById('status');
+    const results = [];
     
-    btn.disabled = true;
-    uiResults.innerHTML = '';
-    statusEl.innerText = "Fetching games from Chess.com...";
-
     try {
-        const archivesRes = await fetch(`https://api.chess.com/pub/player/${user}/games/archives`);
-        const { archives } = await archivesRes.json();
-        const gamesRes = await fetch(archives[archives.length - 1]);
-        const { games } = await gamesRes.json();
+        status.innerText = "Fetching games...";
+        const arcRes = await fetch(`https://api.chess.com/pub/player/${user}/games/archives`);
+        const { archives } = await arcRes.json();
+        const gRes = await fetch(archives[archives.length - 1]);
+        const { games } = await gRes.json();
         const last10 = games.slice(-10);
 
-        const finalAnalysis = [];
-
-        for (const [idx, gameData] of last10.entries()) {
-            statusEl.innerText = `Analyzing Game ${idx + 1}/10...`;
-            const game = new Chess();
-            game.load_pgn(gameData.pgn);
-            const history = game.history({ verbose: true });
+        for (const [i, g] of last10.entries()) {
+            status.innerText = `Analyzing game ${i+1}/10...`;
+            const chess = new Chess();
+            chess.load_pgn(g.pgn);
+            const history = chess.history({ verbose: true });
             const blunders = [];
+            const simBoard = new Chess();
 
-            // Replay game and check for eval drops
-            const analysisBoard = new Chess();
-            let prevEval = 0;
+            for (const m of history) {
+                const isUser = (m.color === 'w' && g.white.username.toLowerCase() === user.toLowerCase()) || 
+                               (m.color === 'b' && g.black.username.toLowerCase() === user.toLowerCase());
+                
+                const before = await getEval(simBoard.fen());
+                simBoard.move(m);
+                const after = await getEval(simBoard.fen());
 
-            for (const move of history) {
-                // Only analyze the user's moves
-                const isUserMove = (move.color === 'w' && gameData.white.username.toLowerCase() === user.toLowerCase()) ||
-                                   (move.color === 'b' && gameData.black.username.toLowerCase() === user.toLowerCase());
+                const scoreBefore = m.color === 'w' ? before.cp : -before.cp;
+                const scoreAfter = m.color === 'w' ? after.cp : -after.cp;
+                const drop = scoreBefore - scoreAfter;
 
-                const resBefore = await getEval(analysisBoard.fen());
-                analysisBoard.move(move);
-                const resAfter = await getEval(analysisBoard.fen());
-
-                // Relative eval (Stockfish CP is always from White's perspective)
-                const currentEval = move.color === 'w' ? resAfter.cp : -resAfter.cp;
-                const scoreDrop = (move.color === 'w' ? resBefore.cp : -resBefore.cp) - currentEval;
-
-                if (isUserMove && scoreDrop > EVAL_THRESHOLD) {
-                    const tactics = detectTactics(analysisBoard, move.san, resAfter.bestMove);
+                if (isUser && drop > 150) {
                     blunders.push({
-                        move: move.san,
-                        fen: analysisBoard.fen(),
-                        drop: scoreDrop,
-                        tactics: tactics
+                        move: m.san,
+                        drop: drop,
+                        tags: analyzeTactics(simBoard, m.san, after.bestMove)
                     });
                 }
             }
-
-            finalAnalysis.push({
-                opponent: gameData.white.username === user ? gameData.black.username : gameData.white.username,
-                result: gameData.pgn.match(/\[Result "(.*)"\]/)[1],
-                blunders: blunders
-            });
-            
-            renderGame(finalAnalysis[finalAnalysis.length - 1]);
+            results.push({ opponent: g.white.username === user ? g.black.username : g.white.username, blunders });
+            renderGame(results[results.length-1]);
         }
-
-        document.getElementById('json-output').innerText = JSON.stringify(finalAnalysis, null, 2);
-        statusEl.innerText = "Analysis Complete.";
-
+        document.getElementById('json-output').innerText = JSON.stringify(results, null, 2);
+        status.innerText = "Done!";
     } catch (e) {
-        statusEl.innerText = "Error: " + e.message;
-        console.error(e);
+        status.innerText = "Error: " + e.message;
     } finally {
-        btn.disabled = false;
+        document.getElementById('btnScan').disabled = false;
     }
 }
 
 function renderGame(data) {
     const div = document.createElement('div');
     div.className = 'game-card';
-    div.innerHTML = `
-        <strong>Vs ${data.opponent} (${data.result})</strong><br>
-        <p>Detected ${data.blunders.length} major tactical errors.</p>
-        ${data.blunders.map(b => `
-            <div>
-                Move ${b.move}: 
-                ${b.tactics.map(t => `<span class="blunder-tag tag-${t.type.toLowerCase()}">${t.type}</span>`).join('')}
-                <small>${b.tactics.map(t => t.desc).join(', ') || 'General Blunder'}</small>
-            </div>
-        `).join('')}
-    `;
+    div.innerHTML = `<strong>Game vs ${data.opponent}</strong><br>` + 
+        data.blunders.map(b => `<div>Move ${b.move}: ${b.tags.map(t => `<span class="blunder-tag tag-${t.type.toLowerCase()}">${t.type}</span>`).join('')}</div>`).join('');
     document.getElementById('ui-results').appendChild(div);
 }
-</script>
 
+initEngine();
+</script>
 </body>
 </html>
