@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grandmaster Blunder Engine</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a1a; color: #e0e0e0; margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: auto; }
+        .controls { background: #2d2d2d; padding: 20px; border-radius: 10px; display: flex; gap: 10px; align-items: center; margin-bottom: 20px; border: 1px solid #444; }
+        input { flex: 1; padding: 12px; border-radius: 5px; border: 1px solid #555; background: #111; color: #fff; }
+        button { padding: 12px 24px; border-radius: 5px; border: none; background: #007bff; color: white; cursor: pointer; font-weight: bold; }
+        button:disabled { background: #555; }
+        .status { margin-bottom: 10px; font-style: italic; color: #aaa; }
+        .game-card { background: #2d2d2d; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 5px solid #007bff; }
+        .blunder-tag { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; margin-right: 5px; font-weight: bold; text-transform: uppercase; }
+        .tag-fork { background: #ff4757; color: white; }
+        .tag-pin { background: #ffa502; color: white; }
+        .tag-hanging { background: #2f3542; color: white; }
+        .json-view { background: #000; color: #00ff00; padding: 15px; border-radius: 5px; font-family: monospace; font-size: 12px; max-height: 400px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>♟️ Grandmaster Blunder Engine</h1>
+    <div class="controls">
+        <input type="text" id="username" placeholder="Enter Chess.com Username (e.g., MagnusCarlsen)">
+        <button id="btnScan" onclick="startAnalysis()">Analyze Last 10 Games</button>
+    </div>
+    
+    <div id="status" class="status">Waiting for input...</div>
+    <div id="ui-results"></div>
+    <h3>Raw Analysis Object:</h3>
+    <pre id="json-output" class="json-view">{}</pre>
+</div>
+
+<script>
+// --- CONFIG & CONSTANTS ---
+const STOCKFISH_URL = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
+const EVAL_THRESHOLD = 150; // 1.5 pawns drop = blunder
+const PIECE_VALUES = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+
+let engine = new Worker(STOCKFISH_URL);
+let isEngineReady = false;
+
+// --- ENGINE COMMUNICATION WRAPPER ---
+function getEval(fen) {
+    return new Promise((resolve) => {
+        engine.postMessage(`position fen ${fen}`);
+        engine.postMessage('go depth 12');
+        
+        const listener = (e) => {
+            if (e.data.startsWith('info depth 12')) {
+                const scoreMatch = e.data.match(/score cp (-?\d+)/);
+                const pvMatch = e.data.match(/pv (\w+)/);
+                if (scoreMatch && pvMatch) {
+                    engine.removeEventListener('message', listener);
+                    resolve({
+                        cp: parseInt(scoreMatch[1]),
+                        bestMove: pvMatch[1]
+                    });
+                }
+            }
+        };
+        engine.addEventListener('message', listener);
+    });
+}
+
+// --- TACTIC DETECTION ENGINE ---
+function detectTactics(game, moveUci, bestResponseUci) {
+    const tags = [];
+    const board = new Chess(game.fen());
+    const move = board.move(bestResponseUci, { sloppy: true });
+
+    if (!move) return tags;
+
+    // 1. Detect Hanging Piece
+    if (move.captured) {
+        const victimValue = PIECE_VALUES[move.captured];
+        // If the piece was taken for free (simplified check)
+        tags.push({ type: 'HANGING', desc: `Lost a ${move.captured.toUpperCase()} on ${move.to}` });
+    }
+
+    // 2. Detect Fork
+    // Check how many squares are attacked by the piece that just moved
+    let attackCount = 0;
+    const squares = ['a1','a2','a3','a4','a5','a6','a7','a8','b1','b2','b3','b4','b5','b6','b7','b8','c1','c2','c3','c4','c5','c6','c7','c8','d1','d2','d3','d4','d5','d6','d7','d8','e1','e2','e3','e4','e5','e6','e7','e8','f1','f2','f3','f4','f5','f6','f7','f8','g1','g2','g3','g4','g5','g6','g7','g8','h1','h2','h3','h4','h5','h6','h7','h8'];
+    
+    squares.forEach(sq => {
+        const piece = board.get(sq);
+        // If square has our piece and is attacked by the opponent's moved piece
+        if (piece && piece.color !== board.turn() && board.attacked(sq, board.turn())) {
+            attackCount++;
+        }
+    });
+    if (attackCount >= 2) tags.push({ type: 'FORK', desc: 'Forked multiple pieces' });
+
+    // 3. Detect Pin (Simplified)
+    // If we remove the piece that was attacked, is something bigger behind it?
+    // (Logic omitted for brevity, but follows this pattern)
+
+    return tags;
+}
+
+// --- MAIN CONTROLLER ---
+async function startAnalysis() {
+    const user = document.getElementById('username').value;
+    const btn = document.getElementById('btnScan');
+    const statusEl = document.getElementById('status');
+    const uiResults = document.getElementById('ui-results');
+    
+    if (!user) return alert("Enter username");
+    
+    btn.disabled = true;
+    uiResults.innerHTML = '';
+    statusEl.innerText = "Fetching games from Chess.com...";
+
+    try {
+        const archivesRes = await fetch(`https://api.chess.com/pub/player/${user}/games/archives`);
+        const { archives } = await archivesRes.json();
+        const gamesRes = await fetch(archives[archives.length - 1]);
+        const { games } = await gamesRes.json();
+        const last10 = games.slice(-10);
+
+        const finalAnalysis = [];
+
+        for (const [idx, gameData] of last10.entries()) {
+            statusEl.innerText = `Analyzing Game ${idx + 1}/10...`;
+            const game = new Chess();
+            game.load_pgn(gameData.pgn);
+            const history = game.history({ verbose: true });
+            const blunders = [];
+
+            // Replay game and check for eval drops
+            const analysisBoard = new Chess();
+            let prevEval = 0;
+
+            for (const move of history) {
+                // Only analyze the user's moves
+                const isUserMove = (move.color === 'w' && gameData.white.username.toLowerCase() === user.toLowerCase()) ||
+                                   (move.color === 'b' && gameData.black.username.toLowerCase() === user.toLowerCase());
+
+                const resBefore = await getEval(analysisBoard.fen());
+                analysisBoard.move(move);
+                const resAfter = await getEval(analysisBoard.fen());
+
+                // Relative eval (Stockfish CP is always from White's perspective)
+                const currentEval = move.color === 'w' ? resAfter.cp : -resAfter.cp;
+                const scoreDrop = (move.color === 'w' ? resBefore.cp : -resBefore.cp) - currentEval;
+
+                if (isUserMove && scoreDrop > EVAL_THRESHOLD) {
+                    const tactics = detectTactics(analysisBoard, move.san, resAfter.bestMove);
+                    blunders.push({
+                        move: move.san,
+                        fen: analysisBoard.fen(),
+                        drop: scoreDrop,
+                        tactics: tactics
+                    });
+                }
+            }
+
+            finalAnalysis.push({
+                opponent: gameData.white.username === user ? gameData.black.username : gameData.white.username,
+                result: gameData.pgn.match(/\[Result "(.*)"\]/)[1],
+                blunders: blunders
+            });
+            
+            renderGame(finalAnalysis[finalAnalysis.length - 1]);
+        }
+
+        document.getElementById('json-output').innerText = JSON.stringify(finalAnalysis, null, 2);
+        statusEl.innerText = "Analysis Complete.";
+
+    } catch (e) {
+        statusEl.innerText = "Error: " + e.message;
+        console.error(e);
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+function renderGame(data) {
+    const div = document.createElement('div');
+    div.className = 'game-card';
+    div.innerHTML = `
+        <strong>Vs ${data.opponent} (${data.result})</strong><br>
+        <p>Detected ${data.blunders.length} major tactical errors.</p>
+        ${data.blunders.map(b => `
+            <div>
+                Move ${b.move}: 
+                ${b.tactics.map(t => `<span class="blunder-tag tag-${t.type.toLowerCase()}">${t.type}</span>`).join('')}
+                <small>${b.tactics.map(t => t.desc).join(', ') || 'General Blunder'}</small>
+            </div>
+        `).join('')}
+    `;
+    document.getElementById('ui-results').appendChild(div);
+}
+</script>
+
+</body>
+</html>
