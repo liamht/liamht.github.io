@@ -1,43 +1,394 @@
-﻿<!DOCTYPE html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link href="reset.css" rel="stylesheet" />
-    <link href="bootstrap.min.css" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css?family=Slabo+27px" rel="stylesheet">
-    <link href="style.css" rel="stylesheet" />
-    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
-    <link rel="icon" href="/favicon.ico" type="image/x-icon">
-    <title>Liam Hayman Tansley</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Pro Analyser</title>
+    <style>
+        :root {
+            --bg-dark: #0f0f0f;
+            --card-bg: #1a1a1a;
+            --primary: #3498db;
+            --accent: #e74c3c;
+            --warning: #f39c12;
+            --success: #2ecc71;
+            --excellent: #27ae60;
+            --text: #f5f5f5;
+            --subtext: #888;
+            --border: #2a2a2a;
+            --board-white: #ebecd0;
+            --board-black: #779556;
+            --highlight: rgba(255, 255, 0, 0.4);
+        }
+        body { font-family: 'Segoe UI', Roboto, sans-serif; background: var(--bg-dark); color: var(--text); margin: 0; overflow-x: hidden; }
+        .container { max-width: 1200px; margin: auto; padding: 10px; }
+
+        .header-bar { display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px; }
+        @media (min-width: 768px) { .header-bar { flex-direction: row; align-items: center; } }
+
+        .controls { background: var(--card-bg); padding: 10px; border-radius: 10px; display: flex; gap: 8px; border: 1px solid var(--border); flex: 1; }
+        input { flex: 1; padding: 12px; border-radius: 6px; border: 1px solid #333; background: #000; color: #fff; outline: none; min-width: 0; }
+        button { padding: 12px 18px; border-radius: 6px; border: none; background: var(--primary); color: white; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        button:hover { opacity: 0.9; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #btnStop { background: var(--accent); display: none; }
+
+        #debug-log { 
+            background: #000; 
+            color: #0f0; 
+            font-family: monospace; 
+            font-size: 11px; 
+            padding: 10px; 
+            border-radius: 6px; 
+            margin-top: 20px; 
+            max-height: 150px; 
+            overflow-y: auto; 
+            border: 1px solid #333;
+            display: block;
+        }
+
+        #progress-box { display: none; margin-bottom: 15px; background: #111; padding: 15px; border-radius: 10px; border: 1px solid #333; }
+        .progress-details { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; font-size: 12px; }
+        .prog-item { background: #1a1a1a; padding: 8px; border-radius: 6px; border: solid 1px #222; }
+        .prog-label { color: var(--subtext); margin-bottom: 2px; text-transform: uppercase; font-size: 10px; }
+        .prog-val { font-weight: bold; color: var(--primary); font-size: 14px; }
+        .progress-bg { width: 100%; height: 8px; background: #333; border-radius: 4px; margin-top: 12px; overflow: hidden; position: relative; }
+        .progress-fill { width: 0%; height: 100%; background: linear-gradient(90deg, var(--primary), #5dade2); transition: width 0.3s; }
+
+        .stats-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 10px; margin-bottom: 20px; }
+        .stat-card { background: var(--card-bg); padding: 15px; border-radius: 10px; border: 1px solid var(--border); text-align: center; }
+        .stat-val { font-size: 20px; font-weight: bold; color: var(--primary); }
+        .stat-label { font-size: 10px; color: var(--subtext); text-transform: uppercase; }
+
+        #game-list-view { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; }
+
+        #review-view { display: none; grid-template-columns: 1fr; gap: 20px; }
+        @media (min-width: 992px) { #review-view { grid-template-columns: 1fr 400px; } }
+
+        .board-wrapper { position: relative; width: 100%; aspect-ratio: 1/1; background: #222; border-radius: 4px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .chess-board { display: grid; grid-template-columns: repeat(8, 12.5%); grid-template-rows: repeat(8, 12.5%); width: 100%; height: 100%; }
+        .square { position: relative; display: flex; align-items: center; justify-content: center; }
+        .square.white { background: var(--board-white); }
+        .square.black { background: var(--board-black); }
+        .square.highlight { background: var(--highlight) !important; }
+        .piece { width: 90%; height: 90%; pointer-events: none; z-index: 2; }
+        .arrow-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+        
+        .tabs { display: flex; background: #222; border-radius: 8px 8px 0 0; border: 1px solid var(--border); border-bottom: none; }
+        .tab { flex: 1; padding: 12px; text-align: center; cursor: pointer; font-size: 13px; font-weight: bold; color: var(--subtext); }
+        .tab.active { color: white; border-bottom: 2px solid var(--primary); background: var(--card-bg); }
+        .tab-content { background: var(--card-bg); border: 1px solid var(--border); border-radius: 0 0 8px 8px; height: 400px; overflow-y: auto; }
+
+        .move-card { background: #222; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid var(--primary); transition: all 0.3s; }
+        .move-card.blunder { border-left-color: var(--accent); background: rgba(231, 76, 60, 0.05); }
+        .move-card.best { border-left-color: var(--success); background: rgba(46, 204, 113, 0.05); }
+
+        .eval-bar-container { width: 100%; height: 24px; background: #333; border-radius: 12px; margin: 10px 0; position: relative; overflow: hidden; display: flex; border: 1px solid #444; }
+        .eval-bar-fill { height: 100%; transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); background: #fff; }
+        .eval-text { position: absolute; width: 100%; height: 100%; top: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 900; mix-blend-mode: difference; color: white; }
+
+        .move-row { display: flex; padding: 12px; border-bottom: 1px solid #222; cursor: pointer; align-items: center; transition: 0.1s; }
+        .move-row:hover { background: #252525; }
+        .move-row.active { background: #2c3e50; }
+        .move-label { font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: auto; font-weight: bold; text-transform: uppercase; }
+        
+        .cls-best { background: var(--success); color: white; }
+        .cls-excellent { background: var(--excellent); color: white; }
+        .cls-good { background: var(--primary); color: white; }
+        .cls-inaccuracy { background: var(--warning); color: black; }
+        .cls-mistake { background: #e67e22; color: white; }
+        .cls-blunder { background: var(--accent); color: white; }
+        .cls-book { background: #a29bfe; color: white; }
+
+        .graph-container { padding: 20px; height: 100%; display: flex; align-items: flex-end; gap: 2px; }
+        .graph-bar { flex: 1; background: var(--primary); min-width: 4px; border-radius: 2px 2px 0 0; cursor: pointer; position: relative; opacity: 0.6; }
+        .graph-bar:hover { opacity: 1; filter: brightness(1.3); }
+        
+        .opening-tag { font-size: 11px; color: #a29bfe; font-weight: bold; margin-bottom: 4px; display: block; }
+    </style>
 </head>
 <body>
-    <div class="row height-100">
-        <div class="col-lg-6 col-md-12 position-static">
-            <div class="offset-background pad-top-100 pad-left-50">
-                <h1>Liam <span>Hayman Tansley</span></h1>
-                <h3>Development Manager & Lead</h3>
+
+<div class="container">
+    <div class="header-bar">
+        <div class="controls">
+            <input type="text" id="username" placeholder="Chess.com Username">
+            <button id="btnScan" onclick="startAnalysis()" disabled>Initializing Engine...</button>
+            <button id="btnStop" onclick="stopAnalysis()">Stop</button>
+        </div>
+    </div>
+
+    <div id="stats-container" class="stats-summary" style="display:none">
+        <div class="stat-card"><div id="stat-blunder" class="stat-val">0</div><div class="stat-label">Blunders</div></div>
+        <div class="stat-card"><div id="stat-great" class="stat-val">0</div><div class="stat-label">Great Moves</div></div>
+        <div class="stat-card"><div id="stat-book" class="stat-val">0</div><div class="stat-label">Total Book</div></div>
+    </div>
+
+    <div id="progress-box">
+        <div id="progress-text" style="font-size: 13px; font-weight: bold; color: var(--text)">Preparing...</div>
+        <div class="progress-details">
+            <div class="prog-item">
+                <div class="prog-label">Games</div>
+                <div id="prog-val-games" class="prog-val">0 / 0</div>
+            </div>
+            <div class="prog-item">
+                <div class="prog-label">Moves (Current)</div>
+                <div id="prog-val-moves" class="prog-val">0 / 0</div>
+            </div>
+        </div>
+        <div class="progress-bg">
+            <div id="progress-fill" class="progress-fill"></div>
+        </div>
+    </div>
+
+    <div id="game-list-view"></div>
+
+    <div id="review-view">
+        <div class="review-main">
+            <button onclick="exitReview()" style="background:#333; margin-bottom:15px; padding: 10px 20px; border-radius:6px; color:white; border:none; cursor:pointer; font-weight:bold;">← BACK TO LIST</button>
+            
+            <div id="current-move-info" class="move-card">
+                <span id="move-opening" class="opening-tag"></span>
+                <div style="display:flex; justify-content:space-between; align-items:center">
+                    <div id="move-title" style="font-weight:bold; font-size:18px;">Select a move</div>
+                    <div id="move-badge"></div>
+                </div>
+                <div id="move-desc" style="font-size:12px; color:var(--subtext); margin-top:4px;">Detailed analysis results appear here.</div>
+            </div>
+
+            <div class="board-wrapper" id="board-container">
+                <div id="active-board" class="chess-board"></div>
+                <svg id="arrow-overlay" class="arrow-overlay" viewBox="0 0 100 100"></svg>
             </div>
             
-            <div class="align-bottom pad-all-50 col-md-12">
-                <a class="bloglink" href="https://medium.com/@Liamht">Read my ramblings - check out my blog on medium</a>
+            <div class="eval-bar-container">
+                <div id="eval-fill" class="eval-bar-fill" style="width: 50%"></div>
+                <div id="eval-label" class="eval-text">0.0</div>
+            </div>
+
+            <div style="display:flex; gap:10px; margin-top:15px;">
+                <button onclick="stepMove(-1)" style="flex:1; background:#2c3e50; padding:18px">PREVIOUS</button>
+                <button onclick="stepMove(1)" style="flex:1; background:#2c3e50; padding:18px">NEXT MOVE</button>
             </div>
         </div>
 
-        <div class="col-lg-6 col-md-12 background-alt has-background pad-left-50">
-            <div class="top-40">
-                <h2>Work</h2>
-                <p>Software Development Manager - <a href="https://fortius-network.com/">Fortius / Altius VA</a></p>
-                <p>Director / Owner - <a href="http://www.greenshellmedia.com">Green Shell Media</a></p>
-
-                <h2>Play</h2>
-                <p>Basketball - <a href="http://www.ilkestonoutlaws.com">Ilkeston Outlaws</a></p>
-
-                <h2>Proof</h2>
-                <p>Work History - <a href="https://www.linkedin.com/in/liam-hayman-tansley-09214062/">LinkedIn</a></p>
-                <p>Projects - <a href="https://github.com/liamht">GitHub</a></p>
+        <div class="review-side">
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('moves', this)">MOVES</div>
+                <div class="tab" onclick="switchTab('graph', this)">GRAPH</div>
+            </div>
+            <div class="tab-content">
+                <div id="moves-tab" class="tab-pane"></div>
+                <div id="graph-tab" class="tab-pane" style="display:none; height:100%;">
+                    <div id="eval-graph" class="graph-container"></div>
+                </div>
             </div>
         </div>
     </div>
-</body>
-</html>
+
+    <div id="debug-log">System initializing...</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<script>
+    const STOCKFISH_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
+    const EXTERNAL_BOOK_URL = 'https://liamht.com/chess/openings.json';
+    
+    // Fallback if network fails
+    const INTERNAL_BOOK = [
+        { name: "Ruy Lopez", moves: ["e4", "e5", "Nf3", "Nc6", "Bb5"] },
+        { name: "Sicilian Defense", moves: ["e4", "c5"] },
+        { name: "French Defense", moves: ["e4", "e6"] },
+        { name: "Caro-Kann Defense", moves: ["e4", "c6"] },
+        { name: "Italian Game", moves: ["e4", "e5", "Nf3", "Nc6", "Bc4"] },
+        { name: "Queen's Gambit", moves: ["d4", "d5", "c4"] }
+    ];
+
+    let ACTIVE_OPENING_BOOK = INTERNAL_BOOK;
+    let engine = null;
+    let engineReady = false;
+    let isScanning = false;
+    let currentReviewGame = null;
+    let currentMoveIndex = -1;
+
+    function log(msg, isError = false) {
+        const d = document.getElementById('debug-log');
+        const span = document.createElement('div');
+        span.style.color = isError ? '#ff5555' : '#00ff00';
+        span.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
+        d.appendChild(span);
+        d.scrollTop = d.scrollHeight;
+    }
+
+    async function initApp() {
+        const btn = document.getElementById('btnScan');
+        
+        // 1. Try to load external book
+        log("Fetching opening book from liamht.com...");
+        try {
+            const bookRes = await fetch(EXTERNAL_BOOK_URL);
+            if(bookRes.ok) {
+                const data = await bookRes.json();
+                ACTIVE_OPENING_BOOK = data;
+                log("Opening book loaded successfully from source.");
+            } else {
+                throw new Error("Source returned error " + bookRes.status);
+            }
+        } catch (e) {
+            log("CORS/Network error. Using internal fallback book.", true);
+            ACTIVE_OPENING_BOOK = INTERNAL_BOOK;
+        }
+
+        // 2. Load Stockfish
+        log("Initializing Engine...");
+        try {
+            const response = await fetch(STOCKFISH_CDN);
+            const scriptBody = await response.text();
+            const blob = new Blob([scriptBody], { type: 'application/javascript' });
+            engine = new Worker(URL.createObjectURL(blob));
+            
+            engine.onmessage = (e) => {
+                if (e.data === 'uciok') {
+                    engine.postMessage('setoption name Threads value 4');
+                    engine.postMessage('isready');
+                }
+                if (e.data === 'readyok') {
+                    engineReady = true;
+                    btn.disabled = false;
+                    btn.innerText = "Review Profile";
+                    log("System Online.");
+                }
+            };
+            engine.postMessage('uci');
+        } catch (err) { 
+            log(`Engine Error: ${err.message}`, true);
+            btn.innerText = "Engine Error"; 
+        }
+    }
+
+    function cleanMove(move) {
+        if (!move) return "";
+        return move.toString().replace(/^\d+\.+/, '').replace(/[+#?]/g, '').trim();
+    }
+
+    function identifyOpeningByNotation(history) {
+        let bestMatch = { name: "Custom Game", count: 0 };
+        const cleanHistory = history.map(m => cleanMove(m));
+
+        for (const op of ACTIVE_OPENING_BOOK) {
+            const opMovesClean = op.moves.map(m => cleanMove(m));
+            let matchCount = 0;
+            for (let i = 0; i < opMovesClean.length; i++) {
+                if (i >= cleanHistory.length || cleanHistory[i] !== opMovesClean[i]) break;
+                matchCount++;
+            }
+            if (matchCount > bestMatch.count) {
+                bestMatch = { name: op.name, count: matchCount };
+            }
+        }
+        return bestMatch;
+    }
+
+    function getEngineAnalysis(fen, fastMode = false) {
+        return new Promise((resolve) => {
+            if (!engineReady) return resolve({ score: 0, isMate: false, bestMove: '' });
+            let score = 0, isMate = false, bestMove = '';
+            const depth = fastMode ? 6 : 10; 
+            
+            const timeout = setTimeout(() => {
+                engine.removeEventListener('message', handler);
+                resolve({ score, isMate, bestMove });
+            }, 6000);
+
+            const handler = (e) => {
+                if (typeof e.data !== 'string') return;
+                if (e.data.includes('score cp')) {
+                    const m = e.data.match(/score cp (-?\d+)/);
+                    if (m) score = parseInt(m[1]);
+                } else if (e.data.includes('score mate')) {
+                    const m = e.data.match(/score mate (-?\d+)/);
+                    if (m) { score = parseInt(m[1]); isMate = true; }
+                }
+                if (e.data.startsWith('bestmove')) {
+                    const m = e.data.match(/bestmove\s+(\S+)/);
+                    bestMove = m ? m[1] : '';
+                    engine.removeEventListener('message', handler);
+                    clearTimeout(timeout);
+                    resolve({ score, isMate, bestMove });
+                }
+            };
+            engine.addEventListener('message', handler);
+            engine.postMessage(`position fen ${fen}`);
+            engine.postMessage(`go depth ${depth}`);
+        });
+    }
+
+    function classifyMove(delta, isUserTurn, isBook) {
+        if (!isUserTurn) return { label: '', class: '', desc: "" };
+        if (isBook) return { label: 'Book', class: 'cls-book', desc: "Theory." };
+        if (delta > 250) return { label: 'Blunder', class: 'cls-blunder', desc: "Serious error." };
+        if (delta <= 10) return { label: 'Best', class: 'cls-best', desc: "Engine's top choice." };
+        if (delta <= 40) return { label: 'Excellent', class: 'cls-excellent', desc: "Very strong move." };
+        if (delta <= 100) return { label: 'Good', class: 'cls-good', desc: "Keeps balance." };
+        if (delta <= 180) return { label: 'Inaccuracy', class: 'cls-inaccuracy', desc: "Missed opportunity." };
+        return { label: 'Mistake', class: 'cls-mistake', desc: "Costly move." };
+    }
+
+    async function startAnalysis() {
+        const user = document.getElementById('username').value.trim();
+        if (!user) return;
+        isScanning = true;
+        document.getElementById('btnScan').style.display = 'none';
+        document.getElementById('btnStop').style.display = 'block';
+        document.getElementById('progress-box').style.display = 'block';
+        document.getElementById('game-list-view').innerHTML = '';
+
+        log(`Connecting to Chess.com for ${user}...`);
+        try {
+            const res = await fetch(`https://api.chess.com/pub/player/${user.toLowerCase()}/games/archives`);
+            const data = await res.json();
+            if (!data.archives || data.archives.length === 0) throw new Error("No games found");
+            const gRes = await fetch(data.archives[data.archives.length - 1]);
+            const gData = await gRes.json();
+            const games = gData.games.reverse().slice(0, 5);
+
+            let stats = { blunders: 0, great: 0, book: 0 };
+
+            for (let i = 0; i < games.length; i++) {
+                if (!isScanning) break;
+                document.getElementById('prog-val-games').innerText = `${i + 1} / ${games.length}`;
+                
+                const analysis = await analyzeGame(games[i], user, (curr, total) => {
+                    document.getElementById('prog-val-moves').innerText = `${curr} / ${total}`;
+                    const progress = ((i / games.length) + ((curr / total) / games.length)) * 100;
+                    document.getElementById('progress-fill').style.width = progress + '%';
+                });
+                
+                if (analysis) {
+                    stats.blunders += analysis.blunders;
+                    stats.great += analysis.greatMoves;
+                    stats.book += analysis.bookCount;
+                    renderGameItem(games[i], analysis);
+                }
+            }
+
+            document.getElementById('stats-container').style.display = 'grid';
+            document.getElementById('stat-blunder').innerText = stats.blunders;
+            document.getElementById('stat-great').innerText = stats.great;
+            document.getElementById('stat-book').innerText = stats.book;
+        } catch (e) { log(`Analysis Error: ${e.message}`, true); }
+        stopAnalysis();
+    }
+
+    async function analyzeGame(game, user, onMove) {
+        const chess = new Chess();
+        chess.load_pgn(game.pgn);
+        const history = chess.history({verbose: true});
+        const isWhite = game.white.username.toLowerCase() === user.toLowerCase();
+        const openingMatch = identifyOpeningByNotation(history.map(h => h.san));
+        
+        let moveData = [];
+        let counters = { blunders: 0, great: 0, book: 0 };
+        const tempChess = new Chess();
+
+        for (let i
