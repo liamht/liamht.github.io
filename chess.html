@@ -129,8 +129,8 @@
             grid-template-columns: 1fr;
             gap: 16px;
         }
-        @media (min-width: 768px) {
-            .profile-grid { grid-template-columns: 280px 1fr; }
+        @media (min-width: 900px) {
+            .profile-grid { grid-template-columns: 1fr 1fr 1.2fr; }
         }
         .profile-opening {
             background: #111;
@@ -143,18 +143,42 @@
             text-transform: uppercase;
             letter-spacing: 0.06em;
             color: var(--subtext);
-            margin-bottom: 6px;
+            margin-bottom: 8px;
         }
-        .profile-opening-name {
-            font-size: 20px;
+        .opening-rank-list { display: flex; flex-direction: column; gap: 8px; }
+        .opening-rank-item {
+            display: grid;
+            grid-template-columns: 22px 1fr auto;
+            gap: 8px;
+            align-items: start;
+            padding: 8px 0;
+            border-bottom: 1px solid #1c1c1c;
+        }
+        .opening-rank-item:last-child { border-bottom: none; padding-bottom: 0; }
+        .opening-rank-num {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--subtext);
+            padding-top: 2px;
+        }
+        .opening-rank-name {
+            font-size: 14px;
             font-weight: 700;
             color: #a29bfe;
-            line-height: 1.25;
+            line-height: 1.3;
         }
-        .profile-opening-meta {
-            margin-top: 8px;
-            font-size: 12px;
+        .opening-rank-meta {
+            margin-top: 3px;
+            font-size: 11px;
             color: var(--subtext);
+            line-height: 1.35;
+        }
+        .opening-rank-pct {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--primary);
+            white-space: nowrap;
+            padding-top: 2px;
         }
         .insight-list { display: flex; flex-direction: column; gap: 10px; }
         .insight-item {
@@ -212,9 +236,16 @@
         <div class="profile-sub" id="profile-sub">Analyzing games…</div>
         <div class="profile-grid">
             <div class="profile-opening">
-                <div class="profile-kicker">Favourite Opening</div>
-                <div class="profile-opening-name" id="profile-fav-opening">Gathering data…</div>
-                <div class="profile-opening-meta" id="profile-fav-meta"></div>
+                <div class="profile-kicker">Top Openings as White</div>
+                <div class="opening-rank-list" id="profile-white-openings">
+                    <div class="insight-empty">Gathering data…</div>
+                </div>
+            </div>
+            <div class="profile-opening">
+                <div class="profile-kicker">Favourite Defences as Black</div>
+                <div class="opening-rank-list" id="profile-black-defences">
+                    <div class="insight-empty">Gathering data…</div>
+                </div>
             </div>
             <div>
                 <div class="profile-kicker">Common Blunder Patterns</div>
@@ -299,6 +330,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
 <script>
     const STOCKFISH_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
+    const STOCKFISH_LOCAL = '/stockfish.js?v=20260803';
+    const APP_BUILD = '2026-08-03d';
+    const CACHE_VERSION = 1;
     // Root-absolute path so this works from both /chess and /chess.html
     const EXTERNAL_BOOK_URL = '/openings.json';
     const ENGINE_DEPTH = 5;
@@ -345,6 +379,7 @@
 
     async function initApp() {
         const btn = document.getElementById('btnScan');
+        log(`Build ${APP_BUILD}`);
         
         log("Fetching opening book...");
         try {
@@ -364,6 +399,7 @@
         log(`Initializing up to ${PARALLEL_GAMES} engines (depth ${ENGINE_DEPTH})...`);
         try {
             const workerUrl = await resolveStockfishWorkerUrl();
+            log(`Worker URL: ${workerUrl}`);
 
             engines = [];
             for (let i = 0; i < PARALLEL_GAMES; i++) {
@@ -393,14 +429,17 @@
     async function resolveStockfishWorkerUrl() {
         // Prefer same-origin script — most reliable for Workers on GitHub Pages
         try {
-            const local = await fetch('/stockfish.js', { method: 'HEAD' });
+            const local = await fetch(STOCKFISH_LOCAL, { method: 'HEAD', cache: 'no-cache' });
             if (local.ok) {
                 log('Using local /stockfish.js');
-                return '/stockfish.js';
+                return STOCKFISH_LOCAL;
             }
-        } catch (_) {}
+            log(`Local stockfish HEAD status ${local.status}`);
+        } catch (e) {
+            log(`Local stockfish check failed: ${e.message}`);
+        }
 
-        log('Local stockfish missing; falling back to CDN blob...');
+        log('Falling back to CDN blob...');
         const response = await fetch(STOCKFISH_CDN);
         if (!response.ok) throw new Error(`Stockfish CDN returned ${response.status}`);
         const scriptBody = await response.text();
@@ -889,24 +928,70 @@
         return name.split(':')[0].trim();
     }
 
+    function getGameKey(game) {
+        if (game.url) return String(game.url);
+        if (game.uuid) return String(game.uuid);
+        // Stable-ish fallback from players + end time
+        return [game.end_time || '', game.white?.username || '', game.black?.username || '', (game.pgn || '').slice(0, 80)].join('|');
+    }
+
+    function cacheStorageKey(username, gameKey) {
+        return `chessAnalyzed:v${CACHE_VERSION}:${username.toLowerCase()}:${gameKey}`;
+    }
+
+    function loadCachedAnalysis(username, gameKey) {
+        try {
+            const raw = localStorage.getItem(cacheStorageKey(username, gameKey));
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            if (!parsed || !parsed.moves || !Array.isArray(parsed.moves)) return null;
+            return parsed;
+        } catch (_) {
+            return null;
+        }
+    }
+
+    function saveCachedAnalysis(username, gameKey, analysis) {
+        try {
+            localStorage.setItem(cacheStorageKey(username, gameKey), JSON.stringify(analysis));
+            return true;
+        } catch (e) {
+            log(`Cache save failed (${e.message}). Continuing without cache.`, true);
+            return false;
+        }
+    }
+
     function createProfileState(username) {
         return {
             username,
             games: 0,
-            openings: {}, // family -> { count, variations: {} }
-            patternGames: {}, // id -> Set-like via object of game keys
+            whiteGames: 0,
+            blackGames: 0,
+            openingsWhite: {},
+            openingsBlack: {},
+            patternGames: {},
             patternHits: {},
             finished: false
         };
     }
 
+    function trackOpeningBucket(bucket, openingName) {
+        const family = openingFamily(openingName);
+        if (!bucket[family]) bucket[family] = { count: 0, variations: {} };
+        bucket[family].count++;
+        const full = openingName || 'Custom Game';
+        bucket[family].variations[full] = (bucket[family].variations[full] || 0) + 1;
+    }
+
     function ingestAnalysis(profile, analysis, gameKey) {
         profile.games++;
-        const family = openingFamily(analysis.openingName);
-        if (!profile.openings[family]) profile.openings[family] = { count: 0, variations: {} };
-        profile.openings[family].count++;
-        const full = analysis.openingName || 'Custom Game';
-        profile.openings[family].variations[full] = (profile.openings[family].variations[full] || 0) + 1;
+        if (analysis.isWhite) {
+            profile.whiteGames++;
+            trackOpeningBucket(profile.openingsWhite, analysis.openingName);
+        } else {
+            profile.blackGames++;
+            trackOpeningBucket(profile.openingsBlack, analysis.openingName);
+        }
 
         const reasonSet = new Set(analysis.blunderReasons || []);
         for (const id of reasonSet) {
@@ -916,27 +1001,57 @@
         }
     }
 
+    function topOpeningEntries(bucket, totalForColor, limit = 3) {
+        return Object.entries(bucket)
+            .sort((a, b) => b[1].count - a[1].count)
+            .slice(0, limit)
+            .map(([name, data]) => {
+                const topVar = Object.entries(data.variations).sort((a, b) => b[1] - a[1])[0];
+                return {
+                    name,
+                    count: data.count,
+                    pct: totalForColor ? Math.round((data.count / totalForColor) * 100) : 0,
+                    variation: topVar && topVar[0] !== name ? topVar[0] : null
+                };
+            });
+    }
+
+    function renderOpeningRankList(elId, entries, emptyText) {
+        const el = document.getElementById(elId);
+        if (!entries.length) {
+            el.innerHTML = `<div class="insight-empty">${emptyText}</div>`;
+            return;
+        }
+        el.innerHTML = entries.map((entry, idx) => `
+            <div class="opening-rank-item">
+                <div class="opening-rank-num">${idx + 1}.</div>
+                <div>
+                    <div class="opening-rank-name">${entry.name}</div>
+                    <div class="opening-rank-meta">${entry.count} game${entry.count === 1 ? '' : 's'}${entry.variation ? ` · Often: ${entry.variation}` : ''}</div>
+                </div>
+                <div class="opening-rank-pct">${entry.pct}%</div>
+            </div>
+        `).join('');
+    }
+
     function renderProfileOverview(profile) {
         const box = document.getElementById('profile-overview');
         box.style.display = 'block';
         document.getElementById('profile-title').innerText = `${profile.username} — Profile Overview`;
         document.getElementById('profile-sub').innerText = profile.finished
-            ? `Based on ${profile.games} analyzed games`
+            ? `Based on ${profile.games} analyzed games (${profile.whiteGames} white · ${profile.blackGames} black)`
             : `Live overview · ${profile.games} game${profile.games === 1 ? '' : 's'} analyzed so far`;
 
-        const families = Object.entries(profile.openings).sort((a, b) => b[1].count - a[1].count);
-        if (families.length) {
-            const [name, data] = families[0];
-            const pct = Math.round((data.count / profile.games) * 100);
-            const topVar = Object.entries(data.variations).sort((a, b) => b[1] - a[1])[0];
-            document.getElementById('profile-fav-opening').innerText = name;
-            document.getElementById('profile-fav-meta').innerText =
-                `${pct}% of games (${data.count}/${profile.games})`
-                + (topVar && topVar[0] !== name ? ` · Often: ${topVar[0]}` : '');
-        } else {
-            document.getElementById('profile-fav-opening').innerText = 'Gathering data…';
-            document.getElementById('profile-fav-meta').innerText = '';
-        }
+        renderOpeningRankList(
+            'profile-white-openings',
+            topOpeningEntries(profile.openingsWhite, profile.whiteGames, 3),
+            profile.whiteGames ? 'No white openings yet.' : 'Gathering white games…'
+        );
+        renderOpeningRankList(
+            'profile-black-defences',
+            topOpeningEntries(profile.openingsBlack, profile.blackGames, 3),
+            profile.blackGames ? 'No black defences yet.' : 'Gathering black games…'
+        );
 
         const insights = document.getElementById('profile-insights');
         const ranked = Object.keys(BLUNDER_CATALOG)
@@ -963,6 +1078,19 @@
                 <div class="insight-detail">${cat.detail} Appeared in ${gameCount} game${gameCount === 1 ? '' : 's'}.</div>
             </div>`;
         }).join('');
+    }
+
+    function applyAnalysisToUi(game, analysis, gameKey, stats) {
+        stats.blunders += analysis.blunders;
+        stats.great += analysis.greatMoves;
+        stats.book += analysis.bookCount;
+        renderGameItem(game, analysis);
+        document.getElementById('stats-container').style.display = 'grid';
+        document.getElementById('stat-blunder').innerText = stats.blunders;
+        document.getElementById('stat-great').innerText = stats.great;
+        document.getElementById('stat-book').innerText = stats.book;
+        ingestAnalysis(profileState, analysis, gameKey);
+        renderProfileOverview(profileState);
     }
 
     async function fetchRecentGames(username, limit = GAMES_LIMIT) {
@@ -1004,22 +1132,51 @@
         try {
             const games = await fetchRecentGames(user, GAMES_LIMIT);
             if (!games.length) throw new Error("No games found");
-            log(`Loaded ${games.length} games. Analyzing with ${engines.length} workers...`);
 
-            let stats = { blunders: 0, great: 0, book: 0 };
+            const pending = [];
+            const stats = { blunders: 0, great: 0, book: 0 };
             let completed = 0;
-            let nextIndex = 0;
+            let cacheHits = 0;
+
+            for (let i = 0; i < games.length; i++) {
+                const game = games[i];
+                const gameKey = getGameKey(game);
+                const cached = loadCachedAnalysis(user, gameKey);
+                if (cached) {
+                    cacheHits++;
+                    completed++;
+                    applyAnalysisToUi(game, cached, gameKey, stats);
+                } else {
+                    pending.push({ index: i, game, gameKey });
+                }
+            }
+
             const total = games.length;
-            document.getElementById('prog-val-games').innerText = `0 / ${total}`;
-            document.getElementById('prog-val-moves').innerText = `${PARALLEL_GAMES} in parallel`;
+            document.getElementById('prog-val-games').innerText = `${completed} / ${total}`;
+            document.getElementById('progress-fill').style.width = ((completed / total) * 100) + '%';
+            log(`Loaded ${total} games · ${cacheHits} from cache · ${pending.length} to analyze.`);
+
+            if (!pending.length) {
+                if (profileState) {
+                    profileState.finished = true;
+                    renderProfileOverview(profileState);
+                }
+                log('All games already cached — nothing new to analyze.');
+                stopAnalysis();
+                return;
+            }
+
+            document.getElementById('prog-val-moves').innerText = `${Math.min(PARALLEL_GAMES, pending.length)} in parallel`;
+            let nextIndex = 0;
 
             async function worker(engine) {
                 while (isScanning) {
-                    const i = nextIndex++;
-                    if (i >= total) break;
+                    const jobIdx = nextIndex++;
+                    if (jobIdx >= pending.length) break;
+                    const { index, game, gameKey } = pending[jobIdx];
 
-                    const analysis = await analyzeGame(games[i], user, engine, (curr, moveTotal) => {
-                        document.getElementById('prog-val-moves').innerText = `game ${i + 1}: ${curr}/${moveTotal}`;
+                    const analysis = await analyzeGame(game, user, engine, (curr, moveTotal) => {
+                        document.getElementById('prog-val-moves').innerText = `game ${index + 1}: ${curr}/${moveTotal}`;
                     });
 
                     completed++;
@@ -1027,18 +1184,8 @@
                     document.getElementById('progress-fill').style.width = ((completed / total) * 100) + '%';
 
                     if (analysis) {
-                        stats.blunders += analysis.blunders;
-                        stats.great += analysis.greatMoves;
-                        stats.book += analysis.bookCount;
-                        renderGameItem(games[i], analysis);
-                        document.getElementById('stats-container').style.display = 'grid';
-                        document.getElementById('stat-blunder').innerText = stats.blunders;
-                        document.getElementById('stat-great').innerText = stats.great;
-                        document.getElementById('stat-book').innerText = stats.book;
-
-                        const gameKey = games[i].url || games[i].uuid || String(i);
-                        ingestAnalysis(profileState, analysis, gameKey);
-                        renderProfileOverview(profileState);
+                        saveCachedAnalysis(user, gameKey, analysis);
+                        applyAnalysisToUi(game, analysis, gameKey, stats);
                     }
                 }
             }
@@ -1048,7 +1195,9 @@
                 profileState.finished = true;
                 renderProfileOverview(profileState);
             }
-            log(isScanning ? `Done. Analyzed ${completed} games.` : `Stopped after ${completed} games.`);
+            log(isScanning
+                ? `Done. ${cacheHits} cached + ${completed - cacheHits} newly analyzed.`
+                : `Stopped after ${completed} / ${total} games (${cacheHits} were cached).`);
         } catch (e) { log(`Analysis Error: ${e.message}`, true); }
         stopAnalysis();
     }
