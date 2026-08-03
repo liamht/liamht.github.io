@@ -93,12 +93,13 @@
         .move-label { font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: auto; font-weight: bold; text-transform: uppercase; }
         
         .cls-best { background: var(--success); color: white; }
-        .cls-excellent { background: var(--excellent); color: white; }
-        .cls-good { background: var(--primary); color: white; }
-        .cls-inaccuracy { background: var(--warning); color: black; }
+        .cls-good { background: var(--excellent); color: white; }
+        .cls-okay { background: var(--primary); color: white; }
+        .cls-miss { background: var(--warning); color: black; }
         .cls-mistake { background: #e67e22; color: white; }
         .cls-blunder { background: var(--accent); color: white; }
         .cls-book { background: #a29bfe; color: white; }
+        .cls-theory { background: #6c5ce7; color: white; }
 
         .graph-container { padding: 20px; height: 100%; display: flex; align-items: flex-end; gap: 2px; }
         .graph-bar { flex: 1; background: var(--primary); min-width: 4px; border-radius: 2px 2px 0 0; cursor: pointer; position: relative; opacity: 0.6; }
@@ -188,14 +189,14 @@
             border-radius: 8px;
             padding: 12px 14px;
         }
-        .insight-item.mild { border-left-color: var(--warning); }
+        .insight-item.good { border-left-color: var(--success); }
         .insight-pct {
             font-size: 12px;
             font-weight: 700;
             color: var(--accent);
             margin-bottom: 4px;
         }
-        .insight-item.mild .insight-pct { color: var(--warning); }
+        .insight-item.good .insight-pct { color: var(--success); }
         .insight-text {
             font-size: 13px;
             line-height: 1.45;
@@ -227,8 +228,8 @@
 
     <div id="stats-container" class="stats-summary" style="display:none">
         <div class="stat-card"><div id="stat-blunder" class="stat-val">0</div><div class="stat-label">Blunders</div></div>
-        <div class="stat-card"><div id="stat-great" class="stat-val">0</div><div class="stat-label">Great Moves</div></div>
-        <div class="stat-card"><div id="stat-book" class="stat-val">0</div><div class="stat-label">Total Book</div></div>
+        <div class="stat-card"><div id="stat-great" class="stat-val">0</div><div class="stat-label">Best / Good</div></div>
+        <div class="stat-card"><div id="stat-book" class="stat-val">0</div><div class="stat-label">Book / Theory</div></div>
     </div>
 
     <div id="profile-overview">
@@ -248,9 +249,9 @@
                 </div>
             </div>
             <div>
-                <div class="profile-kicker">Common Blunder Patterns</div>
+                <div class="profile-kicker">Game Analysis</div>
                 <div class="insight-list" id="profile-insights">
-                    <div class="insight-empty">Blunder patterns will appear as games are analyzed.</div>
+                    <div class="insight-empty">Move themes will appear as games are analyzed.</div>
                 </div>
             </div>
         </div>
@@ -331,8 +332,8 @@
 <script>
     const STOCKFISH_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
     const STOCKFISH_LOCAL = '/stockfish.js?v=20260803';
-    const APP_BUILD = '2026-08-03d';
-    const CACHE_VERSION = 1;
+    const APP_BUILD = '2026-08-03e';
+    const CACHE_VERSION = 2;
     // Root-absolute path so this works from both /chess and /chess.html
     const EXTERNAL_BOOK_URL = '/openings.json';
     const ENGINE_DEPTH = 5;
@@ -505,13 +506,14 @@
     }
 
     function identifyOpening(historySans, fensAfterMoves) {
-        // Prefer FEN book (openings.json); fall back to move-list book
+        // Continuous prefix from the start only — leaving book ends the match
         if (OPENING_FEN_MAP) {
             let bestMatch = { name: "Custom Game", count: 0 };
             for (let i = 0; i < fensAfterMoves.length; i++) {
                 const board = fensAfterMoves[i].split(' ')[0];
                 const name = OPENING_FEN_MAP.get(board);
-                if (name) bestMatch = { name, count: i + 1 };
+                if (!name) break;
+                bestMatch = { name, count: i + 1 };
             }
             return bestMatch;
         }
@@ -531,6 +533,56 @@
             }
         }
         return bestMatch;
+    }
+
+    // Famous / well-known games for "Theory" tags (beyond ordinary opening book)
+    const FAMOUS_GAMES = [
+        { name: "Opera Game", moves: ["e4","e5","Nf3","d6","d4","Bg4","dxe5","Bxf3","Qxf3","dxe5","Bc4","Nf6","Qb3","Qe7","Nc3","c6","Bg5","b5","Nxb5","cxb5","Bxb5","Nbd7","O-O-O","Rd8","Rxd7","Rxd7","Rd1","Qe6","Bxd7","Nxd7","Qb8+","Nxb8","Rd8#"] },
+        { name: "Game of the Century", moves: ["Nf3","Nf6","c4","g6","Nc3","Bg7","d4","O-O","Bf4","d5","Qb3","dxc4","Qxc4","c6","e4","Nbd7","Rd1","Nb6","Qc5","Bg4","Bg5","Na4","Qa3","Nxc3","bxc3","Nxe4","Bxe7","Qb6","Bc4","Nxc3","Bc5","Rfe8+","Kf1","Be6","Bxb6","Bxc4+","Kg1","Ne2+","Kf1","Nxd4+","Kg1","Ne2+","Kf1","Nc3+","Kg1","axb6","Qb4","Ra4","Qxb6","Nxd1","h3","Rxa2","Kh2","Nxf2","Re1","Rxe1","Qd8+","Bf8","Nxe1","Bd5","Nf3","Ne4","Qb8","b5","h4","h5","Ne5","Kg7","Kg1","Bc5+","Kf1","Ng3+","Ke1","Bb4+","Kd1","Bb3+","Kc1","Ne2+","Kb1","Nc3+","Kc1","Rc2#"] },
+        { name: "Immortal Game", moves: ["e4","e5","f4","exf4","Bc4","Qh4+","Kf1","b5","Bxb5","Nf6","Nf3","Qh6","d3","Nh5","Nh4","Qg5","Nf5","c6","g4","Nf6","Rg1","cxb5","h4","Qg6","h5","Qg5","Qf3","Ng8","Bxf4","Qf6","Nc3","Bc5","Nd5","Qxb2","Bd6","Bxg1","e5","Qxa1+","Ke2","Na6","Nxg7+","Kd8","Qf6+","Nxf6","Be7#"] },
+        { name: "Evergreen Game", moves: ["e4","e5","Nf3","Nc6","Bc4","Bc5","b4","Bxb4","c3","Ba5","d4","exd4","O-O","d3","Qb3","Qf6","e5","Qg6","Re1","Nge7","Ba3","b5","Qxb5","Rb8","Qa4","Bb6","Nbd2","Bb7","Ne4","Qf5","Bxd3","Qh5","Nf6+","gxf6","exf6","Rg8","Rad1","Qxf3","Rxe7+","Nxe7","Qxd7+","Kxd7","Bf5+","Ke8","Bd7+","Kf8","Bxe7#"] },
+        { name: "Kasparov vs Topalov 1999", moves: ["e4","d6","d4","Nf6","Nc3","g6","Be3","Bg7","Qd2","c6","f3","b5","Nge2","Nbd7","Bh6","Bxh6","Qxh6","Bb7","a3","e5","O-O-O","Qe7","Kb1","a6","Nc1","O-O-O","Nb3","exd4","Rxd4","c5","Rd1","Nb6","g3","Kb8","Na5","Ba8","Bh3","d5","Qf4+","Ka7","Rhe1","d4","Nd5","Nbxd5","exd5","Qd6","Rxd4","cxd4","Re7+","Kb6","Qxd4+","Kxa5","b4+","Ka4","Qc3","Qxd5","Ra7","Bb7","Rxb7","Qc4","Qxf6","Kxa3","Qxa6+","Kxb4","c3+","Kxc3","Qa1+","Kd2","Qb2+","Kd1","Bf1","Rd2","Rd7","Rxd7","Bxc4","bxc4","Qxh8","Rd3","Qa8","c3","Qa4+","Ke1","f4","f5","Kc1","Rd2","Qa7"] },
+        { name: "Anderssen vs Kieseritzky", moves: ["e4","e5","f4","exf4","Bc4","b5","Bxb5","Qh4+","Kf1","Nf6","Nf3","Qh6","d3","Nh5","Nh4","Qg5","Nf5","c6","g4","Nf6","Rg1","cxb5","h4","Qg6","h5","Qg5","Qf3","Ng8","Bxf4","Qf6","Nc3","Bc5","Nd5","Qxb2","Bd6"] }
+    ];
+
+    function identifyTheory(historySans) {
+        const cleanHistory = historySans.map(m => cleanMove(m));
+        let best = { name: null, count: 0 };
+        for (const game of FAMOUS_GAMES) {
+            let matchCount = 0;
+            for (let i = 0; i < game.moves.length; i++) {
+                if (i >= cleanHistory.length || cleanHistory[i] !== cleanMove(game.moves[i])) break;
+                matchCount++;
+            }
+            // Require a meaningful famous-game stretch (not just the first few opening moves)
+            if (matchCount >= 12 && matchCount > best.count) {
+                best = { name: game.name, count: matchCount };
+            }
+        }
+        return best;
+    }
+
+    function moveToUci(move) {
+        return move.from + move.to + (move.promotion ? move.promotion : '');
+    }
+
+    function scoreForSideToMove(analysis) {
+        if (!analysis) return 0;
+        if (analysis.isMate) {
+            // Mate scores: positive = side to move is mating
+            const n = Math.abs(analysis.score) || 1;
+            return analysis.score > 0 ? (10000 - n) : (-10000 + n);
+        }
+        // Clamp so one noisy depth-5 spike can't invent fake blunders
+        return Math.max(-2000, Math.min(2000, analysis.score || 0));
+    }
+
+    function centipawnLossForPlayer(bestBefore, actualAfter) {
+        // UCI scores are from the side to move:
+        // before = player's turn, after = opponent's turn
+        const before = scoreForSideToMove(bestBefore);
+        const after = -scoreForSideToMove(actualAfter);
+        return before - after;
     }
 
     function getEngineAnalysis(engine, fen) {
@@ -567,83 +619,127 @@
         });
     }
 
-    function classifyMove(delta, isUserTurn, isBook) {
-        if (!isUserTurn) return { label: '', class: '', desc: "" };
-        if (isBook) return { label: 'Book', class: 'cls-book', desc: "Theory." };
-        if (delta > 250) return { label: 'Blunder', class: 'cls-blunder', desc: "Serious error." };
-        if (delta <= 10) return { label: 'Best', class: 'cls-best', desc: "Engine's top choice." };
-        if (delta <= 40) return { label: 'Excellent', class: 'cls-excellent', desc: "Very strong move." };
-        if (delta <= 100) return { label: 'Good', class: 'cls-good', desc: "Keeps balance." };
-        if (delta <= 180) return { label: 'Inaccuracy', class: 'cls-inaccuracy', desc: "Missed opportunity." };
-        return { label: 'Mistake', class: 'cls-mistake', desc: "Costly move." };
+    function classifyMove({ cpl, isUserTurn, isBook, isTheory, playedBest, theoryName, openingName }) {
+        if (!isUserTurn) return { label: '', class: '', desc: '' };
+
+        if (isTheory) {
+            return {
+                label: 'Theory',
+                class: 'cls-theory',
+                desc: theoryName ? `Replaying ${theoryName}.` : 'Following a famous theoretical game.'
+            };
+        }
+        if (isBook) {
+            return {
+                label: 'Book',
+                class: 'cls-book',
+                desc: openingName ? `Opening book — ${openingName}.` : 'Standard opening book move.'
+            };
+        }
+
+        // Engine's chosen move is always Best, regardless of noisy depth-5 eval wobble
+        if (playedBest || cpl <= 25) {
+            return { label: 'Best', class: 'cls-best', desc: 'Engine top choice.' };
+        }
+        if (cpl <= 60) return { label: 'Good', class: 'cls-good', desc: 'Strong, practical move.' };
+        if (cpl <= 120) return { label: 'Okay', class: 'cls-okay', desc: 'Playable; only a small concession.' };
+        if (cpl <= 200) return { label: 'Miss', class: 'cls-miss', desc: 'Missed a clearly stronger continuation.' };
+        if (cpl <= 300) return { label: 'Mistake', class: 'cls-mistake', desc: 'Costly inaccuracy (~2 pawns).' };
+        // Blunder ≈ 3+ pawns of swing
+        return { label: 'Blunder', class: 'cls-blunder', desc: 'Severe error (~3+ pawns).' };
     }
 
     const PIECE_VAL = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 100 };
-    const BLUNDER_CATALOG = {
-        discovered_attack: {
-            severity: 'high',
-            text: (pct) => `You lose high-value pieces to discovered attacks in ${pct}% of your games`,
-            detail: 'A piece moves out of the way and suddenly reveals an attack on your queen, rook, or minor piece — often hard to spot in time trouble.'
+    const THEME_CATALOG = {
+        claimed_center: {
+            polarity: 'good',
+            text: (pct) => `You fight for / claim the center in ${pct}% of your games`,
+            detail: 'Central pawn breaks and piece pressure on d4/d5/e4/e5 show up often in your play.'
         },
-        hanging_piece: {
-            severity: 'high',
-            text: (pct) => `You leave pieces hanging (undefended or under-defended) in ${pct}% of your games`,
-            detail: 'After your move, a piece can be taken for free or by something worth less. Pause and scan every attacked piece before releasing.'
+        developed_piece: {
+            polarity: 'good',
+            text: (pct) => `Clean development themes appear in ${pct}% of your games`,
+            detail: 'Getting knights and bishops out to active squares is a recurring strength.'
+        },
+        castled_safe: {
+            polarity: 'good',
+            text: (pct) => `You castle to safety as a key idea in ${pct}% of your games`,
+            detail: 'King safety via castling is part of how you stabilize positions.'
+        },
+        great_sacrifice: {
+            polarity: 'good',
+            text: (pct) => `You play material sacrifices in ${pct}% of your games`,
+            detail: 'Giving material for initiative, attack, or a forced sequence.'
+        },
+        forked_piece: {
+            polarity: 'good',
+            text: (pct) => `You land forks in ${pct}% of your games`,
+            detail: 'Double attacks (especially knight forks) are a weapon in your games.'
+        },
+        discovered_attack_given: {
+            polarity: 'good',
+            text: (pct) => `You create discovered attacks in ${pct}% of your games`,
+            detail: 'Moving a piece to unveil a battery or long-range attacker.'
+        },
+        pinned_piece: {
+            polarity: 'good',
+            text: (pct) => `You use pins effectively in ${pct}% of your games`,
+            detail: 'Pinning enemy pieces to king or queen to freeze or win material.'
+        },
+        won_material: {
+            polarity: 'good',
+            text: (pct) => `You convert tactical material wins in ${pct}% of your games`,
+            detail: 'Captures that leave you ahead after the dust settles.'
+        },
+        hung_piece: {
+            polarity: 'bad',
+            text: (pct) => `You hang pieces in ${pct}% of your games`,
+            detail: 'Leaving a piece en prise or under-defended after your move.'
+        },
+        discovered_attack: {
+            polarity: 'bad',
+            text: (pct) => `You lose material to discovered attacks in ${pct}% of your games`,
+            detail: 'A piece moves and suddenly reveals an attack on your queen, rook, or minor piece.'
         },
         missed_hanging: {
-            severity: 'mild',
-            text: (pct) => `You miss free / hanging opponent pieces in ${pct}% of your games`,
-            detail: 'The engine wanted a simple capture of an unprotected piece. Build a habit of checking opponent loose pieces every move.'
+            polarity: 'bad',
+            text: (pct) => `You miss hanging opponent pieces in ${pct}% of your games`,
+            detail: 'Free or loose captures were available and not taken.'
         },
         castle_pawn_push: {
-            severity: 'high',
-            text: (pct) => `You push pawns on the side you castled, exposing your king, in ${pct}% of your games`,
-            detail: 'Pawn moves in front of a castled king create lasting weaknesses (hooks, open files, soft dark/light squares).'
+            polarity: 'bad',
+            text: (pct) => `You push pawns in front of your castled king in ${pct}% of your games`,
+            detail: 'Those pawn moves create hooks and lasting king-side weaknesses.'
         },
         fork_victim: {
-            severity: 'high',
-            text: (pct) => `You walk into forks (especially king/queen or two pieces) in ${pct}% of your games`,
-            detail: 'Your move left two valuable units on squares a knight, pawn, or other piece can attack at once.'
+            polarity: 'bad',
+            text: (pct) => `You walk into forks in ${pct}% of your games`,
+            detail: 'Your move left two valuable units forkable by a knight, pawn, or other piece.'
         },
         pin_problem: {
-            severity: 'mild',
+            polarity: 'bad',
             text: (pct) => `Pins cost you material in ${pct}% of your games`,
-            detail: 'You either ignored an absolute/relative pin, or moved in a way that left a piece pinned to your king or queen.'
+            detail: 'Ignoring a pin, or leaving a piece pinned to your king or queen.'
         },
         back_rank: {
-            severity: 'high',
-            text: (pct) => `Back-rank weaknesses show up in your blunders in ${pct}% of your games`,
-            detail: 'King stuck on the back rank with no luft — rooks and queens become lethal when the seventh/eighth rank opens.'
-        },
-        king_in_center: {
-            severity: 'mild',
-            text: (pct) => `You get punished with your king still in the center in ${pct}% of your games`,
-            detail: 'Delayed castling or opening the center while uncastled lets tactics land on the king.'
-        },
-        unsafe_check: {
-            severity: 'mild',
-            text: (pct) => `Checks that backfire (or chase the king into safety) appear in ${pct}% of your games`,
-            detail: 'Giving check felt forcing, but it dropped material or improved the opponent’s king.'
+            polarity: 'bad',
+            text: (pct) => `Back-rank issues appear in ${pct}% of your games`,
+            detail: 'King stuck on the back rank with no luft when heavy pieces invade.'
         },
         queen_trap: {
-            severity: 'high',
-            text: (pct) => `Your queen gets trapped or badly hung in ${pct}% of your games`,
-            detail: 'Early or deep queen raids leave her with no safe squares — especially after pawn jabs and minor-piece harass.'
+            polarity: 'bad',
+            text: (pct) => `Your queen gets trapped or hung in ${pct}% of your games`,
+            detail: 'Queen raids that leave her short of squares.'
         },
-        exchange_miscount: {
-            severity: 'mild',
-            text: (pct) => `You miscount exchanges / trades in ${pct}% of your games`,
-            detail: 'You entered a capture sequence that loses material once the dust settles (overloaded defenders or unequal trades).'
+        king_in_center: {
+            polarity: 'bad',
+            text: (pct) => `An uncastled king gets punished in ${pct}% of your games`,
+            detail: 'The center opens or tactics land while the king is still on e1/e8.'
         },
-        missed_mate_threat: {
-            severity: 'high',
-            text: (pct) => `You allow mate threats or walk into mating nets in ${pct}% of your games`,
-            detail: 'The position required defending a concrete mate idea; instead the eval collapsed toward mate.'
-        },
-        best_ignored: {
-            severity: 'mild',
-            text: (pct) => `You overlook the engine’s clear tactical shot in ${pct}% of your games`,
-            detail: 'A forcing capture, check, or threat was available and not played — often a one-move tactic.'
+        quiet_improve: {
+            polarity: 'good',
+            text: (pct) => `Quiet improving moves feature in ${pct}% of your games`,
+            detail: 'Prophylaxis, better piece placement, or consolidating without forcing fireworks.'
         }
     };
 
@@ -807,120 +903,193 @@
         return backSquares.some(sq => getAttackers(chess, sq, opp).some(a => a.type === 'r' || a.type === 'q'));
     }
 
-    function diagnoseBlunder(before, after, move, bestMoveUci, userColor) {
-        const reasons = new Set();
-        const opp = userColor === 'w' ? 'b' : 'w';
+    function pieceLabel(type) {
+        return ({ p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', k: 'king' })[type] || 'piece';
+    }
 
-        // Hanging pieces after the move
+    function describePlayerMove(before, after, move, bestMoveUci, userColor, clsLabel) {
+        const themes = [];
+        const bits = [];
+        const opp = userColor === 'w' ? 'b' : 'w';
+        const isNegative = ['Miss', 'Mistake', 'Blunder'].includes(clsLabel);
+
+        if (move.san === 'O-O' || move.san === 'O-O-O') {
+            themes.push('castled_safe');
+            bits.push(move.san === 'O-O' ? 'Castled kingside to safety' : 'Castled queenside to safety');
+        }
+
+        if (move.piece === 'p' && 'de'.includes(move.to[0]) && !move.captured) {
+            themes.push('claimed_center');
+            bits.push('Claimed space in the center');
+        }
+
+        if ((move.piece === 'n' || move.piece === 'b') && !move.captured) {
+            const fromRank = parseInt(move.from[1], 10);
+            const home = userColor === 'w' ? 1 : 8;
+            if (fromRank === home) {
+                themes.push('developed_piece');
+                bits.push(`Developed the ${pieceLabel(move.piece)}`);
+            }
+        }
+
+        // Gave a fork with this move
+        if (!isNegative && allowsFork(after, opp) && !allowsFork(before, opp)) {
+            // allowsFork(victimColor) — check if WE now fork them: victim is opp
+            themes.push('forked_piece');
+            bits.push('Forked enemy pieces');
+        }
+        // Better fork check: does our moved piece attack 2 valuables?
+        {
+            const board = after.board();
+            const a = sqCoords(move.to);
+            const piece = after.get(move.to);
+            if (piece) {
+                const hits = [];
+                for (const vic of eachPieceSquare(after, opp)) {
+                    if (vic.type !== 'k' && vic.value < 3) continue;
+                    const v = sqCoords(vic.sq);
+                    if (canPieceAttack(board, piece, a.r, a.c, v.r, v.c)) hits.push(vic);
+                }
+                const hasKing = hits.some(h => h.type === 'k');
+                const valuables = hits.filter(h => h.type !== 'k');
+                if ((hasKing && valuables.length) || valuables.length >= 2) {
+                    if (!themes.includes('forked_piece')) {
+                        themes.push('forked_piece');
+                        bits.push('Created a fork');
+                    }
+                }
+            }
+        }
+
+        if (move.captured) {
+            const gained = PIECE_VAL[move.captured] || 0;
+            const gave = PIECE_VAL[move.piece] || 0;
+            if (gained >= 3) {
+                themes.push('won_material');
+                bits.push(`Took the ${pieceLabel(move.captured)}`);
+            }
+            if (gave < gained && !isNegative) {
+                // already covered
+            }
+            if (gave > gained && !isNegative && gained >= 1) {
+                themes.push('great_sacrifice');
+                bits.push(`Sacrificed the ${pieceLabel(move.piece)} for activity`);
+            }
+        }
+
+        if (isPinnedToRoyalty(after, move.to, opp) || (move.captured && isPinnedToRoyalty(before, move.to, opp))) {
+            themes.push('pinned_piece');
+            bits.push('Pinned an enemy piece');
+        }
+
+        // Discovered attack we delivered: vacated square opens line onto enemy piece
+        for (const vic of eachPieceSquare(after, opp)) {
+            if (vic.value < 3) continue;
+            const atkAfter = getAttackers(after, vic.sq, userColor).filter(a => a.type === 'b' || a.type === 'r' || a.type === 'q');
+            const atkBeforeSq = getAttackers(before, vic.sq, userColor).map(a => a.square);
+            for (const a of atkAfter) {
+                if (atkBeforeSq.includes(a.square)) continue;
+                if (onSameLine(a.square, vic.sq, move.from)) {
+                    themes.push('discovered_attack_given');
+                    bits.push(`Unleashed a discovered attack on the ${pieceLabel(vic.type)}`);
+                    break;
+                }
+            }
+            if (themes.includes('discovered_attack_given')) break;
+        }
+
+        // Negative themes
         let newHanger = null;
         for (const p of eachPieceSquare(after, userColor)) {
             if (p.value < 3) continue;
             if (isHanging(after, p.sq, userColor) && !isHanging(before, p.sq, userColor)) {
                 newHanger = p;
-                reasons.add('hanging_piece');
+                themes.push('hung_piece');
+                bits.push(`Hung the ${pieceLabel(p.type)}`);
                 break;
             }
         }
-
-        // Discovered attack: vacated square sits on a ray from a new slider attacker to hanging piece
         if (newHanger) {
             const atkAfter = getAttackers(after, newHanger.sq, opp).filter(a => a.type === 'b' || a.type === 'r' || a.type === 'q');
             const atkBefore = getAttackers(before, newHanger.sq, opp).map(a => a.square);
             for (const a of atkAfter) {
                 if (atkBefore.includes(a.square)) continue;
                 if (onSameLine(a.square, newHanger.sq, move.from)) {
-                    reasons.add('discovered_attack');
+                    themes.push('discovered_attack');
+                    bits.push('Walked into a discovered attack');
                     break;
                 }
             }
         }
 
-        // Missed hanging opponent piece (best move captures something hanging)
         if (bestMoveUci && bestMoveUci.length >= 4) {
             const to = bestMoveUci.slice(2, 4);
             const target = before.get(to);
-            if (target && target.color === opp && isHanging(before, to, opp)) {
-                const playedCapture = move.captured && move.to === to;
-                if (!playedCapture) reasons.add('missed_hanging');
+            if (target && target.color === opp && isHanging(before, to, opp) && !(move.captured && move.to === to)) {
+                themes.push('missed_hanging');
+                bits.push(`Missed a hanging ${pieceLabel(target.type)}`);
             }
         }
 
-        // Castled-side pawn pushes
         if (move.piece === 'p') {
             const wing = kingCastleWing(before, userColor);
             const file = move.from[0];
-            if (wing === 'kingside' && 'fgh'.includes(file)) reasons.add('castle_pawn_push');
-            if (wing === 'queenside' && 'abc'.includes(file)) reasons.add('castle_pawn_push');
-        }
-
-        // Forks available for opponent after our move
-        if (allowsFork(after, userColor) && !allowsFork(before, userColor)) {
-            reasons.add('fork_victim');
-        }
-
-        // Pin issues: moved a pinned piece's partner context, or left a piece pinned & hanging
-        if (isPinnedToRoyalty(after, move.to, userColor) || (move.captured && isPinnedToRoyalty(before, move.from, userColor))) {
-            reasons.add('pin_problem');
-        }
-        for (const p of eachPieceSquare(after, userColor)) {
-            if (p.value >= 3 && isPinnedToRoyalty(after, p.sq, userColor) && isHanging(after, p.sq, userColor)) {
-                reasons.add('pin_problem');
-                break;
-            }
-        }
-
-        // Back rank
-        if (hasBackRankRisk(after, userColor)) reasons.add('back_rank');
-
-        // King still uncastled on home square while under pressure
-        const king = eachPieceSquare(after, userColor).find(p => p.type === 'k');
-        if (king && ((userColor === 'w' && king.sq === 'e1') || (userColor === 'b' && king.sq === 'e8'))) {
-            const fullmove = parseInt(after.fen().split(' ')[5], 10) || 0;
-            if (fullmove >= 10 && (getAttackers(after, king.sq, opp).length || reasons.has('hanging_piece'))) {
-                reasons.add('king_in_center');
-            }
-        }
-
-        // Queen hung / trapped
-        const queen = eachPieceSquare(after, userColor).find(p => p.type === 'q');
-        if (queen && isHanging(after, queen.sq, userColor)) reasons.add('queen_trap');
-        if (move.piece === 'q') {
-            const qAttacks = getAttackers(after, move.to, opp);
-            const qDefs = getAttackers(after, move.to, userColor);
-            if (qAttacks.length && qAttacks.some(a => a.value < 9) && qDefs.length <= qAttacks.length) {
-                reasons.add('queen_trap');
-            }
-        }
-
-        // Unsafe check — only when the check coincides with a concrete tactical loss
-        if ((move.san.includes('+') || move.san.includes('#')) &&
-            (reasons.has('hanging_piece') || reasons.has('queen_trap') || reasons.has('fork_victim') || reasons.has('discovered_attack'))) {
-            reasons.add('unsafe_check');
-        }
-
-        // Exchange miscount: capture that also leaves something hanging / loses the sequence
-        if (move.captured && (reasons.has('hanging_piece') || reasons.has('queen_trap') || reasons.has('discovered_attack'))) {
-            reasons.add('exchange_miscount');
-        }
-
-        // Mate-ish: back rank + king under fire
-        if (king && hasBackRankRisk(after, userColor) && getAttackers(after, king.sq, opp).length) {
-            reasons.add('missed_mate_threat');
-        }
-
-        // Generic: ignored best tactical capture (only if nothing more specific fired)
-        if (!reasons.size && bestMoveUci && bestMoveUci.length >= 4) {
-            const from = bestMoveUci.slice(0, 2), to = bestMoveUci.slice(2, 4);
-            if (move.from !== from || move.to !== to) {
-                const bestCaptured = before.get(to);
-                if (bestCaptured && bestCaptured.color === opp && PIECE_VAL[bestCaptured.type] >= 3) {
-                    reasons.add('best_ignored');
+            if ((wing === 'kingside' && 'fgh'.includes(file)) || (wing === 'queenside' && 'abc'.includes(file))) {
+                if (isNegative) {
+                    themes.push('castle_pawn_push');
+                    bits.push('Pushed pawns in front of the castled king');
                 }
             }
         }
 
-        if (!reasons.size) reasons.add('best_ignored');
-        return [...reasons];
+        if (allowsFork(after, userColor) && !allowsFork(before, userColor) && isNegative) {
+            themes.push('fork_victim');
+            bits.push('Walked into a fork');
+        }
+
+        for (const p of eachPieceSquare(after, userColor)) {
+            if (p.value >= 3 && isPinnedToRoyalty(after, p.sq, userColor) && isHanging(after, p.sq, userColor)) {
+                themes.push('pin_problem');
+                bits.push('Left a piece pinned and vulnerable');
+                break;
+            }
+        }
+
+        if (hasBackRankRisk(after, userColor) && isNegative) {
+            themes.push('back_rank');
+            bits.push('Allowed back-rank pressure');
+        }
+
+        const queen = eachPieceSquare(after, userColor).find(p => p.type === 'q');
+        if (queen && isHanging(after, queen.sq, userColor)) {
+            themes.push('queen_trap');
+            bits.push('Hung the queen');
+        }
+
+        const king = eachPieceSquare(after, userColor).find(p => p.type === 'k');
+        if (king && ((userColor === 'w' && king.sq === 'e1') || (userColor === 'b' && king.sq === 'e8'))) {
+            const fullmove = parseInt(after.fen().split(' ')[5], 10) || 0;
+            if (fullmove >= 10 && isNegative) {
+                themes.push('king_in_center');
+                bits.push('King still stuck in the center');
+            }
+        }
+
+        if (!bits.length) {
+            if (clsLabel === 'Best') bits.push('Precise — matched the engine idea');
+            else if (clsLabel === 'Good') bits.push('Solid improving move');
+            else if (clsLabel === 'Okay') bits.push('Quiet move that keeps the position playable');
+            else if (clsLabel === 'Book') bits.push('Followed the opening book');
+            else if (clsLabel === 'Theory') bits.push('Followed a famous theoretical line');
+            else bits.push('Changed the tension without a clear tactical label');
+            if (!isNegative && !themes.length) themes.push('quiet_improve');
+        }
+
+        const uniqueThemes = [...new Set(themes)].filter(t => THEME_CATALOG[t]);
+        return {
+            themes: uniqueThemes,
+            narrative: `What you did here: ${bits[0]}${bits[1] ? ` — ${bits[1]}` : ''}.`
+        };
     }
 
     function openingFamily(name) {
@@ -969,8 +1138,8 @@
             blackGames: 0,
             openingsWhite: {},
             openingsBlack: {},
-            patternGames: {},
-            patternHits: {},
+            themeGames: {},
+            themeHits: {},
             finished: false
         };
     }
@@ -993,11 +1162,11 @@
             trackOpeningBucket(profile.openingsBlack, analysis.openingName);
         }
 
-        const reasonSet = new Set(analysis.blunderReasons || []);
-        for (const id of reasonSet) {
-            if (!profile.patternGames[id]) profile.patternGames[id] = {};
-            profile.patternGames[id][gameKey] = true;
-            profile.patternHits[id] = (profile.patternHits[id] || 0) + (analysis.blunderReasonCounts?.[id] || 1);
+        const themeSet = new Set(analysis.moveThemes || []);
+        for (const id of themeSet) {
+            if (!profile.themeGames[id]) profile.themeGames[id] = {};
+            profile.themeGames[id][gameKey] = true;
+            profile.themeHits[id] = (profile.themeHits[id] || 0) + (analysis.moveThemeCounts?.[id] || 1);
         }
     }
 
@@ -1054,26 +1223,26 @@
         );
 
         const insights = document.getElementById('profile-insights');
-        const ranked = Object.keys(BLUNDER_CATALOG)
+        const ranked = Object.keys(THEME_CATALOG)
             .map(id => {
-                const gameCount = profile.patternGames[id] ? Object.keys(profile.patternGames[id]).length : 0;
+                const gameCount = profile.themeGames[id] ? Object.keys(profile.themeGames[id]).length : 0;
                 const pct = profile.games ? Math.round((gameCount / profile.games) * 100) : 0;
-                return { id, gameCount, pct, hits: profile.patternHits[id] || 0 };
+                return { id, gameCount, pct, hits: profile.themeHits[id] || 0, polarity: THEME_CATALOG[id].polarity };
             })
             .filter(x => x.gameCount > 0 && x.pct >= 8)
             .sort((a, b) => b.pct - a.pct || b.hits - a.hits)
-            .slice(0, 6);
+            .slice(0, 8);
 
         if (!ranked.length) {
-            insights.innerHTML = `<div class="insight-empty">${profile.games ? 'No strong recurring blunder patterns yet — keep analyzing.' : 'Blunder patterns will appear as games are analyzed.'}</div>`;
+            insights.innerHTML = `<div class="insight-empty">${profile.games ? 'No recurring move themes yet — keep analyzing.' : 'Move themes will appear as games are analyzed.'}</div>`;
             return;
         }
 
-        insights.innerHTML = ranked.map(({ id, pct, gameCount, hits }) => {
-            const cat = BLUNDER_CATALOG[id];
-            const mild = cat.severity === 'mild' ? ' mild' : '';
-            return `<div class="insight-item${mild}">
-                <div class="insight-pct">${pct}% of games · ${hits} blunder${hits === 1 ? '' : 's'} tagged</div>
+        insights.innerHTML = ranked.map(({ id, pct, gameCount, hits, polarity }) => {
+            const cat = THEME_CATALOG[id];
+            const tone = polarity === 'good' ? ' good' : '';
+            return `<div class="insight-item${tone}">
+                <div class="insight-pct">${pct}% of games · ${hits} move${hits === 1 ? '' : 's'} tagged · ${polarity === 'good' ? 'strength' : 'leak'}</div>
                 <div class="insight-text">${cat.text(pct)}</div>
                 <div class="insight-detail">${cat.detail} Appeared in ${gameCount} game${gameCount === 1 ? '' : 's'}.</div>
             </div>`;
@@ -1216,12 +1385,14 @@
             fenProbe.move(mv);
             fensAfterMoves.push(fenProbe.fen());
         }
-        const openingMatch = identifyOpening(history.map(h => h.san), fensAfterMoves);
+        const sans = history.map(h => h.san);
+        const openingMatch = identifyOpening(sans, fensAfterMoves);
+        const theoryMatch = identifyTheory(sans);
         
         let moveData = [];
         let counters = { blunders: 0, great: 0, book: 0 };
-        const blunderReasons = [];
-        const blunderReasonCounts = {};
+        const moveThemes = [];
+        const moveThemeCounts = {};
         const tempChess = new Chess();
         let lastEval = { score: 0, isMate: false, bestMove: '' };
 
@@ -1230,7 +1401,8 @@
             onMove(i + 1, history.length);
 
             const isUserTurn = (isWhite && i % 2 === 0) || (!isWhite && i % 2 !== 0);
-            const isBook = i < openingMatch.count;
+            const isTheory = i < theoryMatch.count;
+            const isBook = !isTheory && i < openingMatch.count;
             
             const fenBefore = tempChess.fen();
             const beforeSnap = new Chess(fenBefore);
@@ -1239,60 +1411,77 @@
 
             let best = { score: 0, isMate: false, bestMove: '' };
             let actual = lastEval;
+            let cpl = 0;
+            let playedBest = false;
 
-            // Skip engine for book moves; only fully analyze the player's turns
-            if (!isBook) {
+            // Skip heavy engine work for book/theory; still eval opponent moves after leaving book for the graph
+            if (!isBook && !isTheory) {
                 if (isUserTurn) {
                     best = await getEngineAnalysis(engine, fenBefore);
                     actual = await getEngineAnalysis(engine, fenAfter);
+                    cpl = centipawnLossForPlayer(best, actual);
+                    playedBest = !!(best.bestMove && moveToUci(history[i]) === best.bestMove);
+                    // Tiny / negative CPL noise at depth 5 → treat as best/good
+                    if (cpl < 0) cpl = 0;
                 } else {
-                    // Opponent move: one cheap eval for the graph continuity
                     actual = await getEngineAnalysis(engine, fenAfter);
                 }
                 lastEval = actual;
             }
 
-            const getV = (d) => d.isMate ? (d.score > 0 ? 10000 : -10000) : d.score;
-            const diff = (i % 2 === 0) ? getV(best) - getV(actual) : getV(actual) - getV(best);
-            const cls = classifyMove(diff, isUserTurn, isBook);
+            const cls = classifyMove({
+                cpl,
+                isUserTurn,
+                isBook,
+                isTheory,
+                playedBest,
+                theoryName: theoryMatch.name,
+                openingName: openingMatch.name
+            });
 
-            let reasons = [];
+            let themes = [];
+            let narrative = cls.desc || '';
             if (isUserTurn) {
-                if (cls.label === 'Blunder') {
-                    counters.blunders++;
-                    try {
-                        reasons = diagnoseBlunder(beforeSnap, tempChess, history[i], best.bestMove, userColor);
-                    } catch (_) {
-                        reasons = ['best_ignored'];
-                    }
-                    for (const id of reasons) {
-                        blunderReasons.push(id);
-                        blunderReasonCounts[id] = (blunderReasonCounts[id] || 0) + 1;
-                    }
-                    if (reasons[0] && BLUNDER_CATALOG[reasons[0]]) {
-                        cls.desc = BLUNDER_CATALOG[reasons[0]].detail;
-                    }
+                try {
+                    const described = describePlayerMove(beforeSnap, tempChess, history[i], best.bestMove, userColor, cls.label);
+                    themes = described.themes;
+                    narrative = described.narrative || cls.desc;
+                    cls.desc = narrative;
+                } catch (_) {
+                    cls.desc = narrative || cls.desc;
                 }
-                if (['Best', 'Excellent'].includes(cls.label)) counters.great++;
-                if (isBook) counters.book++;
+
+                for (const id of themes) {
+                    moveThemes.push(id);
+                    moveThemeCounts[id] = (moveThemeCounts[id] || 0) + 1;
+                }
+                if (cls.label === 'Blunder') counters.blunders++;
+                if (cls.label === 'Best' || cls.label === 'Good') counters.great++;
+                if (cls.label === 'Book' || cls.label === 'Theory') counters.book++;
             }
+
+            // Store white-centric eval for the graph after the move (opponent to move)
+            const evalWhite = -scoreForSideToMove(actual);
 
             moveData.push({ 
                 san: history[i].san, from: history[i].from, to: history[i].to,
-                eval: actual.score, isMate: actual.isMate,
-                fen: fenAfter, classification: cls, openingName: isBook ? openingMatch.name : null,
+                eval: evalWhite, isMate: actual.isMate,
+                fen: fenAfter, classification: cls,
+                openingName: isTheory ? theoryMatch.name : (isBook ? openingMatch.name : null),
                 moveNum: Math.floor(i/2) + 1, turn: i % 2 === 0 ? 'w' : 'b',
                 bestEngineMove: best.bestMove,
-                blunderReasons: reasons
+                moveThemes: themes,
+                cpl: isUserTurn ? cpl : null
             });
         }
 
         return { 
             moves: moveData, isWhite, opponent: isWhite ? game.black.username : game.white.username, 
             result: (isWhite ? game.white.result : game.black.result) === 'win' ? 'WIN' : 'LOSS', 
-            blunders: counters.blunders, greatMoves: counters.great, bookCount: counters.book, openingName: openingMatch.name,
-            blunderReasons: [...new Set(blunderReasons)],
-            blunderReasonCounts
+            blunders: counters.blunders, greatMoves: counters.great, bookCount: counters.book,
+            openingName: theoryMatch.name || openingMatch.name,
+            moveThemes: [...new Set(moveThemes)],
+            moveThemeCounts
         };
     }
 
@@ -1354,9 +1543,8 @@
         document.getElementById('move-opening').innerText = m.openingName || "";
         document.getElementById('move-title').innerText = `${m.moveNum}${m.turn==='w'?'.':''} ${m.san}`;
         let desc = m.classification.desc || '';
-        if (m.blunderReasons && m.blunderReasons.length) {
-            const tags = m.blunderReasons.map(id => id.replace(/_/g, ' ')).join(' · ');
-            desc = desc ? `${desc} (${tags})` : tags;
+        if (m.cpl != null && m.classification.label && !['Book', 'Theory'].includes(m.classification.label)) {
+            desc += ` (${(m.cpl / 100).toFixed(1)} pawn loss vs best)`;
         }
         document.getElementById('move-desc').innerText = desc;
         document.getElementById('move-badge').innerHTML = `<span class="move-label ${m.classification.class}">${m.classification.label}</span>`;
@@ -1367,7 +1555,7 @@
         
         if (m.isMate) {
             const prefix = playerRelativeEval > 0 ? "+" : "-";
-            document.getElementById('eval-label').innerText = `M${prefix}${Math.abs(m.eval)}`;
+            document.getElementById('eval-label').innerText = `M${prefix}${Math.abs(Math.round(m.eval / 1000)) || ''}`;
         } else {
             const displayScore = (playerRelativeEval / 100).toFixed(1);
             document.getElementById('eval-label').innerText = (playerRelativeEval > 0 ? "+" : "") + displayScore;
@@ -1400,7 +1588,7 @@
         }
 
         const arrow = document.getElementById('best-move-arrow');
-        if (move.bestEngineMove && move.classification.label !== 'Best' && move.classification.label !== 'Book') {
+        if (move.bestEngineMove && !['Best', 'Book', 'Theory', 'Good'].includes(move.classification.label)) {
             const fromSq = move.bestEngineMove.substring(0, 2);
             const toSq = move.bestEngineMove.substring(2, 4);
             
