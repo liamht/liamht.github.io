@@ -198,7 +198,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
 <script>
     const STOCKFISH_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
-    const EXTERNAL_BOOK_URL = 'https://liamht.com/chess/openings.json';
+    // Root-absolute path so this works from both /chess and /chess.html
+    const EXTERNAL_BOOK_URL = '/openings.json';
     
     const INTERNAL_BOOK = [
         { name: "Ruy Lopez", moves: ["e4", "e5", "Nf3", "Nc6", "Bb5"] },
@@ -210,6 +211,7 @@
     ];
 
     let ACTIVE_OPENING_BOOK = INTERNAL_BOOK;
+    let OPENING_FEN_MAP = null; // Map of board-fen -> opening name (when book uses fen)
     let engine = null;
     let engineReady = false;
     let isScanning = false;
@@ -225,22 +227,33 @@
         d.scrollTop = d.scrollHeight;
     }
 
+    function setOpeningBook(book) {
+        ACTIVE_OPENING_BOOK = Array.isArray(book) ? book : INTERNAL_BOOK;
+        OPENING_FEN_MAP = null;
+        if (ACTIVE_OPENING_BOOK.length && ACTIVE_OPENING_BOOK[0].fen) {
+            OPENING_FEN_MAP = new Map();
+            for (const op of ACTIVE_OPENING_BOOK) {
+                if (op.fen) OPENING_FEN_MAP.set(op.fen.split(' ')[0], op.name);
+            }
+        }
+    }
+
     async function initApp() {
         const btn = document.getElementById('btnScan');
         
-        log("Fetching opening book from liamht.com...");
+        log("Fetching opening book...");
         try {
             const bookRes = await fetch(EXTERNAL_BOOK_URL);
             if(bookRes.ok) {
                 const data = await bookRes.json();
-                ACTIVE_OPENING_BOOK = data;
-                log("Opening book loaded successfully.");
+                setOpeningBook(data);
+                log(`Opening book loaded (${ACTIVE_OPENING_BOOK.length} openings).`);
             } else {
                 throw new Error("Source returned error " + bookRes.status);
             }
         } catch (e) {
-            log("CORS/Network error. Using internal fallback book.", true);
-            ACTIVE_OPENING_BOOK = INTERNAL_BOOK;
+            log(`Opening book failed (${e.message}). Using internal fallback.`, true);
+            setOpeningBook(INTERNAL_BOOK);
         }
 
         log("Initializing Engine...");
@@ -274,11 +287,22 @@
         return move.toString().replace(/^\d+\.+/, '').replace(/[+#?]/g, '').trim();
     }
 
-    function identifyOpeningByNotation(history) {
-        let bestMatch = { name: "Custom Game", count: 0 };
-        const cleanHistory = history.map(m => cleanMove(m));
+    function identifyOpening(historySans, fensAfterMoves) {
+        // Prefer FEN book (openings.json); fall back to move-list book
+        if (OPENING_FEN_MAP) {
+            let bestMatch = { name: "Custom Game", count: 0 };
+            for (let i = 0; i < fensAfterMoves.length; i++) {
+                const board = fensAfterMoves[i].split(' ')[0];
+                const name = OPENING_FEN_MAP.get(board);
+                if (name) bestMatch = { name, count: i + 1 };
+            }
+            return bestMatch;
+        }
 
+        let bestMatch = { name: "Custom Game", count: 0 };
+        const cleanHistory = historySans.map(m => cleanMove(m));
         for (const op of ACTIVE_OPENING_BOOK) {
+            if (!op.moves) continue;
             const opMovesClean = op.moves.map(m => cleanMove(m));
             let matchCount = 0;
             for (let i = 0; i < opMovesClean.length; i++) {
@@ -387,7 +411,15 @@
         chess.load_pgn(game.pgn);
         const history = chess.history({verbose: true});
         const isWhite = game.white.username.toLowerCase() === user.toLowerCase();
-        const openingMatch = identifyOpeningByNotation(history.map(h => h.san));
+
+        // Replay once to collect FENs for opening identification
+        const fenProbe = new Chess();
+        const fensAfterMoves = [];
+        for (const mv of history) {
+            fenProbe.move(mv);
+            fensAfterMoves.push(fenProbe.fen());
+        }
+        const openingMatch = identifyOpening(history.map(h => h.san), fensAfterMoves);
         
         let moveData = [];
         let counters = { blunders: 0, great: 0, book: 0 };
