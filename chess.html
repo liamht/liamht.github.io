@@ -298,8 +298,7 @@
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
 <script>
-    const STOCKFISH_CDN = 'https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js';
-    const STOCKFISH_WASM_JS = 'https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.wasm.js';
+    const STOCKFISH_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
     // Root-absolute path so this works from both /chess and /chess.html
     const EXTERNAL_BOOK_URL = '/openings.json';
     const ENGINE_DEPTH = 5;
@@ -364,12 +363,13 @@
 
         log(`Initializing up to ${PARALLEL_GAMES} engines (depth ${ENGINE_DEPTH})...`);
         try {
-            const workerUrl = buildStockfishWorkerUrl();
+            const workerUrl = await resolveStockfishWorkerUrl();
+
             engines = [];
             for (let i = 0; i < PARALLEL_GAMES; i++) {
                 try {
                     log(`Booting engine ${i + 1}/${PARALLEL_GAMES}...`);
-                    const eng = await createEngine(workerUrl, 30000);
+                    const eng = await createEngine(workerUrl, 60000);
                     engines.push(eng);
                     log(`Engine ${i + 1} ready.`);
                 } catch (bootErr) {
@@ -390,25 +390,26 @@
         }
     }
 
-    function wasmSupported() {
+    async function resolveStockfishWorkerUrl() {
+        // Prefer same-origin script — most reliable for Workers on GitHub Pages
         try {
-            return typeof WebAssembly === 'object'
-                && WebAssembly.validate(Uint8Array.of(0x0, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00));
-        } catch (_) {
-            return false;
-        }
+            const local = await fetch('/stockfish.js', { method: 'HEAD' });
+            if (local.ok) {
+                log('Using local /stockfish.js');
+                return '/stockfish.js';
+            }
+        } catch (_) {}
+
+        log('Local stockfish missing; falling back to CDN blob...');
+        const response = await fetch(STOCKFISH_CDN);
+        if (!response.ok) throw new Error(`Stockfish CDN returned ${response.status}`);
+        const scriptBody = await response.text();
+        if (!scriptBody || scriptBody.length < 1000) throw new Error("Stockfish script empty/truncated");
+        log(`Stockfish downloaded (${Math.round(scriptBody.length / 1024)} KB).`);
+        return URL.createObjectURL(new Blob([scriptBody], { type: 'application/javascript' }));
     }
 
-    function buildStockfishWorkerUrl() {
-        // importScripts keeps a real CDN base URL so stockfish.wasm resolves correctly.
-        // Blob-inlining the whole engine breaks WASM path lookup and can hang the handshake.
-        const script = wasmSupported() ? STOCKFISH_WASM_JS : STOCKFISH_CDN;
-        log(`Engine build: ${wasmSupported() ? 'wasm' : 'asm.js'}`);
-        const source = `importScripts('${script}');`;
-        return URL.createObjectURL(new Blob([source], { type: 'application/javascript' }));
-    }
-
-    function createEngine(workerUrl, timeoutMs = 30000) {
+    function createEngine(workerUrl, timeoutMs = 60000) {
         return new Promise((resolve, reject) => {
             let worker;
             try {
@@ -419,11 +420,13 @@
             }
 
             let settled = false;
+            const lines = [];
             const bootTimeout = setTimeout(() => {
                 if (!settled) {
                     settled = true;
                     try { worker.terminate(); } catch (_) {}
-                    reject(new Error("Engine boot timeout (no uciok)"));
+                    const tail = lines.slice(-5).join(' | ') || '(no messages)';
+                    reject(new Error(`Engine boot timeout. Last: ${tail}`));
                 }
             }, timeoutMs);
 
@@ -433,16 +436,17 @@
                 clearTimeout(bootTimeout);
                 worker.onmessage = null;
                 worker.onerror = null;
-                // Warm-up; do not block readiness on readyok (some builds never reply)
-                try { worker.postMessage('isready'); } catch (_) {}
                 resolve(worker);
             };
 
             worker.onmessage = (e) => {
-                const msg = typeof e.data === 'string' ? e.data.trim() : '';
-                if (!msg) return;
-                // Stockfish is usable once UCI options are advertised
-                if (msg === 'uciok') finishOk();
+                const msg = typeof e.data === 'string' ? e.data.trim() : String(e.data || '');
+                if (msg) {
+                    lines.push(msg.slice(0, 80));
+                    if (lines.length > 20) lines.shift();
+                }
+                // Ready as soon as UCI handshake completes — do not wait for readyok
+                if (msg === 'uciok' || /(^|\s)uciok(\s|$)/.test(msg)) finishOk();
             };
             worker.onerror = (err) => {
                 if (settled) return;
