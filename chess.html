@@ -200,6 +200,9 @@
     const STOCKFISH_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
     // Root-absolute path so this works from both /chess and /chess.html
     const EXTERNAL_BOOK_URL = '/openings.json';
+    const ENGINE_DEPTH = 5;
+    const GAMES_LIMIT = 100;
+    const PARALLEL_GAMES = Math.min(4, navigator.hardwareConcurrency || 4);
     
     const INTERNAL_BOOK = [
         { name: "Ruy Lopez", moves: ["e4", "e5", "Nf3", "Nc6", "Bb5"] },
@@ -212,8 +215,8 @@
 
     let ACTIVE_OPENING_BOOK = INTERNAL_BOOK;
     let OPENING_FEN_MAP = null; // Map of board-fen -> opening name (when book uses fen)
-    let engine = null;
-    let engineReady = false;
+    let engines = [];
+    let enginesReady = false;
     let isScanning = false;
     let currentReviewGame = null;
     let currentMoveIndex = -1;
@@ -256,30 +259,57 @@
             setOpeningBook(INTERNAL_BOOK);
         }
 
-        log("Initializing Engine...");
+        log(`Initializing ${PARALLEL_GAMES} engines (depth ${ENGINE_DEPTH})...`);
         try {
             const response = await fetch(STOCKFISH_CDN);
             const scriptBody = await response.text();
-            const blob = new Blob([scriptBody], { type: 'application/javascript' });
-            engine = new Worker(URL.createObjectURL(blob));
-            
-            engine.onmessage = (e) => {
-                if (e.data === 'uciok') {
-                    engine.postMessage('setoption name Threads value 4');
-                    engine.postMessage('isready');
-                }
-                if (e.data === 'readyok') {
-                    engineReady = true;
-                    btn.disabled = false;
-                    btn.innerText = "Review Profile";
-                    log("System Online.");
-                }
-            };
-            engine.postMessage('uci');
+            const blobUrl = URL.createObjectURL(new Blob([scriptBody], { type: 'application/javascript' }));
+            engines = await Promise.all(
+                Array.from({ length: PARALLEL_GAMES }, () => createEngine(blobUrl))
+            );
+            enginesReady = true;
+            btn.disabled = false;
+            btn.innerText = "Review Profile";
+            log(`System Online (${engines.length} workers).`);
         } catch (err) { 
             log(`Engine Error: ${err.message}`, true);
             btn.innerText = "Engine Error"; 
         }
+    }
+
+    function createEngine(blobUrl) {
+        return new Promise((resolve, reject) => {
+            const worker = new Worker(blobUrl);
+            let settled = false;
+            const bootTimeout = setTimeout(() => {
+                if (!settled) {
+                    settled = true;
+                    reject(new Error("Engine boot timeout"));
+                }
+            }, 15000);
+
+            worker.onmessage = (e) => {
+                if (e.data === 'uciok') {
+                    // 1 thread each so parallel workers don't oversubscribe the CPU
+                    worker.postMessage('setoption name Threads value 1');
+                    worker.postMessage('isready');
+                }
+                if (e.data === 'readyok' && !settled) {
+                    settled = true;
+                    clearTimeout(bootTimeout);
+                    worker.onmessage = null;
+                    resolve(worker);
+                }
+            };
+            worker.onerror = (err) => {
+                if (!settled) {
+                    settled = true;
+                    clearTimeout(bootTimeout);
+                    reject(err);
+                }
+            };
+            worker.postMessage('uci');
+        });
     }
 
     function cleanMove(move) {
@@ -316,16 +346,16 @@
         return bestMatch;
     }
 
-    function getEngineAnalysis(fen, fastMode = false) {
+    function getEngineAnalysis(engine, fen) {
         return new Promise((resolve) => {
-            if (!engineReady) return resolve({ score: 0, isMate: false, bestMove: '' });
+            if (!enginesReady || !engine) return resolve({ score: 0, isMate: false, bestMove: '' });
             let score = 0, isMate = false, bestMove = '';
-            const depth = fastMode ? 6 : 12; 
             
             const timeout = setTimeout(() => {
                 engine.removeEventListener('message', handler);
+                try { engine.postMessage('stop'); } catch (_) {}
                 resolve({ score, isMate, bestMove });
-            }, 6000);
+            }, 2500);
 
             const handler = (e) => {
                 if (typeof e.data !== 'string') return;
@@ -346,7 +376,7 @@
             };
             engine.addEventListener('message', handler);
             engine.postMessage(`position fen ${fen}`);
-            engine.postMessage(`go depth ${depth}`);
+            engine.postMessage(`go depth ${ENGINE_DEPTH}`);
         });
     }
 
@@ -361,52 +391,83 @@
         return { label: 'Mistake', class: 'cls-mistake', desc: "Costly move." };
     }
 
+    async function fetchRecentGames(username, limit = GAMES_LIMIT) {
+        const res = await fetch(`https://api.chess.com/pub/player/${username.toLowerCase()}/games/archives`);
+        const data = await res.json();
+        if (!data.archives || data.archives.length === 0) throw new Error("No games found");
+
+        const archives = [...data.archives].reverse(); // newest month first
+        const games = [];
+        for (const archiveUrl of archives) {
+            if (games.length >= limit || !isScanning) break;
+            log(`Fetching archive ${archiveUrl.split('/').slice(-2).join('/')}...`);
+            const gRes = await fetch(archiveUrl);
+            const gData = await gRes.json();
+            const monthGames = [...(gData.games || [])].reverse();
+            for (const g of monthGames) {
+                games.push(g);
+                if (games.length >= limit) break;
+            }
+        }
+        return games;
+    }
+
     async function startAnalysis() {
         const user = document.getElementById('username').value.trim();
-        if (!user) return;
+        if (!user || !enginesReady) return;
         isScanning = true;
         document.getElementById('btnScan').style.display = 'none';
         document.getElementById('btnStop').style.display = 'block';
         document.getElementById('progress-box').style.display = 'block';
         document.getElementById('game-list-view').innerHTML = '';
+        document.getElementById('stats-container').style.display = 'none';
 
         log(`Connecting to Chess.com for ${user}...`);
         try {
-            const res = await fetch(`https://api.chess.com/pub/player/${user.toLowerCase()}/games/archives`);
-            const data = await res.json();
-            if (!data.archives || data.archives.length === 0) throw new Error("No games found");
-            const gRes = await fetch(data.archives[data.archives.length - 1]);
-            const gData = await gRes.json();
-            const games = gData.games.reverse().slice(0, 5);
+            const games = await fetchRecentGames(user, GAMES_LIMIT);
+            if (!games.length) throw new Error("No games found");
+            log(`Loaded ${games.length} games. Analyzing with ${engines.length} workers...`);
 
             let stats = { blunders: 0, great: 0, book: 0 };
+            let completed = 0;
+            let nextIndex = 0;
+            const total = games.length;
+            document.getElementById('prog-val-games').innerText = `0 / ${total}`;
+            document.getElementById('prog-val-moves').innerText = `${PARALLEL_GAMES} in parallel`;
 
-            for (let i = 0; i < games.length; i++) {
-                if (!isScanning) break;
-                document.getElementById('prog-val-games').innerText = `${i + 1} / ${games.length}`;
-                
-                const analysis = await analyzeGame(games[i], user, (curr, total) => {
-                    document.getElementById('prog-val-moves').innerText = `${curr} / ${total}`;
-                    const progress = ((i / games.length) + ((curr / total) / games.length)) * 100;
-                    document.getElementById('progress-fill').style.width = progress + '%';
-                });
-                
-                if (analysis) {
-                    stats.blunders += analysis.blunders;
-                    stats.great += analysis.greatMoves;
-                    stats.book += analysis.bookCount;
-                    renderGameItem(games[i], analysis);
+            async function worker(engine) {
+                while (isScanning) {
+                    const i = nextIndex++;
+                    if (i >= total) break;
+
+                    const analysis = await analyzeGame(games[i], user, engine, (curr, moveTotal) => {
+                        document.getElementById('prog-val-moves').innerText = `game ${i + 1}: ${curr}/${moveTotal}`;
+                    });
+
+                    completed++;
+                    document.getElementById('prog-val-games').innerText = `${completed} / ${total}`;
+                    document.getElementById('progress-fill').style.width = ((completed / total) * 100) + '%';
+
+                    if (analysis) {
+                        stats.blunders += analysis.blunders;
+                        stats.great += analysis.greatMoves;
+                        stats.book += analysis.bookCount;
+                        renderGameItem(games[i], analysis);
+                        document.getElementById('stats-container').style.display = 'grid';
+                        document.getElementById('stat-blunder').innerText = stats.blunders;
+                        document.getElementById('stat-great').innerText = stats.great;
+                        document.getElementById('stat-book').innerText = stats.book;
+                    }
                 }
             }
-            document.getElementById('stats-container').style.display = 'grid';
-            document.getElementById('stat-blunder').innerText = stats.blunders;
-            document.getElementById('stat-great').innerText = stats.great;
-            document.getElementById('stat-book').innerText = stats.book;
+
+            await Promise.all(engines.map(engine => worker(engine)));
+            log(isScanning ? `Done. Analyzed ${completed} games.` : `Stopped after ${completed} games.`);
         } catch (e) { log(`Analysis Error: ${e.message}`, true); }
         stopAnalysis();
     }
 
-    async function analyzeGame(game, user, onMove) {
+    async function analyzeGame(game, user, engine, onMove) {
         const chess = new Chess();
         chess.load_pgn(game.pgn);
         const history = chess.history({verbose: true});
@@ -424,6 +485,7 @@
         let moveData = [];
         let counters = { blunders: 0, great: 0, book: 0 };
         const tempChess = new Chess();
+        let lastEval = { score: 0, isMate: false, bestMove: '' };
 
         for (let i = 0; i < history.length; i++) {
             if (!isScanning) return null;
@@ -436,8 +498,20 @@
             tempChess.move(history[i]);
             const fenAfter = tempChess.fen();
 
-            const best = await getEngineAnalysis(fenBefore, !isUserTurn);
-            const actual = await getEngineAnalysis(fenAfter, true);
+            let best = { score: 0, isMate: false, bestMove: '' };
+            let actual = lastEval;
+
+            // Skip engine for book moves; only fully analyze the player's turns
+            if (!isBook) {
+                if (isUserTurn) {
+                    best = await getEngineAnalysis(engine, fenBefore);
+                    actual = await getEngineAnalysis(engine, fenAfter);
+                } else {
+                    // Opponent move: one cheap eval for the graph continuity
+                    actual = await getEngineAnalysis(engine, fenAfter);
+                }
+                lastEval = actual;
+            }
 
             const getV = (d) => d.isMate ? (d.score > 0 ? 10000 : -10000) : d.score;
             const diff = (i % 2 === 0) ? getV(best) - getV(actual) : getV(actual) - getV(best);
@@ -612,6 +686,9 @@
 
     function stopAnalysis() {
         isScanning = false;
+        for (const engine of engines) {
+            try { engine.postMessage('stop'); } catch (_) {}
+        }
         document.getElementById('btnScan').style.display = 'block';
         document.getElementById('btnStop').style.display = 'none';
         document.getElementById('progress-box').style.display = 'none';
