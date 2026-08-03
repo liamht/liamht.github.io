@@ -105,6 +105,89 @@
         .graph-bar:hover { opacity: 1; filter: brightness(1.3); }
         
         .opening-tag { font-size: 11px; color: #a29bfe; font-weight: bold; margin-bottom: 4px; display: block; }
+
+        #profile-overview {
+            display: none;
+            margin-bottom: 20px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 18px;
+        }
+        #profile-overview h2 {
+            margin: 0 0 4px;
+            font-size: 18px;
+            font-weight: 700;
+        }
+        .profile-sub {
+            color: var(--subtext);
+            font-size: 12px;
+            margin-bottom: 16px;
+        }
+        .profile-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+        @media (min-width: 768px) {
+            .profile-grid { grid-template-columns: 280px 1fr; }
+        }
+        .profile-opening {
+            background: #111;
+            border: 1px solid #222;
+            border-radius: 8px;
+            padding: 14px;
+        }
+        .profile-kicker {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--subtext);
+            margin-bottom: 6px;
+        }
+        .profile-opening-name {
+            font-size: 20px;
+            font-weight: 700;
+            color: #a29bfe;
+            line-height: 1.25;
+        }
+        .profile-opening-meta {
+            margin-top: 8px;
+            font-size: 12px;
+            color: var(--subtext);
+        }
+        .insight-list { display: flex; flex-direction: column; gap: 10px; }
+        .insight-item {
+            background: #111;
+            border: 1px solid #222;
+            border-left: 3px solid var(--accent);
+            border-radius: 8px;
+            padding: 12px 14px;
+        }
+        .insight-item.mild { border-left-color: var(--warning); }
+        .insight-pct {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--accent);
+            margin-bottom: 4px;
+        }
+        .insight-item.mild .insight-pct { color: var(--warning); }
+        .insight-text {
+            font-size: 13px;
+            line-height: 1.45;
+            color: var(--text);
+        }
+        .insight-detail {
+            margin-top: 4px;
+            font-size: 11px;
+            color: var(--subtext);
+            line-height: 1.4;
+        }
+        .insight-empty {
+            font-size: 13px;
+            color: var(--subtext);
+            padding: 8px 0;
+        }
     </style>
     </head>
 <body>
@@ -122,6 +205,24 @@
         <div class="stat-card"><div id="stat-blunder" class="stat-val">0</div><div class="stat-label">Blunders</div></div>
         <div class="stat-card"><div id="stat-great" class="stat-val">0</div><div class="stat-label">Great Moves</div></div>
         <div class="stat-card"><div id="stat-book" class="stat-val">0</div><div class="stat-label">Total Book</div></div>
+    </div>
+
+    <div id="profile-overview">
+        <h2 id="profile-title">Profile Overview</h2>
+        <div class="profile-sub" id="profile-sub">Analyzing games…</div>
+        <div class="profile-grid">
+            <div class="profile-opening">
+                <div class="profile-kicker">Favourite Opening</div>
+                <div class="profile-opening-name" id="profile-fav-opening">Gathering data…</div>
+                <div class="profile-opening-meta" id="profile-fav-meta"></div>
+            </div>
+            <div>
+                <div class="profile-kicker">Common Blunder Patterns</div>
+                <div class="insight-list" id="profile-insights">
+                    <div class="insight-empty">Blunder patterns will appear as games are analyzed.</div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div id="progress-box">
@@ -220,6 +321,7 @@
     let isScanning = false;
     let currentReviewGame = null;
     let currentMoveIndex = -1;
+    let profileState = null;
 
     function log(msg, isError = false) {
         const d = document.getElementById('debug-log');
@@ -391,6 +493,432 @@
         return { label: 'Mistake', class: 'cls-mistake', desc: "Costly move." };
     }
 
+    const PIECE_VAL = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 100 };
+    const BLUNDER_CATALOG = {
+        discovered_attack: {
+            severity: 'high',
+            text: (pct) => `You lose high-value pieces to discovered attacks in ${pct}% of your games`,
+            detail: 'A piece moves out of the way and suddenly reveals an attack on your queen, rook, or minor piece — often hard to spot in time trouble.'
+        },
+        hanging_piece: {
+            severity: 'high',
+            text: (pct) => `You leave pieces hanging (undefended or under-defended) in ${pct}% of your games`,
+            detail: 'After your move, a piece can be taken for free or by something worth less. Pause and scan every attacked piece before releasing.'
+        },
+        missed_hanging: {
+            severity: 'mild',
+            text: (pct) => `You miss free / hanging opponent pieces in ${pct}% of your games`,
+            detail: 'The engine wanted a simple capture of an unprotected piece. Build a habit of checking opponent loose pieces every move.'
+        },
+        castle_pawn_push: {
+            severity: 'high',
+            text: (pct) => `You push pawns on the side you castled, exposing your king, in ${pct}% of your games`,
+            detail: 'Pawn moves in front of a castled king create lasting weaknesses (hooks, open files, soft dark/light squares).'
+        },
+        fork_victim: {
+            severity: 'high',
+            text: (pct) => `You walk into forks (especially king/queen or two pieces) in ${pct}% of your games`,
+            detail: 'Your move left two valuable units on squares a knight, pawn, or other piece can attack at once.'
+        },
+        pin_problem: {
+            severity: 'mild',
+            text: (pct) => `Pins cost you material in ${pct}% of your games`,
+            detail: 'You either ignored an absolute/relative pin, or moved in a way that left a piece pinned to your king or queen.'
+        },
+        back_rank: {
+            severity: 'high',
+            text: (pct) => `Back-rank weaknesses show up in your blunders in ${pct}% of your games`,
+            detail: 'King stuck on the back rank with no luft — rooks and queens become lethal when the seventh/eighth rank opens.'
+        },
+        king_in_center: {
+            severity: 'mild',
+            text: (pct) => `You get punished with your king still in the center in ${pct}% of your games`,
+            detail: 'Delayed castling or opening the center while uncastled lets tactics land on the king.'
+        },
+        unsafe_check: {
+            severity: 'mild',
+            text: (pct) => `Checks that backfire (or chase the king into safety) appear in ${pct}% of your games`,
+            detail: 'Giving check felt forcing, but it dropped material or improved the opponent’s king.'
+        },
+        queen_trap: {
+            severity: 'high',
+            text: (pct) => `Your queen gets trapped or badly hung in ${pct}% of your games`,
+            detail: 'Early or deep queen raids leave her with no safe squares — especially after pawn jabs and minor-piece harass.'
+        },
+        exchange_miscount: {
+            severity: 'mild',
+            text: (pct) => `You miscount exchanges / trades in ${pct}% of your games`,
+            detail: 'You entered a capture sequence that loses material once the dust settles (overloaded defenders or unequal trades).'
+        },
+        missed_mate_threat: {
+            severity: 'high',
+            text: (pct) => `You allow mate threats or walk into mating nets in ${pct}% of your games`,
+            detail: 'The position required defending a concrete mate idea; instead the eval collapsed toward mate.'
+        },
+        best_ignored: {
+            severity: 'mild',
+            text: (pct) => `You overlook the engine’s clear tactical shot in ${pct}% of your games`,
+            detail: 'A forcing capture, check, or threat was available and not played — often a one-move tactic.'
+        }
+    };
+
+    function sqCoords(sq) {
+        return { c: sq.charCodeAt(0) - 97, r: 8 - parseInt(sq[1], 10) };
+    }
+    function coordsSq(r, c) {
+        return String.fromCharCode(97 + c) + (8 - r);
+    }
+    function onSameLine(a, b, c) {
+        const A = sqCoords(a), B = sqCoords(b), C = sqCoords(c);
+        const cross = (B.r - A.r) * (C.c - A.c) - (B.c - A.c) * (C.r - A.r);
+        if (cross !== 0) return false;
+        return Math.min(A.r, B.r) <= C.r && C.r <= Math.max(A.r, B.r)
+            && Math.min(A.c, B.c) <= C.c && C.c <= Math.max(A.c, B.c);
+    }
+    function clearPath(board, r1, c1, r2, c2) {
+        const dr = Math.sign(r2 - r1), dc = Math.sign(c2 - c1);
+        let r = r1 + dr, c = c1 + dc;
+        while (r !== r2 || c !== c2) {
+            if (board[r][c]) return false;
+            r += dr; c += dc;
+        }
+        return true;
+    }
+    function canPieceAttack(board, piece, r, c, tr, tc) {
+        const dr = tr - r, dc = tc - c;
+        const adr = Math.abs(dr), adc = Math.abs(dc);
+        if (piece.type === 'n') return (adr === 2 && adc === 1) || (adr === 1 && adc === 2);
+        if (piece.type === 'k') return adr <= 1 && adc <= 1 && (adr + adc > 0);
+        if (piece.type === 'p') {
+            const dir = piece.color === 'w' ? -1 : 1;
+            return dr === dir && adc === 1;
+        }
+        if (piece.type === 'b' || piece.type === 'q') {
+            if (adr === adc && adr > 0 && clearPath(board, r, c, tr, tc)) return true;
+        }
+        if (piece.type === 'r' || piece.type === 'q') {
+            if ((dr === 0 || dc === 0) && (adr + adc) > 0 && clearPath(board, r, c, tr, tc)) return true;
+        }
+        return false;
+    }
+    function getAttackers(chess, square, byColor) {
+        const { r: tr, c: tc } = sqCoords(square);
+        const board = chess.board();
+        const out = [];
+        for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < 8; c++) {
+                const p = board[r][c];
+                if (!p || p.color !== byColor) continue;
+                if (canPieceAttack(board, p, r, c, tr, tc)) {
+                    out.push({ square: coordsSq(r, c), type: p.type, color: p.color, value: PIECE_VAL[p.type] });
+                }
+            }
+        }
+        return out;
+    }
+    function isHanging(chess, square, ownerColor) {
+        const piece = chess.get(square);
+        if (!piece || piece.color !== ownerColor || piece.type === 'k') return false;
+        const opp = ownerColor === 'w' ? 'b' : 'w';
+        const attackers = getAttackers(chess, square, opp);
+        if (!attackers.length) return false;
+        const defenders = getAttackers(chess, square, ownerColor);
+        const minAtk = Math.min(...attackers.map(a => a.value));
+        const val = PIECE_VAL[piece.type];
+        if (minAtk < val) return true;
+        if (!defenders.length) return true;
+        if (val >= 5 && attackers.length > defenders.length) return true;
+        return false;
+    }
+    function eachPieceSquare(chess, color) {
+        const squares = [];
+        const board = chess.board();
+        for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < 8; c++) {
+                const p = board[r][c];
+                if (p && p.color === color) squares.push({ sq: coordsSq(r, c), type: p.type, value: PIECE_VAL[p.type] });
+            }
+        }
+        return squares;
+    }
+    function kingCastleWing(chess, color) {
+        const king = eachPieceSquare(chess, color).find(p => p.type === 'k');
+        if (!king) return null;
+        const file = king.sq[0];
+        if (file === 'g' || file === 'h') return 'kingside';
+        if (file === 'a' || file === 'b' || file === 'c') return 'queenside';
+        return null;
+    }
+    function allowsFork(chess, victimColor) {
+        const opp = victimColor === 'w' ? 'b' : 'w';
+        for (const atk of eachPieceSquare(chess, opp)) {
+            if (atk.type === 'k') continue;
+            const hits = [];
+            const piece = chess.get(atk.sq);
+            if (!piece) continue;
+            const a = sqCoords(atk.sq);
+            const board = chess.board();
+            for (const vic of eachPieceSquare(chess, victimColor)) {
+                if (vic.type !== 'k' && vic.value < 3) continue;
+                const v = sqCoords(vic.sq);
+                if (canPieceAttack(board, piece, a.r, a.c, v.r, v.c)) hits.push(vic);
+            }
+            const hasKing = hits.some(h => h.type === 'k');
+            const valuables = hits.filter(h => h.type !== 'k' && h.value >= 3);
+            if (hasKing && valuables.length) return true;
+            if (valuables.length >= 2) return true;
+        }
+        return false;
+    }
+    function isPinnedToRoyalty(chess, square, ownerColor) {
+        const piece = chess.get(square);
+        if (!piece || piece.color !== ownerColor || piece.type === 'k') return false;
+        const royals = eachPieceSquare(chess, ownerColor).filter(p => p.type === 'k' || p.type === 'q');
+        const opp = ownerColor === 'w' ? 'b' : 'w';
+        const board = chess.board();
+        const A = sqCoords(square);
+        for (const royal of royals) {
+            if (royal.sq === square) continue;
+            const B = sqCoords(royal.sq);
+            const diag = Math.abs(A.r - B.r) === Math.abs(A.c - B.c);
+            const ortho = A.r === B.r || A.c === B.c;
+            if (!diag && !ortho) continue;
+            if (!clearPath(board, B.r, B.c, A.r, A.c)) continue;
+            const dirR = Math.sign(A.r - B.r);
+            const dirC = Math.sign(A.c - B.c);
+            let r = A.r + dirR, c = A.c + dirC;
+            while (r >= 0 && r < 8 && c >= 0 && c < 8) {
+                const p = board[r][c];
+                if (p) {
+                    if (p.color === opp) {
+                        if (diag && (p.type === 'b' || p.type === 'q')) return true;
+                        if (ortho && (p.type === 'r' || p.type === 'q')) return true;
+                    }
+                    break;
+                }
+                r += dirR; c += dirC;
+            }
+        }
+        return false;
+    }
+    function hasBackRankRisk(chess, color) {
+        const king = eachPieceSquare(chess, color).find(p => p.type === 'k');
+        if (!king) return false;
+        const rank = king.sq[1];
+        const back = color === 'w' ? '1' : '8';
+        if (rank !== back) return false;
+        const file = king.sq[0];
+        const escapeRank = color === 'w' ? '2' : '7';
+        const escapes = [file + escapeRank];
+        const fi = file.charCodeAt(0);
+        if (fi > 97) escapes.push(String.fromCharCode(fi - 1) + escapeRank);
+        if (fi < 104) escapes.push(String.fromCharCode(fi + 1) + escapeRank);
+        const luft = escapes.some(sq => !chess.get(sq));
+        if (luft) return false;
+        const opp = color === 'w' ? 'b' : 'w';
+        // Enemy heavy piece on back rank or able to land there next conceptually — check if back rank squares attacked
+        const backSquares = [];
+        for (let c = 0; c < 8; c++) backSquares.push(coordsSq(color === 'w' ? 7 : 0, c));
+        return backSquares.some(sq => getAttackers(chess, sq, opp).some(a => a.type === 'r' || a.type === 'q'));
+    }
+
+    function diagnoseBlunder(before, after, move, bestMoveUci, userColor) {
+        const reasons = new Set();
+        const opp = userColor === 'w' ? 'b' : 'w';
+
+        // Hanging pieces after the move
+        let newHanger = null;
+        for (const p of eachPieceSquare(after, userColor)) {
+            if (p.value < 3) continue;
+            if (isHanging(after, p.sq, userColor) && !isHanging(before, p.sq, userColor)) {
+                newHanger = p;
+                reasons.add('hanging_piece');
+                break;
+            }
+        }
+
+        // Discovered attack: vacated square sits on a ray from a new slider attacker to hanging piece
+        if (newHanger) {
+            const atkAfter = getAttackers(after, newHanger.sq, opp).filter(a => a.type === 'b' || a.type === 'r' || a.type === 'q');
+            const atkBefore = getAttackers(before, newHanger.sq, opp).map(a => a.square);
+            for (const a of atkAfter) {
+                if (atkBefore.includes(a.square)) continue;
+                if (onSameLine(a.square, newHanger.sq, move.from)) {
+                    reasons.add('discovered_attack');
+                    break;
+                }
+            }
+        }
+
+        // Missed hanging opponent piece (best move captures something hanging)
+        if (bestMoveUci && bestMoveUci.length >= 4) {
+            const to = bestMoveUci.slice(2, 4);
+            const target = before.get(to);
+            if (target && target.color === opp && isHanging(before, to, opp)) {
+                const playedCapture = move.captured && move.to === to;
+                if (!playedCapture) reasons.add('missed_hanging');
+            }
+        }
+
+        // Castled-side pawn pushes
+        if (move.piece === 'p') {
+            const wing = kingCastleWing(before, userColor);
+            const file = move.from[0];
+            if (wing === 'kingside' && 'fgh'.includes(file)) reasons.add('castle_pawn_push');
+            if (wing === 'queenside' && 'abc'.includes(file)) reasons.add('castle_pawn_push');
+        }
+
+        // Forks available for opponent after our move
+        if (allowsFork(after, userColor) && !allowsFork(before, userColor)) {
+            reasons.add('fork_victim');
+        }
+
+        // Pin issues: moved a pinned piece's partner context, or left a piece pinned & hanging
+        if (isPinnedToRoyalty(after, move.to, userColor) || (move.captured && isPinnedToRoyalty(before, move.from, userColor))) {
+            reasons.add('pin_problem');
+        }
+        for (const p of eachPieceSquare(after, userColor)) {
+            if (p.value >= 3 && isPinnedToRoyalty(after, p.sq, userColor) && isHanging(after, p.sq, userColor)) {
+                reasons.add('pin_problem');
+                break;
+            }
+        }
+
+        // Back rank
+        if (hasBackRankRisk(after, userColor)) reasons.add('back_rank');
+
+        // King still uncastled on home square while under pressure
+        const king = eachPieceSquare(after, userColor).find(p => p.type === 'k');
+        if (king && ((userColor === 'w' && king.sq === 'e1') || (userColor === 'b' && king.sq === 'e8'))) {
+            const fullmove = parseInt(after.fen().split(' ')[5], 10) || 0;
+            if (fullmove >= 10 && (getAttackers(after, king.sq, opp).length || reasons.has('hanging_piece'))) {
+                reasons.add('king_in_center');
+            }
+        }
+
+        // Queen hung / trapped
+        const queen = eachPieceSquare(after, userColor).find(p => p.type === 'q');
+        if (queen && isHanging(after, queen.sq, userColor)) reasons.add('queen_trap');
+        if (move.piece === 'q') {
+            const qAttacks = getAttackers(after, move.to, opp);
+            const qDefs = getAttackers(after, move.to, userColor);
+            if (qAttacks.length && qAttacks.some(a => a.value < 9) && qDefs.length <= qAttacks.length) {
+                reasons.add('queen_trap');
+            }
+        }
+
+        // Unsafe check — only when the check coincides with a concrete tactical loss
+        if ((move.san.includes('+') || move.san.includes('#')) &&
+            (reasons.has('hanging_piece') || reasons.has('queen_trap') || reasons.has('fork_victim') || reasons.has('discovered_attack'))) {
+            reasons.add('unsafe_check');
+        }
+
+        // Exchange miscount: capture that also leaves something hanging / loses the sequence
+        if (move.captured && (reasons.has('hanging_piece') || reasons.has('queen_trap') || reasons.has('discovered_attack'))) {
+            reasons.add('exchange_miscount');
+        }
+
+        // Mate-ish: back rank + king under fire
+        if (king && hasBackRankRisk(after, userColor) && getAttackers(after, king.sq, opp).length) {
+            reasons.add('missed_mate_threat');
+        }
+
+        // Generic: ignored best tactical capture (only if nothing more specific fired)
+        if (!reasons.size && bestMoveUci && bestMoveUci.length >= 4) {
+            const from = bestMoveUci.slice(0, 2), to = bestMoveUci.slice(2, 4);
+            if (move.from !== from || move.to !== to) {
+                const bestCaptured = before.get(to);
+                if (bestCaptured && bestCaptured.color === opp && PIECE_VAL[bestCaptured.type] >= 3) {
+                    reasons.add('best_ignored');
+                }
+            }
+        }
+
+        if (!reasons.size) reasons.add('best_ignored');
+        return [...reasons];
+    }
+
+    function openingFamily(name) {
+        if (!name || name === 'Custom Game') return 'Custom / Unknown';
+        return name.split(':')[0].trim();
+    }
+
+    function createProfileState(username) {
+        return {
+            username,
+            games: 0,
+            openings: {}, // family -> { count, variations: {} }
+            patternGames: {}, // id -> Set-like via object of game keys
+            patternHits: {},
+            finished: false
+        };
+    }
+
+    function ingestAnalysis(profile, analysis, gameKey) {
+        profile.games++;
+        const family = openingFamily(analysis.openingName);
+        if (!profile.openings[family]) profile.openings[family] = { count: 0, variations: {} };
+        profile.openings[family].count++;
+        const full = analysis.openingName || 'Custom Game';
+        profile.openings[family].variations[full] = (profile.openings[family].variations[full] || 0) + 1;
+
+        const reasonSet = new Set(analysis.blunderReasons || []);
+        for (const id of reasonSet) {
+            if (!profile.patternGames[id]) profile.patternGames[id] = {};
+            profile.patternGames[id][gameKey] = true;
+            profile.patternHits[id] = (profile.patternHits[id] || 0) + (analysis.blunderReasonCounts?.[id] || 1);
+        }
+    }
+
+    function renderProfileOverview(profile) {
+        const box = document.getElementById('profile-overview');
+        box.style.display = 'block';
+        document.getElementById('profile-title').innerText = `${profile.username} — Profile Overview`;
+        document.getElementById('profile-sub').innerText = profile.finished
+            ? `Based on ${profile.games} analyzed games`
+            : `Live overview · ${profile.games} game${profile.games === 1 ? '' : 's'} analyzed so far`;
+
+        const families = Object.entries(profile.openings).sort((a, b) => b[1].count - a[1].count);
+        if (families.length) {
+            const [name, data] = families[0];
+            const pct = Math.round((data.count / profile.games) * 100);
+            const topVar = Object.entries(data.variations).sort((a, b) => b[1] - a[1])[0];
+            document.getElementById('profile-fav-opening').innerText = name;
+            document.getElementById('profile-fav-meta').innerText =
+                `${pct}% of games (${data.count}/${profile.games})`
+                + (topVar && topVar[0] !== name ? ` · Often: ${topVar[0]}` : '');
+        } else {
+            document.getElementById('profile-fav-opening').innerText = 'Gathering data…';
+            document.getElementById('profile-fav-meta').innerText = '';
+        }
+
+        const insights = document.getElementById('profile-insights');
+        const ranked = Object.keys(BLUNDER_CATALOG)
+            .map(id => {
+                const gameCount = profile.patternGames[id] ? Object.keys(profile.patternGames[id]).length : 0;
+                const pct = profile.games ? Math.round((gameCount / profile.games) * 100) : 0;
+                return { id, gameCount, pct, hits: profile.patternHits[id] || 0 };
+            })
+            .filter(x => x.gameCount > 0 && x.pct >= 8)
+            .sort((a, b) => b.pct - a.pct || b.hits - a.hits)
+            .slice(0, 6);
+
+        if (!ranked.length) {
+            insights.innerHTML = `<div class="insight-empty">${profile.games ? 'No strong recurring blunder patterns yet — keep analyzing.' : 'Blunder patterns will appear as games are analyzed.'}</div>`;
+            return;
+        }
+
+        insights.innerHTML = ranked.map(({ id, pct, gameCount, hits }) => {
+            const cat = BLUNDER_CATALOG[id];
+            const mild = cat.severity === 'mild' ? ' mild' : '';
+            return `<div class="insight-item${mild}">
+                <div class="insight-pct">${pct}% of games · ${hits} blunder${hits === 1 ? '' : 's'} tagged</div>
+                <div class="insight-text">${cat.text(pct)}</div>
+                <div class="insight-detail">${cat.detail} Appeared in ${gameCount} game${gameCount === 1 ? '' : 's'}.</div>
+            </div>`;
+        }).join('');
+    }
+
     async function fetchRecentGames(username, limit = GAMES_LIMIT) {
         const res = await fetch(`https://api.chess.com/pub/player/${username.toLowerCase()}/games/archives`);
         const data = await res.json();
@@ -421,6 +949,10 @@
         document.getElementById('progress-box').style.display = 'block';
         document.getElementById('game-list-view').innerHTML = '';
         document.getElementById('stats-container').style.display = 'none';
+
+        profileState = createProfileState(user);
+        document.getElementById('profile-overview').style.display = 'block';
+        renderProfileOverview(profileState);
 
         log(`Connecting to Chess.com for ${user}...`);
         try {
@@ -457,11 +989,19 @@
                         document.getElementById('stat-blunder').innerText = stats.blunders;
                         document.getElementById('stat-great').innerText = stats.great;
                         document.getElementById('stat-book').innerText = stats.book;
+
+                        const gameKey = games[i].url || games[i].uuid || String(i);
+                        ingestAnalysis(profileState, analysis, gameKey);
+                        renderProfileOverview(profileState);
                     }
                 }
             }
 
             await Promise.all(engines.map(engine => worker(engine)));
+            if (profileState) {
+                profileState.finished = true;
+                renderProfileOverview(profileState);
+            }
             log(isScanning ? `Done. Analyzed ${completed} games.` : `Stopped after ${completed} games.`);
         } catch (e) { log(`Analysis Error: ${e.message}`, true); }
         stopAnalysis();
@@ -472,6 +1012,7 @@
         chess.load_pgn(game.pgn);
         const history = chess.history({verbose: true});
         const isWhite = game.white.username.toLowerCase() === user.toLowerCase();
+        const userColor = isWhite ? 'w' : 'b';
 
         // Replay once to collect FENs for opening identification
         const fenProbe = new Chess();
@@ -484,6 +1025,8 @@
         
         let moveData = [];
         let counters = { blunders: 0, great: 0, book: 0 };
+        const blunderReasons = [];
+        const blunderReasonCounts = {};
         const tempChess = new Chess();
         let lastEval = { score: 0, isMate: false, bestMove: '' };
 
@@ -495,6 +1038,7 @@
             const isBook = i < openingMatch.count;
             
             const fenBefore = tempChess.fen();
+            const beforeSnap = new Chess(fenBefore);
             tempChess.move(history[i]);
             const fenAfter = tempChess.fen();
 
@@ -517,8 +1061,23 @@
             const diff = (i % 2 === 0) ? getV(best) - getV(actual) : getV(actual) - getV(best);
             const cls = classifyMove(diff, isUserTurn, isBook);
 
+            let reasons = [];
             if (isUserTurn) {
-                if (cls.label === 'Blunder') counters.blunders++;
+                if (cls.label === 'Blunder') {
+                    counters.blunders++;
+                    try {
+                        reasons = diagnoseBlunder(beforeSnap, tempChess, history[i], best.bestMove, userColor);
+                    } catch (_) {
+                        reasons = ['best_ignored'];
+                    }
+                    for (const id of reasons) {
+                        blunderReasons.push(id);
+                        blunderReasonCounts[id] = (blunderReasonCounts[id] || 0) + 1;
+                    }
+                    if (reasons[0] && BLUNDER_CATALOG[reasons[0]]) {
+                        cls.desc = BLUNDER_CATALOG[reasons[0]].detail;
+                    }
+                }
                 if (['Best', 'Excellent'].includes(cls.label)) counters.great++;
                 if (isBook) counters.book++;
             }
@@ -528,14 +1087,17 @@
                 eval: actual.score, isMate: actual.isMate,
                 fen: fenAfter, classification: cls, openingName: isBook ? openingMatch.name : null,
                 moveNum: Math.floor(i/2) + 1, turn: i % 2 === 0 ? 'w' : 'b',
-                bestEngineMove: best.bestMove
+                bestEngineMove: best.bestMove,
+                blunderReasons: reasons
             });
         }
 
         return { 
             moves: moveData, isWhite, opponent: isWhite ? game.black.username : game.white.username, 
             result: (isWhite ? game.white.result : game.black.result) === 'win' ? 'WIN' : 'LOSS', 
-            blunders: counters.blunders, greatMoves: counters.great, bookCount: counters.book, openingName: openingMatch.name
+            blunders: counters.blunders, greatMoves: counters.great, bookCount: counters.book, openingName: openingMatch.name,
+            blunderReasons: [...new Set(blunderReasons)],
+            blunderReasonCounts
         };
     }
 
@@ -596,7 +1158,12 @@
     function updateMoveCard(m) {
         document.getElementById('move-opening').innerText = m.openingName || "";
         document.getElementById('move-title').innerText = `${m.moveNum}${m.turn==='w'?'.':''} ${m.san}`;
-        document.getElementById('move-desc').innerText = m.classification.desc;
+        let desc = m.classification.desc || '';
+        if (m.blunderReasons && m.blunderReasons.length) {
+            const tags = m.blunderReasons.map(id => id.replace(/_/g, ' ')).join(' · ');
+            desc = desc ? `${desc} (${tags})` : tags;
+        }
+        document.getElementById('move-desc').innerText = desc;
         document.getElementById('move-badge').innerHTML = `<span class="move-label ${m.classification.class}">${m.classification.label}</span>`;
         
         const playerRelativeEval = currentReviewGame.isWhite ? m.eval : -m.eval;
@@ -688,6 +1255,10 @@
         isScanning = false;
         for (const engine of engines) {
             try { engine.postMessage('stop'); } catch (_) {}
+        }
+        if (profileState && profileState.games > 0) {
+            profileState.finished = true;
+            renderProfileOverview(profileState);
         }
         document.getElementById('btnScan').style.display = 'block';
         document.getElementById('btnStop').style.display = 'none';
