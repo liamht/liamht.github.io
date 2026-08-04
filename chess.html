@@ -83,9 +83,26 @@
         .move-card.blunder { border-left-color: var(--accent); background: rgba(231, 76, 60, 0.05); }
         .move-card.best { border-left-color: var(--success); background: rgba(46, 204, 113, 0.05); }
 
-        .eval-bar-container { width: 100%; height: 24px; background: #333; border-radius: 12px; margin: 10px 0; position: relative; overflow: hidden; display: flex; border: 1px solid #444; }
-        .eval-bar-fill { height: 100%; transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); background: #fff; }
-        .eval-text { position: absolute; width: 100%; height: 100%; top: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 900; mix-blend-mode: difference; color: white; }
+        .eval-bar-container {
+            width: 100%; height: 24px; border-radius: 12px; margin: 10px 0;
+            position: relative; overflow: hidden; display: flex;
+            border: 1px solid #444; background: #111;
+        }
+        .eval-bar-container.player-white { background: #111; }
+        .eval-bar-container.player-black { background: #ebecd0; }
+        .eval-bar-fill {
+            height: 100%; transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            background: #fff; min-width: 0;
+        }
+        .eval-bar-container.player-white .eval-bar-fill { background: #ebecd0; }
+        .eval-bar-container.player-black .eval-bar-fill { background: #111; }
+        .eval-text {
+            position: absolute; width: 100%; height: 100%; top: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 11px; font-weight: 900; color: #fff;
+            text-shadow: 0 0 3px #000, 0 1px 2px #000, 1px 0 2px #000;
+            pointer-events: none;
+        }
 
         .move-row { display: flex; padding: 12px; border-bottom: 1px solid #222; cursor: pointer; align-items: center; transition: 0.1s; }
         .move-row:hover { background: #252525; }
@@ -446,6 +463,19 @@
         #tab-console #debug-log {
             margin-top: 0; max-height: 420px; min-height: 200px;
         }
+        .review-nav {
+            display: flex; flex-wrap: wrap; gap: 8px; margin-top: 15px;
+        }
+        .review-nav button {
+            flex: 1; min-width: 72px; background: #2c3e50; padding: 14px 10px;
+            font-size: 12px;
+        }
+        .review-nav button:disabled {
+            opacity: 0.35; cursor: not-allowed;
+        }
+        #btn-key-move:not(:disabled) {
+            background: var(--primary);
+        }
     </style>
     </head>
 <body>
@@ -600,14 +630,17 @@
                 </svg>
             </div>
             
-            <div class="eval-bar-container">
+            <div class="eval-bar-container player-white" id="eval-bar">
                 <div id="eval-fill" class="eval-bar-fill" style="width: 50%"></div>
                 <div id="eval-label" class="eval-text">0.0</div>
             </div>
 
-            <div style="display:flex; gap:10px; margin-top:15px;">
-                <button onclick="stepMove(-1)" style="flex:1; background:#2c3e50; padding:18px">PREVIOUS</button>
-                <button onclick="stepMove(1)" style="flex:1; background:#2c3e50; padding:18px">NEXT MOVE</button>
+            <div class="review-nav">
+                <button type="button" onclick="goToStart()" title="Start of game">⏮ Start</button>
+                <button type="button" onclick="stepMove(-1)" title="Previous move">◀ Prev</button>
+                <button type="button" id="btn-key-move" onclick="goToKeyMove()" title="Jump to key moment" disabled>★ Key</button>
+                <button type="button" onclick="stepMove(1)" title="Next move">Next ▶</button>
+                <button type="button" onclick="goToEnd()" title="End of game">End ⏭</button>
             </div>
         </div>
 
@@ -629,10 +662,11 @@
 <script>
     const STOCKFISH_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
     const STOCKFISH_LOCAL = '/stockfish.js?v=20260803';
-    const APP_BUILD = '2026-08-04d';
-    const CACHE_VERSION = 5;
+    const APP_BUILD = '2026-08-04h';
+    const CACHE_VERSION = 6;
     // Root-absolute path so this works from both /chess and /chess.html
     const EXTERNAL_BOOK_URL = '/openings.json';
+    const FAMOUS_GAMES_URL = '/famous-games.json';
     const ENGINE_DEPTH = 5;
     const EVAL_NOISE_FLOOR_CP = 100; // ignore first 1.0 pawn of depth-5 wobble
     const GAMES_LIMIT = 100;
@@ -649,6 +683,7 @@
 
     let ACTIVE_OPENING_BOOK = INTERNAL_BOOK;
     let OPENING_FEN_MAP = null; // Map of board-fen -> opening name (when book uses fen)
+    let ACTIVE_FAMOUS_GAMES = []; // loaded from famous-games.json; INTERNAL_FAMOUS_GAMES is fallback
     let engines = [];
     let enginesReady = false;
     let isScanning = false;
@@ -693,6 +728,18 @@
         } catch (e) {
             log(`Opening book failed (${e.message}). Using internal fallback.`, true);
             setOpeningBook(INTERNAL_BOOK);
+        }
+
+        log("Fetching famous games...");
+        try {
+            const famRes = await fetch(FAMOUS_GAMES_URL);
+            if (!famRes.ok) throw new Error("Source returned error " + famRes.status);
+            const famData = await famRes.json();
+            setFamousGames(famData);
+            log(`Famous games loaded (${ACTIVE_FAMOUS_GAMES.length} theory lines).`);
+        } catch (e) {
+            log(`Famous games failed (${e.message}). Using internal fallback.`, true);
+            setFamousGames(INTERNAL_FAMOUS_GAMES);
         }
 
         log(`Initializing up to ${PARALLEL_GAMES} engines (depth ${ENGINE_DEPTH})...`);
@@ -833,20 +880,26 @@
         return bestMatch;
     }
 
-    // Famous / well-known games for "Theory" tags (beyond ordinary opening book)
-    const FAMOUS_GAMES = [
+    // Famous / well-known games for "Theory" tags (fallback if famous-games.json fails)
+    const INTERNAL_FAMOUS_GAMES = [
         { name: "Opera Game", moves: ["e4","e5","Nf3","d6","d4","Bg4","dxe5","Bxf3","Qxf3","dxe5","Bc4","Nf6","Qb3","Qe7","Nc3","c6","Bg5","b5","Nxb5","cxb5","Bxb5","Nbd7","O-O-O","Rd8","Rxd7","Rxd7","Rd1","Qe6","Bxd7","Nxd7","Qb8+","Nxb8","Rd8#"] },
         { name: "Game of the Century", moves: ["Nf3","Nf6","c4","g6","Nc3","Bg7","d4","O-O","Bf4","d5","Qb3","dxc4","Qxc4","c6","e4","Nbd7","Rd1","Nb6","Qc5","Bg4","Bg5","Na4","Qa3","Nxc3","bxc3","Nxe4","Bxe7","Qb6","Bc4","Nxc3","Bc5","Rfe8+","Kf1","Be6","Bxb6","Bxc4+","Kg1","Ne2+","Kf1","Nxd4+","Kg1","Ne2+","Kf1","Nc3+","Kg1","axb6","Qb4","Ra4","Qxb6","Nxd1","h3","Rxa2","Kh2","Nxf2","Re1","Rxe1","Qd8+","Bf8","Nxe1","Bd5","Nf3","Ne4","Qb8","b5","h4","h5","Ne5","Kg7","Kg1","Bc5+","Kf1","Ng3+","Ke1","Bb4+","Kd1","Bb3+","Kc1","Ne2+","Kb1","Nc3+","Kc1","Rc2#"] },
         { name: "Immortal Game", moves: ["e4","e5","f4","exf4","Bc4","Qh4+","Kf1","b5","Bxb5","Nf6","Nf3","Qh6","d3","Nh5","Nh4","Qg5","Nf5","c6","g4","Nf6","Rg1","cxb5","h4","Qg6","h5","Qg5","Qf3","Ng8","Bxf4","Qf6","Nc3","Bc5","Nd5","Qxb2","Bd6","Bxg1","e5","Qxa1+","Ke2","Na6","Nxg7+","Kd8","Qf6+","Nxf6","Be7#"] },
         { name: "Evergreen Game", moves: ["e4","e5","Nf3","Nc6","Bc4","Bc5","b4","Bxb4","c3","Ba5","d4","exd4","O-O","d3","Qb3","Qf6","e5","Qg6","Re1","Nge7","Ba3","b5","Qxb5","Rb8","Qa4","Bb6","Nbd2","Bb7","Ne4","Qf5","Bxd3","Qh5","Nf6+","gxf6","exf6","Rg8","Rad1","Qxf3","Rxe7+","Nxe7","Qxd7+","Kxd7","Bf5+","Ke8","Bd7+","Kf8","Bxe7#"] },
-        { name: "Kasparov vs Topalov 1999", moves: ["e4","d6","d4","Nf6","Nc3","g6","Be3","Bg7","Qd2","c6","f3","b5","Nge2","Nbd7","Bh6","Bxh6","Qxh6","Bb7","a3","e5","O-O-O","Qe7","Kb1","a6","Nc1","O-O-O","Nb3","exd4","Rxd4","c5","Rd1","Nb6","g3","Kb8","Na5","Ba8","Bh3","d5","Qf4+","Ka7","Rhe1","d4","Nd5","Nbxd5","exd5","Qd6","Rxd4","cxd4","Re7+","Kb6","Qxd4+","Kxa5","b4+","Ka4","Qc3","Qxd5","Ra7","Bb7","Rxb7","Qc4","Qxf6","Kxa3","Qxa6+","Kxb4","c3+","Kxc3","Qa1+","Kd2","Qb2+","Kd1","Bf1","Rd2","Rd7","Rxd7","Bxc4","bxc4","Qxh8","Rd3","Qa8","c3","Qa4+","Ke1","f4","f5","Kc1","Rd2","Qa7"] },
-        { name: "Anderssen vs Kieseritzky", moves: ["e4","e5","f4","exf4","Bc4","b5","Bxb5","Qh4+","Kf1","Nf6","Nf3","Qh6","d3","Nh5","Nh4","Qg5","Nf5","c6","g4","Nf6","Rg1","cxb5","h4","Qg6","h5","Qg5","Qf3","Ng8","Bxf4","Qf6","Nc3","Bc5","Nd5","Qxb2","Bd6"] }
+        { name: "Kasparov's Immortal (vs Topalov 1999)", moves: ["e4","d6","d4","Nf6","Nc3","g6","Be3","Bg7","Qd2","c6","f3","b5","Nge2","Nbd7","Bh6","Bxh6","Qxh6","Bb7","a3","e5","O-O-O","Qe7","Kb1","a6","Nc1","O-O-O","Nb3","exd4","Rxd4","c5","Rd1","Nb6","g3","Kb8","Na5","Ba8","Bh3","d5","Qf4+","Ka7","Rhe1","d4","Nd5","Nbxd5","exd5","Qd6","Rxd4","cxd4","Re7+","Kb6","Qxd4+","Kxa5","b4+","Ka4","Qc3","Qxd5","Ra7","Bb7","Rxb7","Qc4","Qxf6","Kxa3","Qxa6+","Kxb4","c3+","Kxc3","Qa1+","Kd2","Qb2+","Kd1","Bf1","Rd2","Rd7","Rxd7","Bxc4","bxc4","Qxh8","Rd3","Qa8","c3","Qa4+","Ke1","f4","f5","Kc1","Rd2","Qa7"] }
     ];
+
+    function setFamousGames(games) {
+        ACTIVE_FAMOUS_GAMES = Array.isArray(games) && games.length
+            ? games.filter(g => g && g.name && Array.isArray(g.moves) && g.moves.length >= 12)
+            : INTERNAL_FAMOUS_GAMES;
+    }
 
     function identifyTheory(historySans) {
         const cleanHistory = historySans.map(m => cleanMove(m));
         let best = { name: null, count: 0 };
-        for (const game of FAMOUS_GAMES) {
+        const catalog = ACTIVE_FAMOUS_GAMES.length ? ACTIVE_FAMOUS_GAMES : INTERNAL_FAMOUS_GAMES;
+        for (const game of catalog) {
             let matchCount = 0;
             for (let i = 0; i < game.moves.length; i++) {
                 if (i >= cleanHistory.length || cleanHistory[i] !== cleanMove(game.moves[i])) break;
@@ -1572,31 +1625,175 @@
         return [game.end_time || '', game.white?.username || '', game.black?.username || '', (game.pgn || '').slice(0, 80)].join('|');
     }
 
-    function cacheStorageKey(username, gameKey) {
-        return `chessAnalyzed:v${CACHE_VERSION}:${username.toLowerCase()}:${gameKey}`;
+    function cacheStorageKey(username, gameKey, version = CACHE_VERSION) {
+        return `chessAnalyzed:v${version}:${username.toLowerCase()}:${gameKey}`;
+    }
+
+    function cacheIndexKey(username, version = CACHE_VERSION) {
+        return `chessAnalyzed:v${version}:index:${username.toLowerCase()}`;
+    }
+
+    function readCacheIndex(username) {
+        try {
+            const raw = localStorage.getItem(cacheIndexKey(username));
+            const parsed = raw ? JSON.parse(raw) : [];
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (_) {
+            return [];
+        }
+    }
+
+    function writeCacheIndex(username, index) {
+        localStorage.setItem(cacheIndexKey(username), JSON.stringify(index));
+    }
+
+    function compactAnalysisForCache(analysis) {
+        // Drop per-move FENs (rebuilt from PGN on load) to stay under localStorage quota
+        const clone = JSON.parse(JSON.stringify(analysis));
+        if (Array.isArray(clone.moves)) {
+            for (const m of clone.moves) delete m.fen;
+        }
+        return clone;
+    }
+
+    function hydrateCachedAnalysis(analysis, pgn) {
+        if (!analysis?.moves?.length) return analysis;
+        const srcPgn = pgn || analysis.pgn;
+        const needsFen = analysis.moves.some(m => !m.fen);
+        if (!needsFen) return analysis;
+        if (!srcPgn) return analysis;
+        try {
+            const chess = new Chess();
+            if (!chess.load_pgn(srcPgn)) return analysis;
+            const history = chess.history({ verbose: true });
+            const replay = new Chess();
+            const n = Math.min(analysis.moves.length, history.length);
+            for (let i = 0; i < n; i++) {
+                replay.move(history[i]);
+                analysis.moves[i].fen = replay.fen();
+                if (!analysis.moves[i].from) analysis.moves[i].from = history[i].from;
+                if (!analysis.moves[i].to) analysis.moves[i].to = history[i].to;
+                if (!analysis.moves[i].san) analysis.moves[i].san = history[i].san;
+            }
+        } catch (e) {
+            log(`Cache hydrate failed: ${e.message}`, true);
+        }
+        return analysis;
+    }
+
+    function listCachedGameKeys(username) {
+        const prefix = `chessAnalyzed:v${CACHE_VERSION}:${username.toLowerCase()}:`;
+        const indexPrefix = cacheIndexKey(username);
+        const keys = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (!k || !k.startsWith(prefix) || k === indexPrefix) continue;
+            keys.push(k);
+        }
+        return keys;
+    }
+
+    function pruneOldestCacheEntry(username) {
+        let index = readCacheIndex(username).slice().sort((a, b) => (a.endTime || 0) - (b.endTime || 0));
+        if (index.length) {
+            const oldest = index.shift();
+            localStorage.removeItem(cacheStorageKey(username, oldest.gameKey));
+            writeCacheIndex(username, index);
+            return true;
+        }
+        const keys = listCachedGameKeys(username);
+        if (keys.length) {
+            localStorage.removeItem(keys[0]);
+            return true;
+        }
+        return false;
+    }
+
+    function pruneAnyAnalyzedCache() {
+        // Last resort: drop any chessAnalyzed entry (prefer older versions / non-index)
+        const victims = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (!k || !k.startsWith('chessAnalyzed:')) continue;
+            if (k.includes(':index:')) continue;
+            victims.push(k);
+        }
+        // Prefer older cache versions
+        victims.sort((a, b) => {
+            const va = Number((a.match(/^chessAnalyzed:v(\d+):/) || [])[1] || 99);
+            const vb = Number((b.match(/^chessAnalyzed:v(\d+):/) || [])[1] || 99);
+            return va - vb;
+        });
+        if (!victims.length) return false;
+        localStorage.removeItem(victims[0]);
+        return true;
     }
 
     function loadCachedAnalysis(username, gameKey) {
-        try {
-            const raw = localStorage.getItem(cacheStorageKey(username, gameKey));
-            if (!raw) return null;
-            const parsed = JSON.parse(raw);
-            if (!parsed || !parsed.moves || !Array.isArray(parsed.moves)) return null;
-            if (!parsed.gameStory) finalizeAnalysis(parsed);
-            return parsed;
-        } catch (_) {
-            return null;
+        // Prefer current version; fall back to recent prior versions
+        const versions = [CACHE_VERSION, CACHE_VERSION - 1, CACHE_VERSION - 2].filter(v => v >= 1);
+        for (const ver of versions) {
+            try {
+                const raw = localStorage.getItem(cacheStorageKey(username, gameKey, ver));
+                if (!raw) continue;
+                const parsed = JSON.parse(raw);
+                if (!parsed || !parsed.moves || !Array.isArray(parsed.moves)) continue;
+                parsed.gameKey = gameKey;
+                if (!parsed.gameStory) finalizeAnalysis(parsed);
+                return parsed;
+            } catch (_) { /* try next */ }
         }
+        return null;
     }
 
     function saveCachedAnalysis(username, gameKey, analysis) {
-        try {
-            localStorage.setItem(cacheStorageKey(username, gameKey), JSON.stringify(analysis));
-            return true;
-        } catch (e) {
-            log(`Cache save failed (${e.message}). Continuing without cache.`, true);
-            return false;
+        analysis.gameKey = gameKey;
+        const payload = compactAnalysisForCache(analysis);
+        const raw = JSON.stringify(payload);
+        const key = cacheStorageKey(username, gameKey);
+
+        for (let attempt = 0; attempt < 40; attempt++) {
+            try {
+                localStorage.setItem(key, raw);
+                let index = readCacheIndex(username).filter(e => e.gameKey !== gameKey);
+                index.push({ gameKey, endTime: analysis.endTime || 0 });
+                index.sort((a, b) => (b.endTime || 0) - (a.endTime || 0));
+                // Cap index to a bit above scan limit
+                if (index.length > GAMES_LIMIT + 20) {
+                    const dropped = index.slice(GAMES_LIMIT + 20);
+                    index = index.slice(0, GAMES_LIMIT + 20);
+                    for (const d of dropped) {
+                        try { localStorage.removeItem(cacheStorageKey(username, d.gameKey)); } catch (_) {}
+                    }
+                }
+                writeCacheIndex(username, index);
+                return true;
+            } catch (e) {
+                const pruned = pruneOldestCacheEntry(username) || pruneAnyAnalyzedCache();
+                if (!pruned) {
+                    log(`Cache save failed (${e.message}). Continuing without cache.`, true);
+                    return false;
+                }
+                if (attempt === 0) log('LocalStorage full — pruning older cached games…');
+            }
         }
+        log('Cache save failed after pruning. Continuing without cache.', true);
+        return false;
+    }
+
+    function sortAnalyzedGames(profile) {
+        if (!profile?.analyzedGames) return;
+        profile.analyzedGames.sort((a, b) => {
+            const te = (b.endTime || 0) - (a.endTime || 0);
+            if (te !== 0) return te;
+            // Stable fallback: keep insertion order-ish via opponent name
+            return String(b.opponent || '').localeCompare(String(a.opponent || ''));
+        });
+    }
+
+    function gamesByRecency(profile) {
+        sortAnalyzedGames(profile);
+        return profile.analyzedGames;
     }
 
     function createProfileState(username) {
@@ -1642,6 +1839,7 @@
         const existingIdx = profile.analyzedGames.findIndex(g => g.gameKey && g.gameKey === analysis.gameKey);
         if (existingIdx >= 0) profile.analyzedGames[existingIdx] = analysis;
         else profile.analyzedGames.push(analysis);
+        sortAnalyzedGames(profile);
 
         profile.games = profile.analyzedGames.length;
         profile.whiteGames = 0;
@@ -1839,7 +2037,7 @@
     function renderOverviewTab(profile) {
         document.getElementById('overview-quality').innerHTML = qualityRowsHtml(profile);
 
-        const games = [...profile.analyzedGames].sort((a, b) => (b.endTime || 0) - (a.endTime || 0));
+        const games = gamesByRecency(profile);
         const recent = games.slice(0, 5);
         const recentEl = document.getElementById('overview-recent');
         if (!recent.length) {
@@ -1895,8 +2093,7 @@
         if (!profileState) return;
         const color = document.getElementById('filter-color')?.value || 'all';
         const result = document.getElementById('filter-result')?.value || 'all';
-        const games = [...profileState.analyzedGames]
-            .sort((a, b) => (b.endTime || 0) - (a.endTime || 0))
+        const games = gamesByRecency(profileState)
             .filter(g => {
                 if (color === 'white' && !g.isWhite) return false;
                 if (color === 'black' && g.isWhite) return false;
@@ -2009,7 +2206,7 @@
             <h3 style="margin:0 0 8px">How we classify your moves</h3>
             <p class="faq-def" style="margin-bottom:12px">Labels use Stockfish at depth ${ENGINE_DEPTH}. Centipawn loss is measured from your side, then we ignore the first ${EVAL_NOISE_FLOOR_CP}cp of noise before banding.</p>
             ${[
-                ['Theory', 'Your move matches a famous game line we track (at least 12 plies of SAN continuity).'],
+                ['Theory', 'Your move matches a famous game line from famous-games.json (at least 12 plies of SAN continuity from move one).'],
                 ['Book', 'Still inside our opening book (FEN / move-list), and not already tagged Theory.'],
                 ['Best', 'You played the engine top move, OR post-noise eval loss ≤ 0.50 pawns.'],
                 ['Good', 'Post-noise eval loss ≤ 1.20 pawns (slight pull, still healthy).'],
@@ -2111,7 +2308,7 @@
         refreshDashboard();
     }
 
-    function applyAnalysisToUi(game, analysis, gameKey, stats) {
+    function applyAnalysisToUi(game, analysis, gameKey, stats, opts = {}) {
         if (stats) {
             stats.blunders += analysis.blunders;
             stats.great += analysis.greatMoves;
@@ -2119,12 +2316,14 @@
         }
         if (game) {
             analysis.endTime = game.end_time || analysis.endTime || 0;
+            analysis.pgn = game.pgn || analysis.pgn || '';
             analysis.resultDetail = (analysis.isWhite ? game.white.result : game.black.result) || analysis.resultDetail || '';
             analysis.oppResultDetail = (analysis.isWhite ? game.black.result : game.white.result) || analysis.oppResultDetail || '';
         }
         analysis.qualityScore = gameQualityScore(analysis);
+        hydrateCachedAnalysis(analysis, analysis.pgn);
         ingestAnalysis(profileState, analysis, gameKey);
-        refreshDashboard();
+        if (!opts.deferRefresh) refreshDashboard();
     }
 
     async function fetchRecentGames(username, limit = GAMES_LIMIT) {
@@ -2180,6 +2379,7 @@
             const stats = { blunders: 0, great: 0, book: 0 };
             let completed = 0;
             let cacheHits = 0;
+            let cacheSaves = 0;
 
             for (let i = 0; i < games.length; i++) {
                 const game = games[i];
@@ -2188,11 +2388,21 @@
                 if (cached) {
                     cacheHits++;
                     completed++;
-                    applyAnalysisToUi(game, cached, gameKey, stats);
+                    // Ensure metadata + FENs, but don't thrash the dashboard 100x
+                    applyAnalysisToUi(game, cached, gameKey, stats, { deferRefresh: true });
+                    // Migrate older cache versions into compact v6 format once
+                    const alreadyCurrent = !!localStorage.getItem(cacheStorageKey(user, gameKey));
+                    if (!alreadyCurrent || !cached.pgn) {
+                        cached.pgn = cached.pgn || game.pgn || '';
+                        if (saveCachedAnalysis(user, gameKey, cached)) cacheSaves++;
+                    }
                 } else {
                     pending.push({ index: i, game, gameKey });
                 }
             }
+
+            sortAnalyzedGames(profileState);
+            refreshDashboard();
 
             const total = games.length;
             document.getElementById('prog-val-games').innerText = `${completed} / ${total}`;
@@ -2202,6 +2412,7 @@
             if (!pending.length) {
                 if (profileState) {
                     profileState.finished = true;
+                    sortAnalyzedGames(profileState);
                     renderProfileOverview(profileState);
                 }
                 log('All games already cached — nothing new to analyze.');
@@ -2227,7 +2438,7 @@
                     document.getElementById('progress-fill').style.width = ((completed / total) * 100) + '%';
 
                     if (analysis) {
-                        saveCachedAnalysis(user, gameKey, analysis);
+                        if (saveCachedAnalysis(user, gameKey, analysis)) cacheSaves++;
                         applyAnalysisToUi(game, analysis, gameKey, stats);
                     }
                 }
@@ -2236,10 +2447,11 @@
             await Promise.all(engines.map(engine => worker(engine)));
             if (profileState) {
                 profileState.finished = true;
+                sortAnalyzedGames(profileState);
                 renderProfileOverview(profileState);
             }
             log(isScanning
-                ? `Done. ${cacheHits} cached + ${completed - cacheHits} newly analyzed.`
+                ? `Done. ${cacheHits} cached + ${completed - cacheHits} newly analyzed · ${cacheSaves} saved to localStorage.`
                 : `Stopped after ${completed} / ${total} games (${cacheHits} were cached).`);
         } catch (e) { log(`Analysis Error: ${e.message}`, true); }
         stopAnalysis();
@@ -2372,6 +2584,7 @@
             resultDetail: isWhite ? game.white.result : game.black.result,
             oppResultDetail: isWhite ? game.black.result : game.white.result,
             endTime: game.end_time || 0,
+            pgn: game.pgn || '',
             blunders: counters.blunders, greatMoves: counters.great, bookCount: counters.book,
             openingName: theoryMatch.name || openingMatch.name,
             moveThemes: [...new Set(moveThemes)],
@@ -2645,7 +2858,7 @@
         list.appendChild(card);
     }
 
-    function openReview(analysis, jumpIdx) {
+    function openReview(analysis) {
         if (!analysis.gameStory) finalizeAnalysis(analysis);
         currentReviewGame = analysis;
         document.getElementById('dashboard').style.display = 'none';
@@ -2654,8 +2867,13 @@
         const graphUi = document.getElementById('eval-graph');
         listUi.innerHTML = ''; graphUi.innerHTML = '';
 
+        const evalBar = document.getElementById('eval-bar');
+        evalBar.classList.toggle('player-white', !!analysis.isWhite);
+        evalBar.classList.toggle('player-black', !analysis.isWhite);
+
         const storyBox = document.getElementById('game-story-box');
         const story = analysis.gameStory;
+        const keyBtn = document.getElementById('btn-key-move');
         if (story && story.headline) {
             storyBox.style.display = 'block';
             storyBox.className = 'game-story ' + (analysis.result === 'WIN' ? 'win' : analysis.result === 'DRAW' ? 'draw' : 'loss');
@@ -2669,13 +2887,19 @@
             if (story.keyMoveIndex != null) {
                 link.style.display = 'block';
                 link.innerText = `Jump to key moment${story.keyMoveRef ? ` (${story.keyMoveRef})` : ''} →`;
-                link.onclick = () => goToMove(story.keyMoveIndex);
+                link.onclick = () => goToKeyMove();
+                keyBtn.disabled = false;
+                keyBtn.title = `Jump to key moment${story.keyMoveRef ? ` (${story.keyMoveRef})` : ''}`;
             } else {
                 link.style.display = 'none';
                 link.onclick = null;
+                keyBtn.disabled = true;
+                keyBtn.title = 'No key moment for this game';
             }
         } else {
             storyBox.style.display = 'none';
+            keyBtn.disabled = true;
+            keyBtn.title = 'No key moment for this game';
         }
 
         analysis.moves.forEach((m, idx) => {
@@ -2695,9 +2919,7 @@
             bar.onclick = () => goToMove(idx);
             graphUi.appendChild(bar);
         });
-        const startIdx = (jumpIdx != null) ? jumpIdx
-            : (story?.keyMoveIndex != null ? story.keyMoveIndex : 0);
-        goToMove(startIdx);
+        goToMove(0);
     }
 
     function goToMove(idx) {
@@ -2719,16 +2941,19 @@
         document.getElementById('move-desc').innerText = desc;
         document.getElementById('move-badge').innerHTML = `<span class="move-label ${m.classification.class}">${m.classification.label}</span>`;
         
+        // Always player perspective: + means better for the reviewed user
         const playerRelativeEval = currentReviewGame.isWhite ? m.eval : -m.eval;
         const fillPercent = Math.min(100, Math.max(0, 50 + (playerRelativeEval / 20)));
         document.getElementById('eval-fill').style.width = `${fillPercent}%`;
         
         if (m.isMate) {
-            const prefix = playerRelativeEval > 0 ? "+" : "-";
-            document.getElementById('eval-label').innerText = `M${prefix}${Math.abs(Math.round(m.eval / 1000)) || ''}`;
+            const matePlies = Math.max(1, Math.abs(Math.round(playerRelativeEval / 1000)) || 1);
+            document.getElementById('eval-label').innerText =
+                (playerRelativeEval >= 0 ? 'M+' : 'M-') + matePlies;
         } else {
             const displayScore = (playerRelativeEval / 100).toFixed(1);
-            document.getElementById('eval-label').innerText = (playerRelativeEval > 0 ? "+" : "") + displayScore;
+            document.getElementById('eval-label').innerText =
+                (playerRelativeEval > 0 ? '+' : '') + displayScore;
         }
     }
 
@@ -2788,8 +3013,25 @@
     }
 
     function stepMove(d) {
+        if (!currentReviewGame?.moves?.length) return;
         const next = currentMoveIndex + d;
         if (next >= 0 && next < currentReviewGame.moves.length) goToMove(next);
+    }
+
+    function goToStart() {
+        if (!currentReviewGame?.moves?.length) return;
+        goToMove(0);
+    }
+
+    function goToEnd() {
+        if (!currentReviewGame?.moves?.length) return;
+        goToMove(currentReviewGame.moves.length - 1);
+    }
+
+    function goToKeyMove() {
+        const idx = currentReviewGame?.gameStory?.keyMoveIndex;
+        if (idx == null || !currentReviewGame?.moves?.length) return;
+        goToMove(idx);
     }
 
     function switchTab(t, el) {

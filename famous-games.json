@@ -1,0 +1,562 @@
+[
+  {
+    "name": "Immortal Game",
+    "year": 1851,
+    "white": "Adolf Anderssen",
+    "black": "Lionel Kieseritzky",
+    "theme": "Romantic king attack; sacrificing heavily for mate",
+    "eco": "",
+    "result": "",
+    "moves": ["e4","e5","f4","exf4","Bc4","Qh4","Kf1","b5","Bxb5","Nf6","Nf3","Qh6","d3","Nh5","Nh4","Qg5","Nf5","c6","g4","Nf6","Rg1","cxb5","h4","Qg6","h5","Qg5","Qf3","Ng8","Bxf4","Qf6","Nc3","Bc5","Nd5","Qxb2","Bd6","Bxg1","e5","Qxa1","Ke2","Na6","Nxg7","Kd8","Qf6","Nxf6","Be7"]
+  },
+  {
+    "name": "Evergreen Game",
+    "year": 1852,
+    "white": "Adolf Anderssen",
+    "black": "Jean Dufresne",
+    "theme": "Evans Gambit; classic mating combination",
+    "eco": "",
+    "result": "",
+    "moves": ["e4","e5","Nf3","Nc6","Bc4","Bc5","b4","Bxb4","c3","Ba5","d4","exd4","O-O","d3","Qb3","Qf6","e5","Qg6","Re1","Nge7","Ba3","b5","Qxb5","Rb8","Qa4","Bb6","Nbd2","Bb7","Ne4","Qf5","Bxd3","Qh5","Nf6","gxf6","exf6","Rg8","Rad1","Qxf3","Rxe7","Nxe7","Qxd7","Kxd7","Bf5","Ke8","Bd7","Kf8","Bxe7"]
+  },
+  {
+    "name": "Opera Game",
+    "year": 1858,
+    "white": "Paul Morphy",
+    "black": "Duke of Brunswick / Count Isouard",
+    "theme": "Rapid development, open lines, coordinating pieces for mate",
+    "eco": "",
+    "result": "",
+    "moves": ["e4","e5","Nf3","d6","d4","Bg4","dxe5","Bxf3","Qxf3","dxe5","Bc4","Nf6","Qb3","Qe7","Nc3","c6","Bg5","b5","Nxb5","cxb5","Bxb5","Nbd7","O-O-O","Rd8","Rxd7","Rxd7","Rd1","Qe6","Bxd7","Nxd7","Qb8","Nxb8","Rd8"]
+  },
+  {
+    "name": "Lasker vs Bauer 1889 (double bishop sacrifice)",
+    "year": 1889,
+    "white": "Emanuel Lasker",
+    "black": "Johann Bauer",
+    "theme": "Model double-bishop sacrifice on h7/g7",
+    "eco": "",
+    "result": "",
+    "moves": ["f4","d5","e3","Nf6","b3","e6","Bb2","Be7","Bd3","b6","Nf3","Bb7","Nc3","Nbd7","O-O","O-O","Ne2","c5","Ng3","Qc7","Ne5","Nxe5","Bxe5","Qc6","Qe2","a6","Nh5","Nxh5","Bxh7","Kxh7","Qxh5","Kg8","Bxg7","Kxg7","Qg4","Kh7","Rf3","e5","Rh3","Qh6","Rxh6","Kxh6","Qd7","Bf6","Qxb7","Kg7","Rf1","Rab8","Qd7","Rfd8","Qg4","Kf8","fxe5","Bg7","e6","Rb7","Qg6","f6","Rxf6","Bxf6","Qxf6","Ke8","Qh8","Ke7","Qg7","Kxe6","Qxb7","Rd6","Qxa6","d4","exd4","cxd4","Qd3","Kf6","h4","Ke5","Qh3","Rf6","Qd3","Kd6","Qxd4"]
+  },
+  {
+    "name": "Steinitz vs von Bardeleben 1895",
+    "year": 1895,
+    "white": "Wilhelm Steinitz",
+    "black": "Curt von Bardeleben",
+    "theme": "Classical centre play culminating in a famous king hunt",
+    "eco": "",
+    "result": "",
+    "moves": ["e4","e5","Nf3","Nc6","Bc4","Bc5","c3","Nf6","d4","exd4","cxd4","Bb4","Nc3","d5","exd5","Nxd5","O-O","Be6","Bg5","Be7","Bxd5","Bxd5","Nxd5","Qxd5","Bxe7","Nxe7","Re1","f6","Qe2","Qd7","Rac1","c6","d5","cxd5","Nd4","Kf7","Ne6","Rhc8","Qg4","g6","Ng5","Ke8","Rxe7","Kf8","Rf7","Kg8","Rg7","Kh8","Rxh7"]
+  },
+  {
+    "name": "Rubinstein's Immortal (Rotlewi vs Rubinstein 1907)",
+    "year": 1907,
+    "white": "Georg Rotlewi",
+    "black": "Akiba Rubinstein",
+    "theme": "Bishop pair and open diagonals; sacrificial mating attack",
+    "eco": "",
+    "result": "",
+    "moves": ["d4","d5","Nf3","e6","e3","c5","c4","Nc6","Nc3","Nf6","dxc5","Bxc5","a3","a6","b4","Bd6","Bb2","O-O","Qd2","Qe7","Bd3","dxc4","Bxc4","b5","Bd3","Rd8","Qe2","Bb7","O-O","Ne5","Nxe5","Bxe5","f4","Bc7","e4","Rac8","e5","Bb6","Kh1","Ng4","Be4","Qh4","g3","Rxc3","gxh4","Rd2","Qxd2","Bxe4","Qg2","Rh3"]
+  },
+  {
+    "name": "Marshall Attack debut (Capablanca vs Marshall 1918)",
+    "year": 1918,
+    "white": "Jose Raul Capablanca",
+    "black": "Frank Marshall",
+    "theme": "Defending the Marshall Gambit; model Ruy Lopez defence",
+    "eco": "",
+    "result": "",
+    "moves": ["e4","e5","Nf3","Nc6","Bb5","a6","Ba4","Nf6","O-O","Be7","Re1","b5","Bb3","O-O","c3","d5","exd5","Nxd5","Nxe5","Nxe5","Rxe5","Nf6","Re1","Bd6","h3","Ng4","Qf3","Qh4","d4","Nxf2","Re2","Bg4","hxg4","Bh2","Kf1","Bg3","Rxf2","Qh1","Ke2","Bxf2","Bd2","Bh4","Qh3","Rae8","Kd3","Qf1","Kc2","Bf2","Qf3","Qg1","Bd5","c5","dxc5","Bxc5","b4","Bd6","a4","a5","axb5","axb4","Ra6","bxc3","Nxc3","Bb4","b6","Bxc3","Bxc3","h6","b7","Re3","Bxf7"]
+  },
+  {
+    "name": "Capablanca vs Lasker 1921 Game 10",
+    "year": 1921,
+    "white": "Lasker, Emanuel",
+    "black": "Capablanca, Jose Raul",
+    "theme": "Capablanca endgame technique in the title match",
+    "eco": "D61",
+    "result": "0-1",
+    "moves": ["d4","d5","c4","e6","Nc3","Nf6","Bg5","Be7","e3","O-O","Nf3","Nbd7","Qc2","c5","Rd1","Qa5","Bd3","h6","Bh4","cxd4","exd4","dxc4","Bxc4","Nb6","Bb3","Bd7","O-O","Rac8","Ne5","Bb5","Rfe1","Nbd5","Bxd5","Nxd5","Bxe7","Nxe7","Qb3","Bc6","Nxc6","bxc6","Re5","Qb6","Qc2","Rfd8","Ne2","Rd5","Rxd5","cxd5","Qd2","Nf5","b3","h5","h3","h4","Qd3","Rc6","Kf1","g6","Qb1","Qb4","Kg1","a5","Qb2","a4","Qd2","Qxd2","Rxd2","axb3","axb3","Rb6","Rd3","Ra6","g4","hxg3","fxg3","Ra2","Nc3","Rc2","Nd1","Ne7","Nc3","Rc1","Kf2","Nc6","Nd1","Rb1","Ke2","Rxb3","Ke3","Rb4","Nc3","Ne7","Ne2","Nf5","Kf2","g5","g4","Nd6","Ng1","Ne4","Kf1","Rb1","Kg2","Rb2","Kf1","Rf2","Ke1","Ra2","Kf1","Kg7","Re3","Kg6","Rd3","f6","Re3","Kf7","Rd3","Ke7","Re3","Kd6","Rd3","Rf2","Ke1","Rg2","Kf1","Ra2","Re3","e5","Rd3","exd4","Rxd4","Kc5","Rd1","d4","Rc1","Kd5"]
+  },
+  {
+    "name": "Capablanca vs Lasker 1921 Game 14",
+    "year": 1921,
+    "white": "Lasker, Emanuel",
+    "black": "Capablanca, Jose Raul",
+    "theme": "Match-clinching positional win",
+    "eco": "C66",
+    "result": "0-1",
+    "moves": ["e4","e5","Nf3","Nc6","Bb5","Nf6","O-O","d6","d4","Bd7","Nc3","Be7","Bxc6","Bxc6","Qd3","exd4","Nxd4","Bd7","Bg5","O-O","Rae1","h6","Bh4","Nh7","Bxe7","Qxe7","Nd5","Qd8","c4","Re8","f4","c6","Nc3","Qb6","b3","Rad8","Kh1","Nf6","h3","Bc8","Rd1","Re7","Rfe1","Rde8","Re2","Qa5","Rf1","Qh5","Kg1","a6","Rff2","Qg6","Rf3","Qh5","f5","Qh4","Kh2","Ng4","Kh1","Ne5","Qd2","Nxf3","Nxf3","Qf6","a4","g6","fxg6","fxg6","Re3","Bf5","Qd3","g5","Nd2","Bg6","b4","Qe6","b5","axb5","axb5","Ra8","Qb1","Qe5","Qe1","Kh7","bxc6","bxc6","Qg3","Qxg3","Rxg3","Ra3","Kh2","Rb7","c5","dxc5","Nc4","Ra1","Ne5","Rc1","h4","Re7","Nxc6","Re6","Nd8","gxh4","Rd3","Rf6","Rd7","Kh8","Nd5","Rff1","Kh3","Bxe4"]
+  },
+  {
+    "name": "Lasker vs Capablanca 1921 Game 11",
+    "year": 1921,
+    "white": "Capablanca, Jose Raul",
+    "black": "Lasker, Emanuel",
+    "theme": "Endgame conversion in a title match",
+    "eco": "D64",
+    "result": "1-0",
+    "moves": ["d4","d5","Nf3","e6","c4","Nf6","Bg5","Nbd7","e3","Be7","Nc3","O-O","Rc1","Re8","Qc2","c6","Bd3","dxc4","Bxc4","Nd5","Bxe7","Rxe7","O-O","Nf8","Rfd1","Bd7","e4","Nb6","Bf1","Rc8","b4","Be8","Qb3","Rec7","a4","Ng6","a5","Nd7","e5","b6","Ne4","Rb8","Qc3","Nf4","Nd6","Nd5","Qa3","f6","Nxe8","Qxe8","exf6","gxf6","b5","Rbc8","bxc6","Rxc6","Rxc6","Rxc6","axb6","axb6","Re1","Qc8","Nd2","Nf8","Ne4","Qd8","h4","Rc7","Qb3","Rg7","g3","Ra7","Bc4","Ra5","Nc3","Nxc3","Qxc3","Kf7","Qe3","Qd6","Qe4","Ra4","Qb7","Kg6","Qc8","Qb4","Rc1","Qe7","Bd3","Kh6","Rc7","Ra1","Kg2","Qd6","Qxf8"]
+  },
+  {
+    "name": "Lasker vs Capablanca 1921 Game 5",
+    "year": 1921,
+    "white": "Capablanca, Jose Raul",
+    "black": "Lasker, Emanuel",
+    "theme": "World Championship positional technique; Capablanca’s clarity",
+    "eco": "D63",
+    "result": "1-0",
+    "moves": ["d4","d5","Nf3","Nf6","c4","e6","Bg5","Nbd7","e3","Be7","Nc3","O-O","Rc1","b6","cxd5","exd5","Qa4","c5","Qc6","Rb8","Nxd5","Bb7","Nxe7","Qxe7","Qa4","Rbc8","Qa3","Qe6","Bxf6","Qxf6","Ba6","Bxf3","Bxc8","Rxc8","gxf3","Qxf3","Rg1","Re8","Qd3","g6","Kf1","Re4","Qd1","Qh3","Rg2","Nf6","Kg1","cxd4","Rc4","dxe3","Rxe4","Nxe4","Qd8","Kg7","Qd4","Nf6","fxe3","Qe6","Rf2","g5","h4","gxh4","Qxh4","Ng4","Qg5","Kf8","Rf5","h5","Qd8","Kg7","Qg5","Kf8","Qd8","Kg7","Qg5","Kf8","b3","Qd6","Qf4","Qd1","Qf1","Qd2","Rxh5","Nxe3","Qf3","Qd4","Qa8","Ke7","Qb7","Kf8","Qb8"]
+  },
+  {
+    "name": "Alekhine vs Capablanca 1927 Game 21",
+    "year": 1927,
+    "white": "Capablanca, Jose Raul",
+    "black": "Alekhine, Alexander",
+    "theme": "Alekhine dynamic style against Capablanca",
+    "eco": "D63",
+    "result": "0-1",
+    "moves": ["d4","d5","c4","e6","Nc3","Nf6","Bg5","Nbd7","e3","Be7","Nf3","O-O","Rc1","a6","a3","h6","Bh4","dxc4","Bxc4","b5","Be2","Bb7","O-O","c5","dxc5","Nxc5","Nd4","Rc8","b4","Ncd7","Bg3","Nb6","Qb3","Nfd5","Bf3","Rc4","Ne4","Qc8","Rxc4","Nxc4","Rc1","Qa8","Nc3","Rc8","Nxd5","Bxd5","Bxd5","Qxd5","a4","Bf6","Nf3","Bb2","Re1","Rd8","axb5","axb5","h3","e5","Rb1","e4","Nd4","Bxd4","Rd1","Nxe3"]
+  },
+  {
+    "name": "Alekhine vs Capablanca 1927 Game 34",
+    "year": 1927,
+    "white": "Alekhine, Alexander",
+    "black": "Capablanca, Jose Raul",
+    "theme": "Title-clinching technical win; queenside majority model",
+    "eco": "D51",
+    "result": "1-0",
+    "moves": ["d4","d5","c4","e6","Nc3","Nf6","Bg5","Nbd7","e3","c6","a3","Be7","Nf3","O-O","Bd3","dxc4","Bxc4","Nd5","Bxe7","Qxe7","Ne4","N5f6","Ng3","c5","O-O","Nb6","Ba2","cxd4","Nxd4","g6","Rc1","Bd7","Qe2","Rac8","e4","e5","Nf3","Kg7","h3","h6","Qd2","Be6","Bxe6","Qxe6","Qa5","Nc4","Qxa7","Nxb2","Rxc8","Rxc8","Qxb7","Nc4","Qb4","Ra8","Ra1","Qc6","a4","Nxe4","Nxe5","Qd6","Qxc4","Qxe5","Re1","Nd6","Qc1","Qf6","Ne4","Nxe4","Rxe4","Rb8","Re2","Ra8","Ra2","Ra5","Qc7","Qa6","Qc3","Kh7","Rd2","Qb6","Rd7","Qb1","Kh2","Qb8","g3","Rf5","Qd4","Qe8","Rd5","Rf3","h4","Qh8","Qb6","Qa1","Kg2","Rf6","Qd4","Qxd4","Rxd4","Kg7","a5","Ra6","Rd5","Rf6","Rd4","Ra6","Ra4","Kf6","Kf3","Ke5","Ke3","h5","Kd3","Kd5","Kc3","Kc5","Ra2","Kb5","Kb3","Kc5","Kc3","Kb5","Kd4","Rd6","Ke5","Re6","Kf4","Ka6","Kg5","Re5","Kh6","Rf5","f4","Rc5","Ra3","Rc7","Kg7","Rd7","f5","gxf5","Kh6","f4","gxf4","Rd5","Kg7","Rf5","Ra4","Kb5","Re4","Ka6","Kh6","Rxa5","Re5","Ra1","Kxh5","Rg1","Rg5","Rh1","Rf5","Kb6","Rxf7","Kc6","Re7"]
+  },
+  {
+    "name": "Capablanca vs Alekhine 1927 Game 1",
+    "year": 1927,
+    "white": "Capablanca, Jose Raul",
+    "black": "Alekhine, Alexander",
+    "theme": "Opening of the Buenos Aires WC match",
+    "eco": "C01",
+    "result": "0-1",
+    "moves": ["e4","e6","d4","d5","Nc3","Bb4","exd5","exd5","Bd3","Nc6","Ne2","Nge7","O-O","Bf5","Bxf5","Nxf5","Qd3","Qd7","Nd1","O-O","Ne3","Nxe3","Bxe3","Rfe8","Nf4","Bd6","Rfe1","Nb4","Qb3","Qf5","Rac1","Nxc2","Rxc2","Qxf4","g3","Qf5","Rce2","b6","Qb5","h5","h4","Re4","Bd2","Rxd4","Bc3","Rd3","Be5","Rd8","Bxd6","Rxd6","Re5","Qf3","Rxh5","Qxh5","Re8","Kh7","Qxd3","Qg6","Qd1","Re6","Ra8","Re5","Rxa7","c5","Rd7","Qe6","Qd3","g6","Rd8","d4","a4","Re1","Kg2","Qc6","f3","Re3","Qd1","Qe6","g4","Re2","Kh3","Qe3","Qh1","Qf4","h5","Rf2"]
+  },
+  {
+    "name": "Capablanca vs Alekhine 1927 Game 11",
+    "year": 1927,
+    "white": "Capablanca, Jose Raul",
+    "black": "Alekhine, Alexander",
+    "theme": "Queens Gambit structures from the Buenos Aires match",
+    "eco": "D52",
+    "result": "0-1",
+    "moves": ["d4","d5","c4","e6","Nc3","Nf6","Bg5","Nbd7","e3","c6","Nf3","Qa5","Nd2","Bb4","Qc2","dxc4","Bxf6","Nxf6","Nxc4","Qc7","a3","Be7","Be2","O-O","O-O","Bd7","b4","b6","Bf3","Rac8","Rfd1","Rfd8","Rac1","Be8","g3","Nd5","Nb2","Qb8","Nd3","Bg5","Rb1","Qb7","e4","Nxc3","Qxc3","Qe7","h4","Bh6","Ne5","g6","Ng4","Bg7","e5","h5","Ne3","c5","bxc5","bxc5","d5","exd5","Nxd5","Qe6","Nf6","Bxf6","exf6","Rxd1","Rxd1","Bc6","Re1","Qf5","Re3","c4","a4","a5","Bg2","Bxg2","Kxg2","Qd5","Kh2","Qf5","Rf3","Qc5","Rf4","Kh7","Rd4","Qc6","Qxa5","c3","Qa7","Kg8","Qe7","Qb6","Qd7","Qc5","Re4","Qxf2","Kh3","Qf1","Kh2","Qf2","Kh3","Rf8","Qc6","Qf1","Kh2","Qf2","Kh3","Qf1","Kh2","Kh7","Qc4","Qf2","Kh3","Qg1","Re2","Qf1","Kh2","Qxf6","a5","Rd8","a6","Qf1","Qe4","Rd2","Rxd2","cxd2","a7","d1=Q","a8=Q","Qg1","Kh3","Qdf1"]
+  },
+  {
+    "name": "Capablanca vs Alekhine 1927 Game 32",
+    "year": 1927,
+    "white": "Alekhine, Alexander",
+    "black": "Capablanca, Jose Raul",
+    "theme": "Late-match technical struggle",
+    "eco": "D35",
+    "result": "1-0",
+    "moves": ["d4","Nf6","c4","e6","Nc3","d5","Bg5","Nbd7","e3","c6","cxd5","exd5","Bd3","Be7","Nge2","O-O","Ng3","Ne8","h4","Ndf6","Qc2","Be6","Nf5","Bxf5","Bxf5","Nd6","Bd3","h6","Bf4","Rc8","g4","Nfe4","g5","h5","Bxe4","Nxe4","Nxe4","dxe4","Qxe4","Qa5","Kf1","Qd5","Qxd5","cxd5","Kg2","Rc2","Rhc1","Rfc8","Rxc2","Rxc2","Rb1","Kh7","Kg3","Kg6","f3","f6","gxf6","Bxf6","a4","Kf5","a5","Re2","Rc1","Rxb2","Rc5","Ke6","e4","Bxd4","Rxd5","Bc3","Rxh5","a6","Bc7","Be1","Kg4","Rg2","Kh3","Rf2","Kg4","Rg2","Kh3","Rf2","f4","Rf3","Kg2","Rf2","Kh3","Rf3","Kg2","Rf2","Kg1","Rc2","Bb6","Rc4","Kg2","g6","Re5","Kd7","h5","gxh5","Kf3","h4","Rh5","Rc3","Kg4","Rc4","Kf5","Bxa5","Rh7","Kc6","Bxa5","Rc5","Ke6","Rxa5","f5","Ra3","f6","Rf3","f7","b5","Rh5","h3","Rf5","Rxf5","exf5"]
+  },
+  {
+    "name": "Alekhine vs Euwe 1935 Game 2",
+    "year": 1935,
+    "white": "Euwe, Max",
+    "black": "Alekhine, Alexander",
+    "theme": "Dutch / classical structures in a WC match",
+    "eco": "D81",
+    "result": "1-0",
+    "moves": ["d4","Nf6","c4","g6","Nc3","d5","Qb3","dxc4","Qxc4","Be6","Qb5","Nc6","Nf3","Rb8","Ne5","Bd7","Nxd7","Qxd7","d5","Nd4","Qd3","e5","e3","Nf5","e4","Nd6","f4","Qe7","Be3","Ng4","Bxa7","Ra8","h3","Rxa7","hxg4","Bg7","Qe3","Ra5","f5","Bf6","a4","Bh4","g3","Bg5","Qf3","O-O","b4","Raa8","Ra2","Ne8","Rb2","Nf6","Be2","c6","dxc6","bxc6","O-O","Rad8","Kg2","Rd4","b5","cxb5","axb5","Rb8","fxg6","fxg6","b6","Qb7","Kh3","Rd6","Nd5","Kg7","Rc2","Nxd5","exd5","Rxb6","Rc6","Rxc6","dxc6","Qe7","Bc4","Kh6","Qh1","Rb2","Rf7","Qe8","c7","Rc2","Qb7"]
+  },
+  {
+    "name": "Euwe vs Alekhine 1935 Game 25",
+    "year": 1935,
+    "white": "Alekhine, Alexander",
+    "black": "Euwe, Max",
+    "theme": "Critical late-match game from Euwe’s title win",
+    "eco": "D52",
+    "result": "0-1",
+    "moves": ["d4","d5","c4","c6","Nf3","Nf6","Nc3","e6","Bg5","Nbd7","e3","Qa5","cxd5","Nxd5","Qd2","N7b6","Bd3","Nxc3","bxc3","Nd5","Rc1","Nxc3","O-O","Bb4","a3","Qxa3","Ra1","Qb3","Bc2","Qd5","e4","Nxe4","Qxb4","Nxg5","Ne5","a5","Qa3","f6","Bg6","hxg6","Nxg6","Nf3","Qxf3","Qxf3","gxf3","Rh5","Nf4","Rf5","Nd3","Rxf3","Nc5","b6","Kg2","Rf4","Nb3","e5","dxe5","Be6","Nc1","O-O-O","exf6","Rg4","Kf3","Rf8","Ke3","Rxf6","f4","g5","Nd3","Bc4","f5","Rh4","Rad1","Rxh2","Ke4","Re2","Kf3","Re8","Kg4","Rd8","Ne5","Rxd1","Rxd1","Be2","Kxg5","Rxf5","Kxf5","Bxd1","Nxc6","a4"]
+  },
+  {
+    "name": "Euwe vs Alekhine 1935 Game 9",
+    "year": 1935,
+    "white": "Alekhine, Alexander",
+    "black": "Euwe, Max",
+    "theme": "Euwe’s methodical style dethroning Alekhine",
+    "eco": "C15",
+    "result": "1-0",
+    "moves": ["e4","e6","d4","d5","Nc3","Bb4","Qg4","Nf6","Qxg7","Rg8","Qh6","Rg6","Qe3","Nxe4","Bd3","f5","Ne2","c5","Bxe4","fxe4","Qh3","Nc6","Qxh7","Qf6","Nf4","cxd4","Nxg6","dxc3","b3","Ne7","Nxe7","Bxe7","h4","Qf7","Qh8","Qf8","Qxf8","Kxf8","Bg5","e5","f3","exf3","gxf3","Ba3","f4","Bf5","fxe5","Bxc2","O-O","Kg8","Rac1","Bxc1","Rxc1","Bf5","Rxc3","Rc8","Rf3","Rf8","Bf6","Be4","Rg3","Kf7","h5","Rc8","Rg7","Ke6","h6","d4","h7","Rc1","Kf2","Rc2","Kg3","Bxh7","Rxh7","Rxa2","Kf4","b5","Ke4","Re2","Kxd4"]
+  },
+  {
+    "name": "Botvinnik vs Capablanca 1938 AVRO",
+    "year": 1938,
+    "white": "Mikhail Botvinnik",
+    "black": "Jose Raul Capablanca",
+    "theme": "Central breakthrough and knight sacrifice; Botvinnik model attack",
+    "eco": "",
+    "result": "",
+    "moves": ["d4","Nf6","c4","e6","Nc3","Bb4","e3","d5","a3","Bxc3","bxc3","c5","cxd5","exd5","Bd3","O-O","Ne2","b6","O-O","Ba6","Bxa6","Nxa6","Bb2","Qd7","a4","Rfe8","Qd3","c4","Qc2","Nb8","Rae1","Nc6","Ng3","Na5","f3","Nb3","e4","Qxa4","e5","Nd7","Qf2","g6","f4","f5","exf6","Nxf6","f5","Rxe1","Rxe1","Re8","Re6","Rxe6","fxe6","Kg7","Qf4","Qe8","Qe5","Qe7","Ba3","Qxa3","Nh5","gxh5","Qg5","Kf8","Qxf6","Kg8","e7","Qc1","Kf2","Qc2","Kg3","Qd3","Kh4","Qe4","Kxh5","Qe2","Kh4","Qe4","g4","Qe1","Kh5"]
+  },
+  {
+    "name": "Game of the Century",
+    "year": 1956,
+    "white": "Donald Byrne",
+    "black": "Bobby Fischer",
+    "theme": "Queen sacrifice, piece activity, relentless king hunt",
+    "eco": "",
+    "result": "",
+    "moves": ["Nf3","Nf6","c4","g6","Nc3","Bg7","d4","O-O","Bf4","d5","Qb3","dxc4","Qxc4","c6","e4","Nbd7","Rd1","Nb6","Qc5","Bg4","Bg5","Na4","Qa3","Nxc3","bxc3","Nxe4","Bxe7","Qb6","Bc4","Nxc3","Bc5","Rfe8","Kf1","Be6","Bxb6","Bxc4","Kg1","Ne2","Kf1","Nxd4","Kg1","Ne2","Kf1","Nc3","Kg1","axb6","Qb4","Ra4","Qxb6","Nxd1","h3","Rxa2","Kh2","Nxf2","Re1","Rxe1","Qd8","Bf8","Nxe1","Bd5","Nf3","Ne4","Qb8","b5","h4","h5","Ne5","Kg7","Kg1","Bc5","Kf1","Ng3","Ke1","Bb4","Kd1","Bb3","Kc1","Ne2","Kb1","Nc3","Kc1","Rc2"]
+  },
+  {
+    "name": "Botvinnik vs Tal 1960 Game 1",
+    "year": 1960,
+    "white": "Tal, Mihail",
+    "black": "Botvinnik, Mikhail",
+    "theme": "Tal’s attacking debut as challenger",
+    "eco": "C18",
+    "result": "1-0",
+    "moves": ["e4","e6","d4","d5","Nc3","Bb4","e5","c5","a3","Bxc3","bxc3","Qc7","Qg4","f5","Qg3","Ne7","Qxg7","Rg8","Qxh7","cxd4","Kd1","Bd7","Qh5","Ng6","Ne2","d3","cxd3","Ba4","Ke1","Qxe5","Bg5","Nc6","d4","Qc7","h4","e5","Rh3","Qf7","dxe5","Ncxe5","Re3","Kd7","Rb1","b6","Nf4","Rae8","Rb4","Bc6","Qd1","Nxf4","Rxf4","Ng6","Rd4","Rxe3","fxe3","Kc7","c4","dxc4","Bxc4","Qg7","Bxg8","Qxg8","h5"]
+  },
+  {
+    "name": "Tal vs Botvinnik 1960 Game 17",
+    "year": 1960,
+    "white": "Tal, Mihail",
+    "black": "Botvinnik, Mikhail",
+    "theme": "Tal creativity under match pressure",
+    "eco": "B18",
+    "result": "1-0",
+    "moves": ["e4","c6","d4","d5","Nc3","dxe4","Nxe4","Bf5","Ng3","Bg6","Bc4","e6","N1e2","Nf6","Nf4","Bd6","Nxg6","hxg6","Bg5","Nbd7","O-O","Qa5","f4","O-O-O","a3","Qc7","b4","Nb6","Be2","Be7","Qd3","Nfd5","Bxe7","Qxe7","c4","Nf6","Rab1","Qd7","Rbd1","Kb8","Qb3","Qc7","a4","Rh4","a5","Nc8","Qe3","Ne7","Qe5","Rhh8","b5","cxb5","Qxb5","a6","Qb2","Rd7","c5","Ka8","Bf3","Nc6","Bxc6","Qxc6","Rf3","Qa4","Rfd3","Rc8","Rb1","Qxa5","Rb3","Qc7","Qa3","Ka7","Rb6","Qxf4","Ne2","Qe4","Qb3","Qd5","Rxa6","Kb8","Qa4"]
+  },
+  {
+    "name": "Tal vs Botvinnik 1960 Game 19",
+    "year": 1960,
+    "white": "Tal, Mihail",
+    "black": "Botvinnik, Mikhail",
+    "theme": "Title-clinching brilliance from Tal",
+    "eco": "A87",
+    "result": "1-0",
+    "moves": ["c4","f5","Nf3","Nf6","g3","g6","Bg2","Bg7","d4","d6","Nc3","e6","O-O","O-O","Qc2","Nc6","Rd1","Qe7","Rb1","a5","a3","Nd8","e4","fxe4","Nxe4","Nxe4","Qxe4","Nf7","Bh3","Qf6","Bd2","d5","Qe2","dxc4","Bf4","Nd6","Ng5","Re8","Bg2","Ra6","Ne4","Nxe4","Bxe4","b5","b3","cxb3","Qxb5","Rf8","Qxb3","Rb6","Qe3","Rxb1","Bxb1","Bb7","Ba2","Bd5","Bxd5","exd5","Bxc7","a4","Rd3","Qf5","Be5","Bh6","Qe2","Rc8","Rf3","Qh3","Bc7","Bf8","Qb5","Qe6","Be5","Qc6","Qa5","Ra8","Qd2","Rc8","Kg2","Qd7","h4","Qg4"]
+  },
+  {
+    "name": "Tal vs Botvinnik 1960 Game 6",
+    "year": 1960,
+    "white": "Botvinnik, Mikhail",
+    "black": "Tal, Mihail",
+    "theme": "Tal attacking style in a world championship setting",
+    "eco": "E69",
+    "result": "0-1",
+    "moves": ["c4","Nf6","Nf3","g6","g3","Bg7","Bg2","O-O","d4","d6","Nc3","Nbd7","O-O","e5","e4","c6","h3","Qb6","d5","cxd5","cxd5","Nc5","Ne1","Bd7","Nd3","Nxd3","Qxd3","Rfc8","Rb1","Nh5","Be3","Qb4","Qe2","Rc4","Rfc1","Rac8","Kh2","f5","exf5","Bxf5","Ra1","Nf4","gxf4","exf4","Bd2","Qxb2","Rab1","f3","Rxb2","fxe2","Rb3","Rd4","Be1","Be5","Kg1","Bf4","Nxe2","Rxc1","Nxd4","Rxe1","Bf1","Be4","Ne2","Be5","f4","Bf6","Rxb7","Bxd5","Rc7","Bxa2","Rxa7","Bc4","Ra8","Kf7","Ra7","Ke6","Ra3","d5","Kf2","Bh4","Kg2","Kd6","Ng3","Bxg3","Bxc4","dxc4","Kxg3","Kd5","Ra7","c3","Rc7","Kd4"]
+  },
+  {
+    "name": "Fischer vs Spassky 1972 Game 10",
+    "year": 1972,
+    "white": "Fischer, Robert James",
+    "black": "Spassky, Boris V",
+    "theme": "Ruy Lopez Breyer; classical world-championship technique",
+    "eco": "C95",
+    "result": "1-0",
+    "moves": ["e4","e5","Nf3","Nc6","Bb5","a6","Ba4","Nf6","O-O","Be7","Re1","b5","Bb3","d6","c3","O-O","h3","Nb8","d4","Nbd7","Nbd2","Bb7","Bc2","Re8","b4","Bf8","a4","Nb6","a5","Nbd7","Bb2","Qb8","Rb1","c5","bxc5","dxc5","dxe5","Nxe5","Nxe5","Qxe5","c4","Qf4","Bxf6","Qxf6","cxb5","Red8","Qc1","Qc3","Nf3","Qxa5","Bb3","axb5","Qf4","Rd7","Ne5","Qc7","Rbd1","Re7","Bxf7","Rxf7","Qxf7","Qxf7","Nxf7","Bxe4","Rxe4","Kxf7","Rd7","Kf6","Rb7","Ra1","Kh2","Bd6","g3","b4","Kg2","h5","Rb6","Rd1","Kf3","Kf7","Ke2","Rd5","f4","g6","g4","hxg4","hxg4","g5","f5","Be5","Rb5","Kf6","Rexb4","Bd4","Rb6","Ke5","Kf3","Rd8","Rb8","Rd7","R4b7","Rd6","Rb6","Rd7","Rg6","Kd5","Rxg5","Be5","f6","Kd4","Rb1"]
+  },
+  {
+    "name": "Fischer vs Spassky 1972 Game 6",
+    "year": 1972,
+    "white": "Fischer, Robert James",
+    "black": "Spassky, Boris V",
+    "theme": "Tartakower/Orthodox QGD model; positional squeeze and attack",
+    "eco": "D59",
+    "result": "1-0",
+    "moves": ["c4","e6","Nf3","d5","d4","Nf6","Nc3","Be7","Bg5","O-O","e3","h6","Bh4","b6","cxd5","Nxd5","Bxe7","Qxe7","Nxd5","exd5","Rc1","Be6","Qa4","c5","Qa3","Rc8","Bb5","a6","dxc5","bxc5","O-O","Ra7","Be2","Nd7","Nd4","Qf8","Nxe6","fxe6","e4","d4","f4","Qe7","e5","Rb8","Bc4","Kh8","Qh3","Nf8","b3","a5","f5","exf5","Rxf5","Nh7","Rcf1","Qd8","Qg3","Re7","h4","Rbb7","e6","Rbc7","Qe5","Qe8","a4","Qd8","R1f2","Qe8","R2f3","Qd8","Bd3","Qe8","Qe4","Nf6","Rxf6","gxf6","Rxf6","Kg8","Bc4","Kh8","Qf4"]
+  },
+  {
+    "name": "Fischer vs Spassky 1972 Game 8",
+    "year": 1972,
+    "white": "Fischer, Robert James",
+    "black": "Spassky, Boris V",
+    "theme": "English Opening model from the Match of the Century",
+    "eco": "A39",
+    "result": "1-0",
+    "moves": ["c4","c5","Nc3","Nc6","Nf3","Nf6","g3","g6","Bg2","Bg7","O-O","O-O","d4","cxd4","Nxd4","Nxd4","Qxd4","d6","Bg5","Be6","Qf4","Qa5","Rac1","Rab8","b3","Rfc8","Qd2","a6","Be3","b5","Ba7","bxc4","Bxb8","Rxb8","bxc4","Bxc4","Rfd1","Nd7","Nd5","Qxd2","Nxe7","Kf8","Rxd2","Kxe7","Rxc4","Rb1","Bf1","Nc5","Kg2","a5","e4","Ba1","f4","f6","Re2","Ke6","Rec2","Bb2","Be2","h5","Rd2","Ba3","f5","gxf5","exf5","Ke5","Rcd4","Kxf5","Rd5","Ke6","Rxd6","Ke7","Rc6"]
+  },
+  {
+    "name": "Spassky vs Fischer 1972 Game 1",
+    "year": 1972,
+    "white": "Spassky, Boris V",
+    "black": "Fischer, Robert James",
+    "theme": "Poisoned pawn / bishop capture controversy opener",
+    "eco": "E56",
+    "result": "1-0",
+    "moves": ["d4","Nf6","c4","e6","Nf3","d5","Nc3","Bb4","e3","O-O","Bd3","c5","O-O","Nc6","a3","Ba5","Ne2","dxc4","Bxc4","Bb6","dxc5","Qxd1","Rxd1","Bxc5","b4","Be7","Bb2","Bd7","Rac1","Rfd8","Ned4","Nxd4","Nxd4","Ba4","Bb3","Bxb3","Nxb3","Rxd1","Rxd1","Rc8","Kf1","Kf8","Ke2","Ne4","Rc1","Rxc1","Bxc1","f6","Na5","Nd6","Kd3","Bd8","Nc4","Bc7","Nxd6","Bxd6","b5","Bxh2","g3","h5","Ke2","h4","Kf3","Ke7","Kg2","hxg3","fxg3","Bxg3","Kxg3","Kd6","a4","Kd5","Ba3","Ke4","Bc5","a6","b6","f5","Kh4","f4","exf4","Kxf4","Kh5","Kf5","Be3","Ke4","Bf2","Kf5","Bh4","e5","Bg5","e4","Be3","Kf6","Kg4","Ke5","Kg5","Kd5","Kf5","a5","Bf2","g5","Kxg5","Kc4","Kf5","Kb4","Kxe4","Kxa4","Kd5","Kb5","Kd6"]
+  },
+  {
+    "name": "Spassky vs Fischer 1972 Game 13",
+    "year": 1972,
+    "white": "Spassky, Boris V",
+    "black": "Fischer, Robert James",
+    "theme": "Alekhine Defence complexity; famous a-pawn endgame race",
+    "eco": "B04",
+    "result": "0-1",
+    "moves": ["e4","Nf6","e5","Nd5","d4","d6","Nf3","g6","Bc4","Nb6","Bb3","Bg7","Nbd2","O-O","h3","a5","a4","dxe5","dxe5","Na6","O-O","Nc5","Qe2","Qe8","Ne4","Nbxa4","Bxa4","Nxa4","Re1","Nb6","Bd2","a4","Bg5","h6","Bh4","Bf5","g4","Be6","Nd4","Bc4","Qd2","Qd7","Rad1","Rfe8","f4","Bd5","Nc5","Qc8","Qc3","e6","Kh2","Nd7","Nd3","c5","Nb5","Qc6","Nd6","Qxd6","exd6","Bxc3","bxc3","f6","g5","hxg5","fxg5","f5","Bg3","Kf7","Ne5","Nxe5","Bxe5","b5","Rf1","Rh8","Bf6","a3","Rf4","a2","c4","Bxc4","d7","Bd5","Kg3","Ra3","c3","Rha8","Rh4","e5","Rh7","Ke6","Re7","Kd6","Rxe5","Rxc3","Kf2","Rc2","Ke1","Kxd7","Rexd5","Kc6","Rd6","Kb7","Rd7","Ka6","R7d2","Rxd2","Kxd2","b4","h4","Kb5","h5","c4","Ra1","gxh5","g6","h4","g7","h3","Be7","Rg8","Bf8","h2","Kc2","Kc6","Rd1","b3","Kc3","h1=Q","Rxh1","Kd5","Kb2","f4","Rd1","Ke4","Rc1","Kd3","Rd1","Ke2","Rc1","f3","Bc5","Rxg7","Rxc4","Rd7","Re4","Kf1","Bd4","f2"]
+  },
+  {
+    "name": "Spassky vs Fischer 1972 Game 21",
+    "year": 1972,
+    "white": "Spassky, Boris V",
+    "black": "Fischer, Robert James",
+    "theme": "Match-clinching final game",
+    "eco": "B46",
+    "result": "0-1",
+    "moves": ["e4","c5","Nf3","e6","d4","cxd4","Nxd4","a6","Nc3","Nc6","Be3","Nf6","Bd3","d5","exd5","exd5","O-O","Bd6","Nxc6","bxc6","Bd4","O-O","Qf3","Be6","Rfe1","c5","Bxf6","Qxf6","Qxf6","gxf6","Rad1","Rfd8","Be2","Rab8","b3","c4","Nxd5","Bxd5","Rxd5","Bxh2","Kxh2","Rxd5","Bxc4","Rd2","Bxa6","Rxc2","Re2","Rxe2","Bxe2","Rd8","a4","Rd2","Bc4","Ra2","Kg3","Kf8","Kf3","Ke7","g4","f5","gxf5","f6","Bg8","h6","Kg3","Kd6","Kf3","Ra1","Kg2","Ke5","Be6","Kf4","Bd7","Rb1","Be6","Rb2","Bc4","Ra2","Be6","h5","Bd7"]
+  },
+  {
+    "name": "Spassky vs Fischer 1972 Game 3",
+    "year": 1972,
+    "white": "Spassky, Boris V",
+    "black": "Fischer, Robert James",
+    "theme": "Benoni structures; Fischer’s first win in the match",
+    "eco": "A77",
+    "result": "0-1",
+    "moves": ["d4","Nf6","c4","e6","Nf3","c5","d5","exd5","cxd5","d6","Nc3","g6","Nd2","Nbd7","e4","Bg7","Be2","O-O","O-O","Re8","Qc2","Nh5","Bxh5","gxh5","Nc4","Ne5","Ne3","Qh4","Bd2","Ng4","Nxg4","hxg4","Bf4","Qf6","g3","Bd7","a4","b6","Rfe1","a6","Re2","b5","Rae1","Qg6","b3","Re7","Qd3","Rb8","axb5","axb5","b4","c4","Qd2","Rbe8","Re3","h5","R3e2","Kh7","Re3","Kg8","R3e2","Bxc3","Qxc3","Rxe4","Rxe4","Rxe4","Rxe4","Qxe4","Bh6","Qg6","Bc1","Qb1","Kf1","Bf5","Ke2","Qe4","Qe3","Qc2","Qd2","Qb3","Qd4","Bd3"]
+  },
+  {
+    "name": "Spassky vs Fischer 1972 Game 5",
+    "year": 1972,
+    "white": "Spassky, Boris V",
+    "black": "Fischer, Robert James",
+    "theme": "Nimzo-Indian structures; Fischer match momentum",
+    "eco": "E41",
+    "result": "0-1",
+    "moves": ["d4","Nf6","c4","e6","Nc3","Bb4","Nf3","c5","e3","Nc6","Bd3","Bxc3","bxc3","d6","e4","e5","d5","Ne7","Nh4","h6","f4","Ng6","Nxg6","fxg6","fxe5","dxe5","Be3","b6","O-O","O-O","a4","a5","Rb1","Bd7","Rb2","Rb8","Rbf2","Qe7","Bc2","g5","Bd2","Qe8","Be1","Qg6","Qd3","Nh5","Rxf8","Rxf8","Rxf8","Kxf8","Bd1","Nf4","Qc2","Bxa4"]
+  },
+  {
+    "name": "Karpov vs Kasparov 1987 Game 4",
+    "year": 1987,
+    "white": "Kasparov, Gary",
+    "black": "Karpov, Anatoly",
+    "theme": "Karpov–Kasparov positional battle in Seville",
+    "eco": "A29",
+    "result": "1-0",
+    "moves": ["c4","Nf6","Nc3","e5","Nf3","Nc6","g3","Bb4","Bg2","O-O","O-O","e4","Ng5","Bxc3","bxc3","Re8","f3","exf3","Nxf3","Qe7","e3","Ne5","Nd4","Nd3","Qe2","Nxc1","Raxc1","d6","Rf4","c6","Rcf1","Qe5","Qd3","Bd7","Nf5","Bxf5","Rxf5","Qe6","Qd4","Re7","Qh4","Nd7","Bh3","Nf8","R5f3","Qe5","d4","Qe4","Qxe4","Rxe4","Rxf7","Rxe3","d5","Rae8","Rxb7","cxd5","cxd5","R3e7","Rfb1","h5","a4","g5","Bf5","Kg7","a5","Kf6","Bd3","Rxb7","Rxb7","Re3","Bb5","Rxc3","Rxa7","Ng6","Rd7","Ne5","Rxd6","Kf5","a6","Ra3","Rd8"]
+  },
+  {
+    "name": "Kasparov vs Karpov 1987 Game 11",
+    "year": 1987,
+    "white": "Karpov, Anatoly",
+    "black": "Kasparov, Gary",
+    "theme": "Dynamic imbalance from the Seville rematch",
+    "eco": "D87",
+    "result": "0-1",
+    "moves": ["d4","Nf6","c4","g6","Nc3","d5","cxd5","Nxd5","e4","Nxc3","bxc3","Bg7","Bc4","c5","Ne2","Nc6","Be3","O-O","O-O","Bg4","f3","Na5","Bxf7","Rxf7","fxg4","Rxf1","Kxf1","Qd6","Kg1","Qe6","Qd3","Qc4","Qxc4","Nxc4","Bf2","cxd4","cxd4","e5","d5","Bh6","h4","Bd2","Rd1","Ba5","Rc1","b5","Rc2","Nd6","Ng3","Nc4","Nf1","Nd6","Ng3","Nc4","g5","Kf7","Nf1","Nd6","Ng3","Nc4","Kf1","Ke7","Bc5","Kf7","Rf2","Kg7","Rf6","Bb6","Rc6","Na5","Bxb6","Nxc6","Bc7","Rf8","Ke2","Rf7","Bd6","Rd7","Bc5","Na5","Nf1","Rc7","Bd6","Rc2","Kd3","Rxa2","Ne3","Kf7","Ng4","Nc4","Nxe5","Nxe5","Bxe5","b4","Bf6","b3","e5","Rxg2","e6","Kf8"]
+  },
+  {
+    "name": "Kasparov vs Karpov 1987 Game 16",
+    "year": 1987,
+    "white": "Kasparov, Gary",
+    "black": "Karpov, Anatoly",
+    "theme": "Kasparov–Karpov dynamic imbalance in a WC rematch",
+    "eco": "A29",
+    "result": "0-1",
+    "moves": ["c4","e5","Nc3","Nf6","Nf3","Nc6","g3","Bb4","Bg2","O-O","O-O","Re8","d3","Bxc3","bxc3","e4","Nd4","h6","dxe4","Nxe4","Qc2","d5","cxd5","Qxd5","e3","Na5","f3","Nd6","e4","Qc5","Be3","Ndc4","Bf2","Qe7","Rad1","Bd7","f4","Rad8","e5","Bg4","Nf5","Qe6","Rxd8","Rxd8","Nd4","Qc8","f5","c5","Qe4","cxd4","Qxg4","Nxe5","Qe2","Nec6","cxd4","Nxd4","Bxd4","Rxd4","f6","Qe6","Qb2","Qe3","Kh1","b6","fxg7","Nc4","Qc2","Kxg7","Bd5","Nd6","Qb2","Qe5","Bb3","a5","Qf2","f5","Qb2","b5","a3","Kg6","Qf2"]
+  },
+  {
+    "name": "Kasparov vs Karpov 1987 Game 24",
+    "year": 1987,
+    "white": "Kasparov, Gary",
+    "black": "Karpov, Anatoly",
+    "theme": "Title-saving game; practical defence under extreme pressure",
+    "eco": "A14",
+    "result": "1-0",
+    "moves": ["c4","e6","Nf3","Nf6","g3","d5","b3","Be7","Bg2","O-O","O-O","b6","Bb2","Bb7","e3","Nbd7","Nc3","Ne4","Ne2","a5","d3","Bf6","Qc2","Bxb2","Qxb2","Nd6","cxd5","Bxd5","d4","c5","Rfd1","Rc8","Nf4","Bxf3","Bxf3","Qe7","Rac1","Rfd8","dxc5","Nxc5","b4","axb4","Qxb4","Qa7","a3","Nf5","Rb1","Rxd1","Rxd1","Qc7","Nd3","h6","Rc1","Ne7","Qb5","Nf5","a4","Nd6","Qb1","Qa7","Ne5","Nxa4","Rxc8","Nxc8","Qd1","Ne7","Qd8","Kh7","Nxf7","Ng6","Qe8","Qe7","Qxa4","Qxf7","Be4","Kg8","Qb5","Nf8","Qxb6","Qf6","Qb5","Qe7","Kg2","g6","Qa5","Qg7","Qc5","Qf7","h4","h5","Qc6","Qe7","Bd3","Qf7","Qd6","Kg7","e4","Kg8","Bc4","Kg7","Qe5","Kg8","Qd6","Kg7","Bb5","Kg8","Bc6","Qa7","Qb4","Qc7","Qb7","Qd8","e5","Qa5","Be8","Qc5","Qf7","Kh8","Ba4","Qd5","Kh2","Qc5","Bb3","Qc8","Bd1","Qc5","Kg2"]
+  },
+  {
+    "name": "Deep Blue vs Kasparov 1997 Game 2",
+    "year": 1997,
+    "white": "Deep Blue (Computer)",
+    "black": "Garry Kasparov",
+    "theme": "Machine positional grind; historic human–computer match",
+    "eco": "C93",
+    "result": "1-0",
+    "moves": ["e4","e5","Nf3","Nc6","Bb5","a6","Ba4","Nf6","O-O","Be7","Re1","b5","Bb3","d6","c3","O-O","h3","h6","d4","Re8","Nbd2","Bf8","Nf1","Bd7","Ng3","Na5","Bc2","c5","b3","Nc6","d5","Ne7","Be3","Ng6","Qd2","Nh7","a4","Nh4","Nxh4","Qxh4","Qe2","Qd8","b4","Qc7","Rec1","c4","Ra3","Rec8","Rca1","Qd8","f4","Nf6","fxe5","dxe5","Qf1","Ne8","Qf2","Nd6","Bb6","Qe8","R3a2","Be7","Bc5","Bf8","Nf5","Bxf5","exf5","f6","Bxd6","Bxd6","axb5","axb5","Be4","Rxa2","Qxa2","Qd7","Qa7","Rc7","Qb6","Rb7","Ra8","Kf7","Qa6","Qc7","Qc6","Qb6","Kf1","Rb8","Ra6"]
+  },
+  {
+    "name": "Deep Blue vs Kasparov 1997 Game 6",
+    "year": 1997,
+    "white": "Deep Blue (Computer)",
+    "black": "Garry Kasparov",
+    "theme": "Historic machine win; Caro-Kann disaster study",
+    "eco": "B17",
+    "result": "1-0",
+    "moves": ["e4","c6","d4","d5","Nc3","dxe4","Nxe4","Nd7","Ng5","Ngf6","Bd3","e6","N1f3","h6","Nxe6","Qe7","O-O","fxe6","Bg6","Kd8","Bf4","b5","a4","Bb7","Re1","Nd5","Bg3","Kc8","axb5","cxb5","Qd3","Bc6","Bf5","exf5","Rxe7","Bxe7","c4"]
+  },
+  {
+    "name": "Kasparov vs Deep Blue 1997 Game 1",
+    "year": 1997,
+    "white": "Garry Kasparov",
+    "black": "Deep Blue (Computer)",
+    "theme": "Human vs machine; instructive opening / middlegame plans",
+    "eco": "A06",
+    "result": "1-0",
+    "moves": ["Nf3","d5","g3","Bg4","b3","Nd7","Bb2","e6","Bg2","Ngf6","O-O","c6","d3","Bd6","Nbd2","O-O","h3","Bh5","e3","h6","Qe1","Qa5","a3","Bc7","Nh4","g5","Nhf3","e5","e4","Rfe8","Nh2","Qb6","Qc1","a5","Re1","Bd6","Ndf1","dxe4","dxe4","Bc5","Ne3","Rad8","Nhf1","g4","hxg4","Nxg4","f3","Nxe3","Nxe3","Be7","Kh1","Bg5","Re2","a4","b4","f5","exf5","e4","f4","Bxe2","fxg5","Ne5","g6","Bf3","Bc3","Qb5","Qf1","Qxf1","Rxf1","h5","Kg1","Kf8","Bh3","b5","Kf2","Kg7","g4","Kh6","Rg1","hxg4","Bxg4","Bxg4","Nxg4","Nxg4","Rxg4","Rd5","f6","Rd1","g7"]
+  },
+  {
+    "name": "Kasparov's Immortal (vs Topalov 1999)",
+    "year": 1999,
+    "white": "Garry Kasparov",
+    "black": "Veselin Topalov",
+    "theme": "Deep rook sacrifice and long king hunt",
+    "eco": "",
+    "result": "",
+    "moves": ["e4","d6","d4","Nf6","Nc3","g6","Be3","Bg7","Qd2","c6","f3","b5","Nge2","Nbd7","Bh6","Bxh6","Qxh6","Bb7","a3","e5","O-O-O","Qe7","Kb1","a6","Nc1","O-O-O","Nb3","exd4","Rxd4","c5","Rd1","Nb6","g3","Kb8","Na5","Ba8","Bh3","d5","Qf4","Ka7","Rhe1","d4","Nd5","Nbxd5","exd5","Qd6","Rxd4","cxd4","Re7","Kb6","Qxd4","Kxa5","b4","Ka4","Qc3","Qxd5","Ra7","Bb7","Rxb7","Qc4","Qxf6","Kxa3","Qxa6","Kxb4","c3","Kxc3","Qa1","Kd2","Qb2","Kd1","Bf1","Rd2","Rd7","Rxd7","Bxc4","bxc4","Qxh8","Rd3","Qa8","c3","Qa4","Ke1","f4","f5","Kc1","Rd2","Qa7"]
+  },
+  {
+    "name": "Kasparov vs Kramnik 2000 Game 1",
+    "year": 2000,
+    "white": "Kasparov,G",
+    "black": "Kramnik,V",
+    "theme": "Opening of the London match; Berlin era begins",
+    "eco": "C67",
+    "result": "1/2-1/2",
+    "moves": ["e4","e5","Nf3","Nc6","Bb5","Nf6","O-O","Nxe4","d4","Nd6","Bxc6","dxc6","dxe5","Nf5","Qxd8","Kxd8","Nc3","Bd7","b3","h6","Bb2","Kc8","h3","b6","Rad1","Ne7","Ne2","Ng6","Ne1","h5","Nd3","c5","c4","a5","a4","h4","Nc3","Be6","Nd5","Kb7","Ne3","Rh5","Bc3","Re8","Rd2","Kc8","f4","Ne7","Nf2","Nf5"]
+  },
+  {
+    "name": "Kasparov vs Kramnik 2000 Game 2",
+    "year": 2000,
+    "white": "Kramnik,V",
+    "black": "Kasparov,G",
+    "theme": "Berlin Wall defence model that reshaped 1.e4 theory",
+    "eco": "D85",
+    "result": "1-0",
+    "moves": ["d4","Nf6","c4","g6","Nc3","d5","cxd5","Nxd5","e4","Nxc3","bxc3","Bg7","Nf3","c5","Be3","Qa5","Qd2","Bg4","Rb1","a6","Rxb7","Bxf3","gxf3","Nc6","Bc4","O-O","O-O","cxd4","cxd4","Bxd4","Bd5","Bc3","Qc1","Nd4","Bxd4","Bxd4","Rxe7","Ra7","Rxa7","Bxa7","f4","Qd8","Qc3","Bb8","Qf3","Qh4","e5","g5","Re1","Qxf4","Qxf4","gxf4","e6","fxe6","Rxe6","Kg7","Rxa6","Rf5","Be4","Re5","f3","Re7","a4","Ra7","Rb6","Be5","Rb4","Rd7","Kg2","Rd2","Kh3","h5","Rb5","Kf6","a5","Ra2","Rb6","Ke7","Bd5"]
+  },
+  {
+    "name": "Kramnik vs Kasparov 2000 Game 10",
+    "year": 2000,
+    "white": "Kramnik,V",
+    "black": "Kasparov,G",
+    "theme": "Kramnik title-clinching technique",
+    "eco": "E54",
+    "result": "1-0",
+    "moves": ["d4","Nf6","c4","e6","Nc3","Bb4","e3","O-O","Bd3","d5","Nf3","c5","O-O","cxd4","exd4","dxc4","Bxc4","b6","Bg5","Bb7","Re1","Nbd7","Rc1","Rc8","Qb3","Be7","Bxf6","Nxf6","Bxe6","fxe6","Qxe6","Kh8","Qxe7","Bxf3","gxf3","Qxd4","Nb5","Qxb2","Rxc8","Rxc8","Nd6","Rb8","Nf7","Kg8","Qe6","Rf8","Nd8","Kh8","Qe7"]
+  },
+  {
+    "name": "Anand vs Carlsen 2013 Game 3",
+    "year": 2013,
+    "white": "Carlsen, Magnus",
+    "black": "Anand, Viswanathan",
+    "theme": "Early Chennai match tension",
+    "eco": "A07",
+    "result": "1/2-1/2",
+    "moves": ["Nf3","d5","g3","g6","c4","dxc4","Qa4","Nc6","Bg2","Bg7","Nc3","e5","Qxc4","Nge7","O-O","O-O","d3","h6","Bd2","Nd4","Nxd4","exd4","Ne4","c6","Bb4","Be6","Qc1","Bd5","a4","b6","Bxe7","Qxe7","a5","Rab8","Re1","Rfc8","axb6","axb6","Qf4","Rd8","h4","Kh7","Nd2","Be5","Qg4","h5","Qh3","Be6","Qh1","c5","Ne4","Kg7","Ng5","b5","e3","dxe3","Rxe3","Bd4","Re2","c4","Nxe6","fxe6","Be4","cxd3","Rd2","Qb4","Rad1","Bxb2","Qf3","Bf6","Rxd3","Rxd3","Rxd3","Rd8","Rxd8","Bxd8","Bd3","Qd4","Bxb5","Qf6","Qb7","Be7","Kg2","g5","hxg5","Qxg5","Bc4","h4","Qc7","hxg3","Qxg3","e5","Kf3","Qxg3","fxg3","Bc5","Ke4","Bd4","Kf5","Bf2","Kxe5","Bxg3"]
+  },
+  {
+    "name": "Anand vs Carlsen 2013 Game 5",
+    "year": 2013,
+    "white": "Carlsen, Magnus",
+    "black": "Anand, Viswanathan",
+    "theme": "Modern WC positional grind; Carlsen conversion style",
+    "eco": "D31",
+    "result": "1-0",
+    "moves": ["c4","e6","d4","d5","Nc3","c6","e4","dxe4","Nxe4","Bb4","Nc3","c5","a3","Ba5","Nf3","Nf6","Be3","Nc6","Qd3","cxd4","Nxd4","Ng4","O-O-O","Nxe3","fxe3","Bc7","Nxc6","bxc6","Qxd8","Bxd8","Be2","Ke7","Bf3","Bd7","Ne4","Bb6","c5","f5","cxb6","fxe4","b7","Rab8","Bxe4","Rxb7","Rhf1","Rb5","Rf4","g5","Rf3","h5","Rdf1","Be8","Bc2","Rc5","Rf6","h4","e4","a5","Kd2","Rb5","b3","Bh5","Kc3","Rc5","Kb2","Rd8","R1f2","Rd4","Rh6","Bd1","Bb1","Rb5","Kc3","c5","Rb2","e5","Rg6","a4","Rxg5","Rxb3","Rxb3","Bxb3","Rxe5","Kd6","Rh5","Rd1","e5","Kd5","Bh7","Rc1","Kb2","Rg1","Bg8","Kc6","Rh6","Kd7","Bxb3","axb3","Kxb3","Rxg2","Rxh4","Ke6","a4","Kxe5","a5","Kd6","Rh7","Kd5","a6","c4","Kc3","Ra2","a7","Kc5","h4"]
+  },
+  {
+    "name": "Anand vs Carlsen 2013 Game 9",
+    "year": 2013,
+    "white": "Anand, Viswanathan",
+    "black": "Carlsen, Magnus",
+    "theme": "Sharp WC struggle; modern opening preparation",
+    "eco": "E25",
+    "result": "0-1",
+    "moves": ["d4","Nf6","c4","e6","Nc3","Bb4","f3","d5","a3","Bxc3","bxc3","c5","cxd5","exd5","e3","c4","Ne2","Nc6","g4","O-O","Bg2","Na5","O-O","Nb3","Ra2","b5","Ng3","a5","g5","Ne8","e4","Nxc1","Qxc1","Ra6","e5","Nc7","f4","b4","axb4","axb4","Rxa6","Nxa6","f5","b3","Qf4","Nc7","f6","g6","Qh4","Ne8","Qh6","b2","Rf4","b1=Q","Nf1","Qe1"]
+  },
+  {
+    "name": "Carlsen vs Anand 2013 Game 10",
+    "year": 2013,
+    "white": "Carlsen, Magnus",
+    "black": "Anand, Viswanathan",
+    "theme": "Match-clinching game crowning Carlsen",
+    "eco": "B51",
+    "result": "1/2-1/2",
+    "moves": ["e4","c5","Nf3","d6","Bb5","Nd7","d4","cxd4","Qxd4","a6","Bxd7","Bxd7","c4","Nf6","Bg5","e6","Nc3","Be7","O-O","Bc6","Qd3","O-O","Nd4","Rc8","b3","Qc7","Nxc6","Qxc6","Rac1","h6","Be3","Nd7","Bd4","Rfd8","h3","Qc7","Rfd1","Qa5","Qd2","Kf8","Qb2","Kg8","a4","Qh5","Ne2","Bf6","Rc3","Bxd4","Rxd4","Qe5","Qd2","Nf6","Re3","Rd7","a5","Qg5","e5","Ne8","exd6","Rc6","f4","Qd8","Red3","Rcxd6","Rxd6","Rxd6","Rxd6","Qxd6","Qxd6","Nxd6","Kf2","Kf8","Ke3","Ke7","Kd4","Kd7","Kc5","Kc7","Nc3","Nf5","Ne4","Ne3","g3","f5","Nd6","g5","Ne8","Kd7","Nf6","Ke7","Ng8","Kf8","Nxh6","gxf4","gxf4","Kg7","Nxf5","exf5","Kb6","Ng2","Kxb7","Nxf4","Kxa6","Ne6","Kb6","f4","a6","f3","a7","f2","a8=Q","f1=Q","Qd5","Qe1","Qd6","Qe3","Ka6","Nc5","Kb5","Nxb3","Qc7","Kh6","Qb6","Qxb6","Kxb6","Kh5","h4","Kxh4","c5","Nxc5"]
+  },
+  {
+    "name": "Carlsen vs Anand 2013 Game 6",
+    "year": 2013,
+    "white": "Anand, Viswanathan",
+    "black": "Carlsen, Magnus",
+    "theme": "Carlsen endgame technique securing the title match",
+    "eco": "C65",
+    "result": "0-1",
+    "moves": ["e4","e5","Nf3","Nc6","Bb5","Nf6","d3","Bc5","c3","O-O","O-O","Re8","Re1","a6","Ba4","b5","Bb3","d6","Bg5","Be6","Nbd2","h6","Bh4","Bxb3","axb3","Nb8","h3","Nbd7","Nh2","Qe7","Ndf1","Bb6","Ne3","Qe6","b4","a5","bxa5","Bxa5","Nhg4","Bb6","Bxf6","Nxf6","Nxf6","Qxf6","Qg4","Bxe3","fxe3","Qe7","Rf1","c5","Kh2","c4","d4","Rxa1","Rxa1","Qb7","Rd1","Qc6","Qf5","exd4","Rxd4","Re5","Qf3","Qc7","Kh1","Qe7","Qg4","Kh7","Qf4","g6","Kh2","Kg7","Qf3","Re6","Qg3","Rxe4","Qxd6","Rxe3","Qxe7","Rxe7","Rd5","Rb7","Rd6","f6","h4","Kf7","h5","gxh5","Rd5","Kg6","Kg3","Rb6","Rc5","f5","Kh4","Re6","Rxb5","Re4","Kh3","Kg5","Rb8","h4","Rg8","Kh5","Rf8","Rf4","Rc8","Rg4","Rf8","Rg3","Kh2","Kg5","Rg8","Kf4","Rc8","Ke3","Rxc4","f4","Ra4","h3","gxh3","Rg6","c4","f3","Ra3","Ke2","b4","f2","Ra2","Kf3","Ra3","Kf4","Ra8","Rg1"]
+  },
+  {
+    "name": "Carlsen vs Karjakin 2016 Game 10",
+    "year": 2016,
+    "white": "Carlsen, Magnus",
+    "black": "Karjakin, Sergey",
+    "theme": "Carlsen classical grind to break a WC deadlock",
+    "eco": "C65",
+    "result": "1-0",
+    "moves": ["e4","e5","Nf3","Nc6","Bb5","Nf6","d3","Bc5","c3","O-O","Bg5","h6","Bh4","Be7","O-O","d6","Nbd2","Nh5","Bxe7","Qxe7","Nc4","Nf4","Ne3","Qf6","g3","Nh3","Kh1","Ne7","Bc4","c6","Bb3","Ng6","Qe2","a5","a4","Be6","Bxe6","fxe6","Nd2","d5","Qh5","Ng5","h4","Nf3","Nxf3","Qxf3","Qxf3","Rxf3","Kg2","Rf7","Rfe1","h5","Nf1","Kf8","Nd2","Ke7","Re2","Kd6","Nf3","Raf8","Ng5","Re7","Rae1","Rfe8","Nf3","Nh8","d4","exd4","Nxd4","g6","Re3","Nf7","e5","Kd7","Rf3","Nh6","Rf6","Rg7","b4","axb4","cxb4","Ng8","Rf3","Nh6","a5","Nf5","Nb3","Kc7","Nc5","Kb8","Rb1","Ka7","Rd3","Rc7","Ra3","Nd4","Rd1","Nf5","Kh3","Nh6","f3","Rf7","Rd4","Nf5","Rd2","Rh7","Rb3","Ree7","Rdd3","Rh8","Rb1","Rhh7","b5","cxb5","Rxb5","d4","Rb6","Rc7","Nxe6","Rc3","Nf4","Rhc7","Nd5","Rxd3","Nxc7","Kb8","Nb5","Kc8","Rxg6","Rxf3","Kg2","Rb3","Nd6","Nxd6","Rxd6","Re3","e6","Kc7","Rxd4","Rxe6","Rd5","Rh6","Kf3","Kb8","Kf4","Ka7","Kg5","Rh8","Kf6"]
+  },
+  {
+    "name": "Carlsen vs Karjakin 2016 Game 8",
+    "year": 2016,
+    "white": "Carlsen, Magnus",
+    "black": "Karjakin, Sergey",
+    "theme": "Karjakin’s famous win vs Carlsen in the WC",
+    "eco": "D05",
+    "result": "0-1",
+    "moves": ["d4","Nf6","Nf3","d5","e3","e6","Bd3","c5","b3","Be7","O-O","O-O","Bb2","b6","dxc5","Bxc5","Nbd2","Bb7","Qe2","Nbd7","c4","dxc4","Nxc4","Qe7","a3","a5","Nd4","Rfd8","Rfd1","Rac8","Rac1","Nf8","Qe1","Ng6","Bf1","Ng4","Nb5","Bc6","a4","Bd5","Bd4","Bxc4","Rxc4","Bxd4","Rdxd4","Rxc4","bxc4","Nf6","Qd2","Rb8","g3","Ne5","Bg2","h6","f4","Ned7","Na7","Qa3","Nc6","Rf8","h3","Nc5","Kh2","Nxa4","Rd8","g6","Qd4","Kg7","c5","Rxd8","Nxd8","Nxc5","Qd6","Qd3","Nxe6","fxe6","Qe7","Kg8","Qxf6","a4","e4","Qd7","Qxg6","Qg7","Qe8","Qf8","Qc6","Qd8","f5","a3","fxe6","Kg7","e7","Qxe7","Qxb6","Nd3","Qa5","Qc5","Qa6","Ne5","Qe6","h5","h4","a2"]
+  },
+  {
+    "name": "Karjakin vs Carlsen 2016 Game 3",
+    "year": 2016,
+    "white": "Carlsen, Magnus",
+    "black": "Karjakin, Sergey",
+    "theme": "Early New York match struggle",
+    "eco": "C67",
+    "result": "1/2-1/2",
+    "moves": ["e4","e5","Nf3","Nc6","Bb5","Nf6","O-O","Nxe4","Re1","Nd6","Nxe5","Be7","Bf1","Nxe5","Rxe5","O-O","d4","Bf6","Re2","b6","Re1","Re8","Bf4","Rxe1","Qxe1","Qe7","Nc3","Bb7","Qxe7","Bxe7","a4","a6","g3","g5","Bxd6","Bxd6","Bg2","Bxg2","Kxg2","f5","Nd5","Kf7","Ne3","Kf6","Nc4","Bf8","Re1","Rd8","f4","gxf4","gxf4","b5","axb5","axb5","Ne3","c6","Kf3","Ra8","Rg1","Ra2","b3","c5","Rg8","Kf7","Rg2","cxd4","Nxf5","d3","cxd3","Ra1","Nd4","b4","Rg5","Rb1","Rf5","Ke8","Rb5","Rf1","Ke4","Re1","Kf5","Rd1","Re5","Kf7","Rd5","Rxd3","Rxd7","Ke8","Rd5","Rh3","Re5","Kf7","Re2","Bg7","Nc6","Rh5","Kg4","Rc5","Nd8","Kg6","Ne6","h5","Kf3","Rc3","Ke4","Bf6","Re3","h4","h3","Rc1","Nf8","Kf7","Nd7","Ke6","Nb6","Rd1","f5","Kf7","Nc4","Rd4","Kf3","Bg5","Re4","Rd3","Kg4","Rg3","Kh5","Be7","Ne5","Kf6","Ng4","Kf7","Re6","Rxh3","Ne5","Kg7","Rxe7","Kf6","Nc6","Kxf5","Na5","Rh1","Rb7","Ra1","Rb5","Kf4","Rxb4","Kg3","Rg4","Kf2","Nc4","h3","Rh4","Kg3","Rg4","Kf2"]
+  },
+  {
+    "name": "Carlsen vs Caruana 2018 Game 1",
+    "year": 2018,
+    "white": "Caruana, Fabiano",
+    "black": "Carlsen, Magnus",
+    "theme": "Modern elite preparation; Sicilian Rossolimo structures",
+    "eco": "B31",
+    "result": "1/2-1/2",
+    "moves": ["e4","c5","Nf3","Nc6","Bb5","g6","Bxc6","dxc6","d3","Bg7","h3","Nf6","Nc3","Nd7","Be3","e5","O-O","b6","Nh2","Nf8","f4","exf4","Rxf4","Be6","Rf2","h6","Qd2","g5","Raf1","Qd6","Ng4","O-O-O","Nf6","Nd7","Nh5","Be5","g4","f6","b3","Bf7","Nd1","Nf8","Nxf6","Ne6","Nh5","Bxh5","gxh5","Nf4","Bxf4","gxf4","Rg2","Rhg8","Qe2","Rxg2","Qxg2","Qe6","Nf2","Rg8","Ng4","Qe8","Qf3","Qxh5","Kf2","Bc7","Ke2","Qg5","Nh2","h5","Rf2","Qg1","Nf1","h4","Kd2","Kb7","c3","Be5","Kc2","Qg7","Nh2","Bxc3","Qxf4","Bd4","Qf7","Ka6","Qxg7","Rxg7","Re2","Rg3","Ng4","Rxh3","e5","Rf3","e6","Rf8","e7","Re8","Nh6","h3","Nf5","Bf6","a3","b5","b4","cxb4","axb4","Bxe7","Nxe7","h2","Rxh2","Rxe7","Rh6","Kb6","Kc3","Rd7","Rg6","Kc7","Rh6","Rd6","Rh8","Rg6","Ra8","Kb7","Rh8","Rg5","Rh7","Kb6","Rh6","Rg1","Kc2","Rf1","Rg6","Rh1","Rf6","Rh8","Kc3","Ra8","d4","Rd8","Rh6","Rd7","Rg6","Kc7","Rg5","Rd6","Rg8","Rh6","Ra8","Rh3","Kc2","Ra3","Kb2","Ra4","Kc3","a6","Rh8","Ra3","Kb2","Rg3","Kc2","Rg5","Rh6","Rd5","Kc3","Rd6","Rh8","Rg6","Kc2","Kb7","Kc3","Rg3","Kc2","Rg1","Rh5","Rg2","Kc3","Rg3","Kc2","Rg4","Kc3","Kb6","Rh6","Rg5","Rf6","Rh5","Rg6","Rh3","Kc2","Rh5","Kc3","Rd5","Rh6","Kc7","Rh7","Rd7","Rh5","Rd6","Rh8","Rg6","Rf8","Rg3","Kc2","Ra3","Rf7","Kd6","Ra7","Kd5","Kb2","Rd3","Rxa6","Rxd4","Kb3","Re4","Kc3","Rc4","Kb3","Kd4","Rb6","Kd3","Ra6","Rc2","Rb6","Rc3","Kb2","Rc4","Kb3","Kd4","Ra6","Kd5","Ra8"]
+  },
+  {
+    "name": "Caruana vs Carlsen 2018 Game 12",
+    "year": 2018,
+    "white": "Caruana, Fabiano",
+    "black": "Carlsen, Magnus",
+    "theme": "Classical finale before the rapid tiebreaks",
+    "eco": "B33",
+    "result": "1/2-1/2",
+    "moves": ["e4","c5","Nf3","Nc6","d4","cxd4","Nxd4","Nf6","Nc3","e5","Ndb5","d6","Nd5","Nxd5","exd5","Ne7","c4","Ng6","Qa4","Bd7","Qb4","Bf5","h4","h5","Qa4","Bd7","Qb4","Bf5","Be3","a6","Nc3","Qc7","g3","Be7","f3","Nf8","Ne4","Nd7","Bd3","O-O","Rh2","Rac8","O-O-O","Bg6","Rc2","f5","Nf2","Nc5","f4","a5","Qd2","e4","Be2","Be8","Kb1","Bf6","Re1","a4","Qb4","g6","Rd1","Ra8"]
+  },
+  {
+    "name": "Caruana vs Carlsen 2018 Game 6",
+    "year": 2018,
+    "white": "Carlsen, Magnus",
+    "black": "Caruana, Fabiano",
+    "theme": "Petroff structures from the London WC",
+    "eco": "C42",
+    "result": "1/2-1/2",
+    "moves": ["e4","e5","Nf3","Nf6","Nxe5","d6","Nd3","Nxe4","Qe2","Qe7","Nf4","Nc6","Nd5","Nd4","Nxe7","Nxe2","Nd5","Nd4","Na3","Ne6","f3","N4c5","d4","Nd7","c3","c6","Nf4","Nb6","Bd3","d5","Nc2","Bd6","Nxe6","Bxe6","Kf2","h5","h4","Nc8","Ne3","Ne7","g3","c5","Bc2","O-O","Rd1","Rfd8","Ng2","cxd4","cxd4","Rac8","Bb3","Nc6","Bf4","Na5","Rdc1","Bb4","Bd1","Nc4","b3","Na3","Rxc8","Rxc8","Rc1","Nb5","Rxc8","Bxc8","Ne3","Nc3","Bc2","Ba3","Bb8","a6","f4","Bd7","f5","Bc6","Bd1","Bb2","Bxh5","Ne4","Kg2","Bxd4","Bf4","Bc5","Bf3","Nd2","Bxd5","Bxe3","Bxc6","Bxf4","Bxb7","Bd6","Bxa6","Ne4","g4","Ba3","Bc4","Kf8","g5","Nc3","b4","Bxb4","Kf3","Na4","Bb5","Nc5","a4","f6","Kg4","Ne4","Kh5","Be1","Bd3","Nd6","a5","Bxa5","gxf6","gxf6","Kg6","Bd8","Kh7","Nf7","Bc4","Ne5","Bd5","Ba5","h5","Bd2","Ba2","Nf3","Bd5","Nd4","Kg6","Bg5","Bc4","Nf3","Kh7","Ne5","Bb3","Ng4","Bc4","Ne3","Bd3","Ng4","Bc4","Nh6","Kg6","Ke7","Bb3","Kd6","Bc2","Ke5","Bd3","Kf4","Bc2","Ng4","Bb3","Ne3","h6","Bxh6"]
+  },
+  {
+    "name": "Caruana vs Carlsen 2018 Game 8",
+    "year": 2018,
+    "white": "Caruana, Fabiano",
+    "black": "Carlsen, Magnus",
+    "theme": "Sveshnikov Sicilian model from a WC match",
+    "eco": "B33",
+    "result": "1/2-1/2",
+    "moves": ["e4","c5","Nf3","Nc6","d4","cxd4","Nxd4","Nf6","Nc3","e5","Ndb5","d6","Nd5","Nxd5","exd5","Nb8","a4","Be7","Be2","O-O","O-O","Nd7","Bd2","f5","a5","a6","Na3","e4","Nc4","Ne5","Nb6","Rb8","f4","exf3","Bxf3","g5","c4","f4","Bc3","Bf5","c5","Nxf3","Qxf3","dxc5","Rad1","Bd6","h3","Qe8","Nc4","Qg6","Nxd6","Qxd6","h4","gxh4","Qxf4","Qxf4","Rxf4","h5","Re1","Bg4","Rf6","Rxf6","Bxf6","Kf7","Bxh4","Re8","Rf1","Kg8","Rf6","Re2","Rg6","Kf8","d6","Rd2","Rg5"]
+  }
+]
