@@ -309,6 +309,143 @@
             color: var(--subtext);
             font-size: 11px;
         }
+
+        #dashboard { display: none; margin-bottom: 20px; }
+        .profile-header {
+            display: flex; gap: 16px; align-items: center;
+            background: var(--card-bg); border: 1px solid var(--border);
+            border-radius: 10px; padding: 16px 18px; margin-bottom: 0;
+            border-bottom-left-radius: 0; border-bottom-right-radius: 0;
+        }
+        .profile-avatar {
+            width: 72px; height: 72px; border-radius: 50%;
+            object-fit: cover; background: #111; border: 2px solid #333;
+            flex-shrink: 0;
+        }
+        .profile-avatar[src=""] { display: none; }
+        .profile-header-main { flex: 1; min-width: 0; }
+        .profile-header-main h2 {
+            margin: 0 0 4px; font-size: 20px; font-weight: 700;
+        }
+        .profile-header-sub {
+            font-size: 12px; color: var(--subtext); margin-bottom: 10px;
+        }
+        .profile-stat-row {
+            display: flex; flex-wrap: wrap; gap: 8px;
+        }
+        .profile-pill {
+            background: #111; border: 1px solid #2a2a2a; border-radius: 6px;
+            padding: 6px 10px; min-width: 72px;
+        }
+        .profile-pill-val {
+            font-size: 14px; font-weight: 700; color: var(--primary);
+        }
+        .profile-pill-label {
+            font-size: 9px; text-transform: uppercase; letter-spacing: 0.04em;
+            color: var(--subtext); margin-top: 1px;
+        }
+        .dash-tabs {
+            display: flex; flex-wrap: wrap; gap: 0;
+            background: #151515; border: 1px solid var(--border); border-top: none;
+            border-bottom: none;
+        }
+        .dash-tab {
+            flex: 1; min-width: 90px; padding: 12px 10px; border-radius: 0;
+            background: transparent; color: var(--subtext); font-size: 12px;
+            border-bottom: 2px solid transparent;
+        }
+        .dash-tab:hover { color: #fff; opacity: 1; }
+        .dash-tab.active {
+            color: #fff; border-bottom-color: var(--primary);
+            background: var(--card-bg);
+        }
+        .dash-panel {
+            display: none; background: var(--card-bg);
+            border: 1px solid var(--border); border-top: none;
+            border-radius: 0 0 10px 10px; padding: 16px;
+        }
+        .dash-panel.active { display: block; }
+        .dash-section {
+            background: #111; border: 1px solid #222; border-radius: 8px;
+            padding: 14px; margin-bottom: 14px;
+        }
+        .dash-section:last-child { margin-bottom: 0; }
+        .dash-section h3 {
+            margin: 0 0 10px; font-size: 14px; font-weight: 700;
+        }
+        .dash-section.full { grid-column: 1 / -1; }
+        .overview-grid {
+            display: grid; grid-template-columns: 1fr; gap: 14px;
+        }
+        @media (min-width: 900px) {
+            .overview-grid { grid-template-columns: 1.2fr 1fr; }
+        }
+        .best-worst-grid { display: grid; gap: 10px; }
+        .bw-card {
+            background: #0a0a0a; border: 1px solid #222; border-radius: 8px;
+            padding: 12px; cursor: pointer; border-left: 3px solid var(--primary);
+            text-align: left;
+        }
+        .bw-card.best { border-left-color: var(--success); }
+        .bw-card.worst { border-left-color: var(--accent); }
+        .bw-card:hover { border-color: #444; }
+        .bw-kicker {
+            font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+            color: var(--subtext); margin-bottom: 4px;
+        }
+        .bw-title { font-size: 14px; font-weight: 700; }
+        .bw-meta { font-size: 11px; color: var(--subtext); margin-top: 4px; line-height: 1.35; }
+        .mini-game-list { display: flex; flex-direction: column; gap: 8px; }
+        .mini-game-row {
+            display: grid; grid-template-columns: 56px 52px 1fr; gap: 10px;
+            align-items: start; padding: 10px 12px; background: #0a0a0a;
+            border: 1px solid #222; border-radius: 8px; cursor: pointer;
+            text-align: left;
+        }
+        .mini-game-row:hover { border-color: #444; }
+        .mini-result { font-size: 12px; font-weight: 700; }
+        .mini-color {
+            font-size: 11px; color: var(--subtext); padding-top: 1px;
+        }
+        .mini-body { min-width: 0; }
+        .mini-opp { font-size: 13px; font-weight: 700; }
+        .mini-reason { font-size: 11px; color: var(--subtext); margin-top: 3px; line-height: 1.35; }
+        .match-filters {
+            display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;
+        }
+        .match-filters select {
+            background: #000; color: #fff; border: 1px solid #333;
+            border-radius: 6px; padding: 10px 12px; font-size: 13px;
+        }
+        .loss-group {
+            background: #0a0a0a; border: 1px solid #222; border-left: 3px solid var(--accent);
+            border-radius: 8px; padding: 12px 14px; margin-bottom: 10px;
+        }
+        .loss-group-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+        .loss-group-meta { font-size: 11px; color: var(--subtext); margin-bottom: 8px; }
+        .loss-example {
+            font-size: 12px; color: var(--primary); cursor: pointer;
+            padding: 4px 0; font-weight: 600;
+        }
+        .loss-example:hover { text-decoration: underline; }
+        .faq-item {
+            border-bottom: 1px solid #222; padding: 12px 0;
+        }
+        .faq-item:last-child { border-bottom: none; }
+        .faq-term {
+            font-size: 14px; font-weight: 700; margin-bottom: 4px;
+        }
+        .faq-def {
+            font-size: 12px; color: var(--subtext); line-height: 1.45;
+        }
+        .faq-code {
+            margin-top: 6px; font-size: 11px; color: #aaa; font-family: monospace;
+            background: #0a0a0a; border: 1px solid #222; border-radius: 4px;
+            padding: 8px 10px; line-height: 1.4;
+        }
+        #tab-console #debug-log {
+            margin-top: 0; max-height: 420px; min-height: 200px;
+        }
     </style>
     </head>
 <body>
@@ -319,37 +456,6 @@
             <input type="text" id="username" placeholder="Chess.com Username">
             <button id="btnScan" onclick="startAnalysis()" disabled>Initializing Engine...</button>
             <button id="btnStop" onclick="stopAnalysis()">Stop</button>
-        </div>
-    </div>
-
-    <div id="stats-container" class="stats-summary" style="display:none">
-        <div class="stat-card"><div id="stat-blunder" class="stat-val">0</div><div class="stat-label">Blunders</div></div>
-        <div class="stat-card"><div id="stat-great" class="stat-val">0</div><div class="stat-label">Best / Good</div></div>
-        <div class="stat-card"><div id="stat-book" class="stat-val">0</div><div class="stat-label">Book / Theory</div></div>
-    </div>
-
-    <div id="profile-overview">
-        <h2 id="profile-title">Profile Overview</h2>
-        <div class="profile-sub" id="profile-sub">Analyzing games…</div>
-        <div class="profile-grid">
-            <div class="profile-opening">
-                <div class="profile-kicker">Top Openings as White</div>
-                <div class="opening-rank-list" id="profile-white-openings">
-                    <div class="insight-empty">Gathering data…</div>
-                </div>
-            </div>
-            <div class="profile-opening">
-                <div class="profile-kicker">Favourite Defences as Black</div>
-                <div class="opening-rank-list" id="profile-black-defences">
-                    <div class="insight-empty">Gathering data…</div>
-                </div>
-            </div>
-            <div>
-                <div class="profile-kicker">Move Quality</div>
-                <div class="insight-list" id="profile-insights">
-                    <div class="insight-empty">Move quality breakdown will appear as games are analyzed.</div>
-                </div>
-            </div>
         </div>
     </div>
 
@@ -370,11 +476,101 @@
         </div>
     </div>
 
-    <div id="game-list-view"></div>
+    <div id="dashboard">
+        <div class="profile-header" id="profile-header">
+            <img id="profile-avatar" class="profile-avatar" alt="avatar" src="">
+            <div class="profile-header-main">
+                <h2 id="profile-display-name">Player</h2>
+                <div class="profile-header-sub" id="profile-header-sub">Loading profile…</div>
+                <div class="profile-stat-row" id="profile-stat-row"></div>
+            </div>
+        </div>
+
+        <div class="dash-tabs" id="dash-tabs">
+            <button type="button" class="dash-tab active" data-tab="overview" onclick="switchDashTab('overview', this)">Overview</button>
+            <button type="button" class="dash-tab" data-tab="matches" onclick="switchDashTab('matches', this)">Matches</button>
+            <button type="button" class="dash-tab" data-tab="advanced" onclick="switchDashTab('advanced', this)">Advanced</button>
+            <button type="button" class="dash-tab" data-tab="faq" onclick="switchDashTab('faq', this)">FAQ</button>
+            <button type="button" class="dash-tab" data-tab="console" onclick="switchDashTab('console', this)">Console</button>
+        </div>
+
+        <div id="tab-overview" class="dash-panel active">
+            <div class="overview-grid">
+                <div class="dash-section">
+                    <h3>Move quality</h3>
+                    <div id="overview-quality"></div>
+                </div>
+                <div class="dash-section">
+                    <h3>Best &amp; worst</h3>
+                    <div class="best-worst-grid" id="overview-best-worst"></div>
+                </div>
+                <div class="dash-section full">
+                    <h3>Last 5 games</h3>
+                    <div class="mini-game-list" id="overview-recent"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-matches" class="dash-panel">
+            <div class="match-filters">
+                <select id="filter-color" onchange="renderMatchesTab()">
+                    <option value="all">All colours</option>
+                    <option value="white">White</option>
+                    <option value="black">Black</option>
+                </select>
+                <select id="filter-result" onchange="renderMatchesTab()">
+                    <option value="all">All results</option>
+                    <option value="WIN">Wins</option>
+                    <option value="LOSS">Losses</option>
+                    <option value="DRAW">Draws</option>
+                </select>
+            </div>
+            <div id="game-list-view"></div>
+        </div>
+
+        <div id="tab-advanced" class="dash-panel">
+            <div class="dash-section">
+                <div class="profile-kicker">Openings</div>
+                <div class="profile-grid" style="margin-top:10px">
+                    <div class="profile-opening">
+                        <div class="profile-kicker">Top as White</div>
+                        <div class="opening-rank-list" id="profile-white-openings"></div>
+                    </div>
+                    <div class="profile-opening">
+                        <div class="profile-kicker">Top as Black</div>
+                        <div class="opening-rank-list" id="profile-black-defences"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="dash-section">
+                <h3>Expanded move stats</h3>
+                <div id="advanced-move-stats"></div>
+            </div>
+            <div class="dash-section">
+                <h3>Why you lose</h3>
+                <div id="advanced-loss-reasons"></div>
+            </div>
+            <div class="dash-section">
+                <h3>Notable tactics</h3>
+                <div id="advanced-tactics"></div>
+            </div>
+        </div>
+
+        <div id="tab-faq" class="dash-panel">
+            <div class="dash-section" id="faq-content"></div>
+        </div>
+
+        <div id="tab-console" class="dash-panel">
+            <div class="dash-section">
+                <h3>Debug console</h3>
+                <div id="debug-log">System initializing...</div>
+            </div>
+        </div>
+    </div>
 
     <div id="review-view">
         <div class="review-main">
-            <button onclick="exitReview()" style="background:#333; margin-bottom:15px; padding: 10px 20px; border-radius:6px; color:white; border:none; cursor:pointer; font-weight:bold;">← BACK TO LIST</button>
+            <button onclick="exitReview()" style="background:#333; margin-bottom:15px; padding: 10px 20px; border-radius:6px; color:white; border:none; cursor:pointer; font-weight:bold;">← BACK TO PROFILE</button>
 
             <div id="game-story-box" class="game-story" style="display:none">
                 <div class="game-story-kicker" id="game-story-kicker">Why you won</div>
@@ -428,14 +624,12 @@
             </div>
         </div>
     </div>
-
-    <div id="debug-log">System initializing...</div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
 <script>
     const STOCKFISH_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
     const STOCKFISH_LOCAL = '/stockfish.js?v=20260803';
-    const APP_BUILD = '2026-08-04c';
+    const APP_BUILD = '2026-08-04d';
     const CACHE_VERSION = 5;
     // Root-absolute path so this works from both /chess and /chess.html
     const EXTERNAL_BOOK_URL = '/openings.json';
@@ -1411,11 +1605,18 @@
             games: 0,
             whiteGames: 0,
             blackGames: 0,
+            wins: 0,
+            losses: 0,
+            draws: 0,
+            whiteWins: 0,
+            blackWins: 0,
             openingsWhite: {},
             openingsBlack: {},
-            moveLabels: {},   // label -> count of player moves
+            moveLabels: {},
             playerMoves: 0,
-            themeHits: {},    // interesting tactical themes only (move counts)
+            themeHits: {},
+            analyzedGames: [],
+            playerInfo: null,
             finished: false
         };
     }
@@ -1434,25 +1635,432 @@
     ]);
 
     function ingestAnalysis(profile, analysis, gameKey) {
-        profile.games++;
-        if (analysis.isWhite) {
-            profile.whiteGames++;
-            trackOpeningBucket(profile.openingsWhite, analysis.openingName);
-        } else {
-            profile.blackGames++;
-            trackOpeningBucket(profile.openingsBlack, analysis.openingName);
+        analysis.gameKey = gameKey || analysis.gameKey || null;
+        if (!analysis.qualityScore && analysis.qualityScore !== 0) {
+            analysis.qualityScore = gameQualityScore(analysis);
         }
+        const existingIdx = profile.analyzedGames.findIndex(g => g.gameKey && g.gameKey === analysis.gameKey);
+        if (existingIdx >= 0) profile.analyzedGames[existingIdx] = analysis;
+        else profile.analyzedGames.push(analysis);
 
-        for (const m of analysis.moves || []) {
-            const label = m.classification?.label;
-            if (!label) continue;
-            profile.playerMoves++;
-            profile.moveLabels[label] = (profile.moveLabels[label] || 0) + 1;
-            for (const id of (m.moveThemes || [])) {
-                if (PROFILE_SKIP_THEMES.has(id)) continue;
-                profile.themeHits[id] = (profile.themeHits[id] || 0) + 1;
+        profile.games = profile.analyzedGames.length;
+        profile.whiteGames = 0;
+        profile.blackGames = 0;
+        profile.wins = 0;
+        profile.losses = 0;
+        profile.draws = 0;
+        profile.whiteWins = 0;
+        profile.blackWins = 0;
+        profile.openingsWhite = {};
+        profile.openingsBlack = {};
+        profile.moveLabels = {};
+        profile.playerMoves = 0;
+        profile.themeHits = {};
+
+        for (const a of profile.analyzedGames) {
+            if (a.isWhite) {
+                profile.whiteGames++;
+                trackOpeningBucket(profile.openingsWhite, a.openingName);
+                if (a.result === 'WIN') profile.whiteWins++;
+            } else {
+                profile.blackGames++;
+                trackOpeningBucket(profile.openingsBlack, a.openingName);
+                if (a.result === 'WIN') profile.blackWins++;
+            }
+            if (a.result === 'WIN') profile.wins++;
+            else if (a.result === 'LOSS') profile.losses++;
+            else profile.draws++;
+
+            for (const m of a.moves || []) {
+                const label = m.classification?.label;
+                if (!label) continue;
+                profile.playerMoves++;
+                profile.moveLabels[label] = (profile.moveLabels[label] || 0) + 1;
+                for (const id of (m.moveThemes || [])) {
+                    if (PROFILE_SKIP_THEMES.has(id)) continue;
+                    profile.themeHits[id] = (profile.themeHits[id] || 0) + 1;
+                }
             }
         }
+    }
+
+    function gameQualityScore(analysis) {
+        const weights = {
+            Best: 5, Good: 4, Okay: 3, Book: 3.5, Theory: 3.5,
+            Miss: 1.5, Mistake: 0.5, Blunder: 0
+        };
+        const moves = (analysis.moves || []).filter(m => m.classification?.label);
+        if (!moves.length) return 0;
+        let sum = 0;
+        for (const m of moves) sum += weights[m.classification.label] ?? 2;
+        return sum / moves.length;
+    }
+
+    function pct(n, d) {
+        if (!d) return 0;
+        return Math.round((n / d) * 1000) / 10;
+    }
+
+    function resultColor(result) {
+        return result === 'WIN' ? 'var(--success)'
+            : result === 'DRAW' ? 'var(--warning)' : 'var(--accent)';
+    }
+
+    function chessComResultLabel(code) {
+        const map = {
+            win: 'Won',
+            checkmated: 'Checkmated',
+            timeout: 'Timeout',
+            resigned: 'Resigned',
+            abandoned: 'Abandoned',
+            stalemate: 'Stalemate',
+            agreed: 'Draw agreed',
+            repetition: 'Repetition',
+            insufficient: 'Insufficient material',
+            '50move': '50-move rule',
+            timevsinsufficient: 'Timeout vs insufficient',
+            lose: 'Lost'
+        };
+        return map[code] || (code ? String(code) : 'Unknown');
+    }
+
+    function outcomeReason(analysis) {
+        if (analysis.gameStory?.headline) return analysis.gameStory.headline;
+        if (analysis.resultDetail) return chessComResultLabel(analysis.resultDetail);
+        return analysis.result || '—';
+    }
+
+    function switchDashTab(name, el) {
+        document.querySelectorAll('.dash-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.dash-panel').forEach(p => p.classList.remove('active'));
+        if (el) el.classList.add('active');
+        else {
+            const btn = document.querySelector(`.dash-tab[data-tab="${name}"]`);
+            if (btn) btn.classList.add('active');
+        }
+        const panel = document.getElementById('tab-' + name);
+        if (panel) panel.classList.add('active');
+        if (name === 'faq') renderFaqTab();
+        if (name === 'advanced' && profileState) renderAdvancedTab(profileState);
+        if (name === 'matches' && profileState) renderMatchesTab();
+        if (name === 'overview' && profileState) renderOverviewTab(profileState);
+    }
+
+    async function fetchPlayerProfile(username) {
+        const base = `https://api.chess.com/pub/player/${username.toLowerCase()}`;
+        const [playerRes, statsRes] = await Promise.all([
+            fetch(base),
+            fetch(base + '/stats')
+        ]);
+        if (!playerRes.ok) throw new Error('Player not found');
+        const player = await playerRes.json();
+        let stats = {};
+        try { stats = statsRes.ok ? await statsRes.json() : {}; } catch (_) {}
+
+        const ratings = [];
+        for (const [key, label] of [
+            ['chess_rapid', 'Rapid'],
+            ['chess_blitz', 'Blitz'],
+            ['chess_bullet', 'Bullet'],
+            ['chess_daily', 'Daily']
+        ]) {
+            const r = stats[key]?.last?.rating;
+            if (r) ratings.push({ label, rating: r });
+        }
+        return {
+            username: player.username || username,
+            name: player.name || null,
+            avatar: player.avatar || '',
+            url: player.url || '',
+            ratings
+        };
+    }
+
+    function renderProfileHeader(profile) {
+        const info = profile.playerInfo;
+        const display = info?.name
+            ? `${info.name} (@${info.username || profile.username})`
+            : (info?.username || profile.username);
+        document.getElementById('profile-display-name').innerText = display;
+
+        const avatar = document.getElementById('profile-avatar');
+        if (info?.avatar) {
+            avatar.src = info.avatar;
+            avatar.style.display = 'block';
+        } else {
+            avatar.removeAttribute('src');
+            avatar.style.display = 'none';
+        }
+
+        document.getElementById('profile-header-sub').innerText = profile.finished
+            ? `Based on ${profile.games} analyzed games (${profile.whiteGames} white · ${profile.blackGames} black)`
+            : `Live · ${profile.games} game${profile.games === 1 ? '' : 's'} analyzed so far`;
+
+        const wld = profile.games
+            ? `${pct(profile.wins, profile.games)}% / ${pct(profile.losses, profile.games)}% / ${pct(profile.draws, profile.games)}%`
+            : '—';
+        const whiteWin = profile.whiteGames ? `${pct(profile.whiteWins, profile.whiteGames)}%` : '—';
+        const blackWin = profile.blackGames ? `${pct(profile.blackWins, profile.blackGames)}%` : '—';
+        const eloBits = (info?.ratings || []).map(r =>
+            `<div class="profile-pill"><div class="profile-pill-val">${r.rating}</div><div class="profile-pill-label">${r.label}</div></div>`
+        ).join('');
+
+        document.getElementById('profile-stat-row').innerHTML = `
+            <div class="profile-pill"><div class="profile-pill-val">${wld}</div><div class="profile-pill-label">W / L / D</div></div>
+            <div class="profile-pill"><div class="profile-pill-val">${whiteWin}</div><div class="profile-pill-label">Win as White</div></div>
+            <div class="profile-pill"><div class="profile-pill-val">${blackWin}</div><div class="profile-pill-label">Win as Black</div></div>
+            ${eloBits || '<div class="profile-pill"><div class="profile-pill-val">—</div><div class="profile-pill-label">ELO</div></div>'}
+        `;
+    }
+
+    function qualityRowsHtml(profile) {
+        const total = profile.playerMoves || 0;
+        if (!total) {
+            return `<div class="insight-empty">${profile.games ? 'No player moves counted yet.' : 'Move quality will appear as games are analyzed.'}</div>`;
+        }
+        const rows = MOVE_QUALITY_ORDER
+            .map(q => {
+                const count = profile.moveLabels[q.label] || 0;
+                const p = Math.round((count / total) * 1000) / 10;
+                return { ...q, count, pct: p };
+            })
+            .filter(q => q.count > 0);
+        let html = `<div class="quality-meta">${total} of your moves across ${profile.games} game${profile.games === 1 ? '' : 's'}</div>`;
+        html += rows.map(q => `
+            <div class="quality-row">
+                <div class="quality-label" style="color:${q.color}">${q.label}</div>
+                <div class="quality-track"><div class="quality-fill" style="width:${Math.max(q.pct, q.count ? 2 : 0)}%;background:${q.color}"></div></div>
+                <div class="quality-pct">${q.pct}%</div>
+            </div>
+        `).join('');
+        return html;
+    }
+
+    function renderOverviewTab(profile) {
+        document.getElementById('overview-quality').innerHTML = qualityRowsHtml(profile);
+
+        const games = [...profile.analyzedGames].sort((a, b) => (b.endTime || 0) - (a.endTime || 0));
+        const recent = games.slice(0, 5);
+        const recentEl = document.getElementById('overview-recent');
+        if (!recent.length) {
+            recentEl.innerHTML = '<div class="insight-empty">Games will show here after analysis.</div>';
+        } else {
+            recentEl.innerHTML = recent.map((g, i) => `
+                <div class="mini-game-row" data-idx="${i}" onclick="openReviewFromStore('${escAttr(g.gameKey)}')">
+                    <div class="mini-result" style="color:${resultColor(g.result)}">${g.result}</div>
+                    <div class="mini-color">${g.isWhite ? 'White' : 'Black'}</div>
+                    <div class="mini-body">
+                        <div class="mini-opp">vs ${g.opponent}</div>
+                        <div class="mini-reason">${outcomeReason(g)}${g.resultDetail ? ' · ' + chessComResultLabel(g.resultDetail) : ''}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        const bw = document.getElementById('overview-best-worst');
+        if (games.length < 1) {
+            bw.innerHTML = '<div class="insight-empty">Need analyzed games for best / worst.</div>';
+            return;
+        }
+        const scored = games.map(g => ({ g, score: g.qualityScore ?? gameQualityScore(g) }));
+        const best = scored.reduce((a, b) => b.score > a.score ? b : a);
+        const worst = scored.reduce((a, b) => b.score < a.score ? b : a);
+        bw.innerHTML = `
+            <div class="bw-card best" onclick="openReviewFromStore('${escAttr(best.g.gameKey)}')">
+                <div class="bw-kicker">Best game · score ${best.score.toFixed(2)}</div>
+                <div class="bw-title">vs ${best.g.opponent} · ${best.g.result}</div>
+                <div class="bw-meta">${best.g.isWhite ? 'White' : 'Black'} · ${best.g.openingName || 'Unknown opening'}<br>${outcomeReason(best.g)}</div>
+            </div>
+            <div class="bw-card worst" onclick="openReviewFromStore('${escAttr(worst.g.gameKey)}')">
+                <div class="bw-kicker">Worst game · score ${worst.score.toFixed(2)}</div>
+                <div class="bw-title">vs ${worst.g.opponent} · ${worst.g.result}</div>
+                <div class="bw-meta">${worst.g.isWhite ? 'White' : 'Black'} · ${worst.g.openingName || 'Unknown opening'}<br>${outcomeReason(worst.g)}</div>
+            </div>
+        `;
+    }
+
+    function escAttr(s) {
+        return String(s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    }
+
+    function openReviewFromStore(gameKey) {
+        if (!profileState) return;
+        const g = profileState.analyzedGames.find(x => x.gameKey === gameKey);
+        if (g) openReview(g);
+    }
+
+    function renderMatchesTab() {
+        const list = document.getElementById('game-list-view');
+        list.innerHTML = '';
+        if (!profileState) return;
+        const color = document.getElementById('filter-color')?.value || 'all';
+        const result = document.getElementById('filter-result')?.value || 'all';
+        const games = [...profileState.analyzedGames]
+            .sort((a, b) => (b.endTime || 0) - (a.endTime || 0))
+            .filter(g => {
+                if (color === 'white' && !g.isWhite) return false;
+                if (color === 'black' && g.isWhite) return false;
+                if (result !== 'all' && g.result !== result) return false;
+                return true;
+            });
+        if (!games.length) {
+            list.innerHTML = '<div class="insight-empty">No matches for these filters.</div>';
+            return;
+        }
+        for (const analysis of games) renderGameItem(null, analysis);
+    }
+
+    function lossReasonKey(analysis) {
+        if (analysis.result !== 'LOSS') return null;
+        const idx = analysis.gameStory?.keyMoveIndex;
+        if (idx != null && analysis.moves?.[idx]) {
+            const themes = analysis.moves[idx].moveThemes || [];
+            const bad = themes.find(t => THEME_CATALOG[t]?.polarity === 'bad');
+            if (bad) return bad;
+        }
+        for (const m of analysis.moves || []) {
+            const bad = (m.moveThemes || []).find(t => THEME_CATALOG[t]?.polarity === 'bad');
+            if (bad && ['Blunder', 'Mistake', 'Miss'].includes(m.classification?.label)) return bad;
+        }
+        return 'unclassified';
+    }
+
+    const LOSS_REASON_LABELS = {
+        hung_piece: 'Hung a piece',
+        queen_trap: 'Queen hung / trapped',
+        discovered_attack: 'Discovered attack suffered',
+        missed_hanging: 'Missed hanging piece',
+        fork_victim: 'Walked into a fork',
+        pin_problem: 'Pin problems',
+        back_rank: 'Back-rank issues',
+        castle_pawn_push: 'King-side pawn pushes',
+        king_in_center: 'King stuck in center',
+        unclassified: 'Other / unclear'
+    };
+
+    function renderAdvancedTab(profile) {
+        renderOpeningRankList(
+            'profile-white-openings',
+            topOpeningEntries(profile.openingsWhite, profile.whiteGames, 5),
+            profile.whiteGames ? 'No white openings yet.' : 'Gathering white games…'
+        );
+        renderOpeningRankList(
+            'profile-black-defences',
+            topOpeningEntries(profile.openingsBlack, profile.blackGames, 5),
+            profile.blackGames ? 'No black defences yet.' : 'Gathering black games…'
+        );
+
+        document.getElementById('advanced-move-stats').innerHTML = qualityRowsHtml(profile);
+
+        const total = profile.playerMoves || 0;
+        const tacticsEl = document.getElementById('advanced-tactics');
+        const tacticLines = Object.entries(profile.themeHits || {})
+            .filter(([, hits]) => hits > 0)
+            .map(([id, hits]) => {
+                const p = total ? Math.round((hits / total) * 1000) / 10 : 0;
+                return { id, hits, pct: p, polarity: THEME_CATALOG[id]?.polarity || 'bad', label: id.replace(/_/g, ' ') };
+            })
+            .sort((a, b) => b.pct - a.pct);
+        if (!tacticLines.length) {
+            tacticsEl.innerHTML = '<div class="insight-empty">Notable tactics will appear after more games.</div>';
+        } else {
+            tacticsEl.innerHTML = tacticLines.map(t => `
+                <div class="quality-tactic-line">
+                    ${t.label} — <strong>${t.pct}%</strong> of your moves
+                    <span>(${t.hits}× · ${t.polarity === 'good' ? 'strength' : 'leak'})</span>
+                </div>
+            `).join('');
+        }
+
+        const losses = profile.analyzedGames.filter(g => g.result === 'LOSS');
+        const groups = {};
+        for (const g of losses) {
+            const key = lossReasonKey(g) || 'unclassified';
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(g);
+        }
+        const lossEl = document.getElementById('advanced-loss-reasons');
+        const entries = Object.entries(groups).sort((a, b) => b[1].length - a[1].length);
+        if (!entries.length) {
+            lossEl.innerHTML = '<div class="insight-empty">No losses in this sample yet.</div>';
+        } else {
+            lossEl.innerHTML = entries.map(([key, games]) => {
+                const title = LOSS_REASON_LABELS[key] || key.replace(/_/g, ' ');
+                const examples = games.slice(0, 4).map(g => `
+                    <div class="loss-example" onclick="openReviewFromStore('${escAttr(g.gameKey)}')">
+                        vs ${g.opponent} (${g.isWhite ? 'White' : 'Black'}) — ${outcomeReason(g)}
+                    </div>
+                `).join('');
+                return `
+                    <div class="loss-group">
+                        <div class="loss-group-title">${title}</div>
+                        <div class="loss-group-meta">${games.length} loss${games.length === 1 ? '' : 'es'} · ${pct(games.length, losses.length)}% of losses</div>
+                        ${examples}
+                    </div>
+                `;
+            }).join('');
+        }
+    }
+
+    function renderFaqTab() {
+        const el = document.getElementById('faq-content');
+        if (el.dataset.ready === '1') return;
+        el.innerHTML = `
+            <h3 style="margin:0 0 8px">How we classify your moves</h3>
+            <p class="faq-def" style="margin-bottom:12px">Labels use Stockfish at depth ${ENGINE_DEPTH}. Centipawn loss is measured from your side, then we ignore the first ${EVAL_NOISE_FLOOR_CP}cp of noise before banding.</p>
+            ${[
+                ['Theory', 'Your move matches a famous game line we track (at least 12 plies of SAN continuity).'],
+                ['Book', 'Still inside our opening book (FEN / move-list), and not already tagged Theory.'],
+                ['Best', 'You played the engine top move, OR post-noise eval loss ≤ 0.50 pawns.'],
+                ['Good', 'Post-noise eval loss ≤ 1.20 pawns (slight pull, still healthy).'],
+                ['Okay', 'Post-noise eval loss ≤ 2.00 pawns. Also the cap when the engine sample is marked unreliable (never Mistake/Blunder then).'],
+                ['Miss', 'Post-noise eval loss ≤ 3.00 pawns — something clearly better was available.'],
+                ['Mistake', 'Post-noise eval loss ≤ 4.50 pawns — real damage to the position.'],
+                ['Blunder', 'Post-noise eval loss > 4.50 pawns — catastrophic eval collapse.']
+            ].map(([term, def]) => `
+                <div class="faq-item">
+                    <div class="faq-term">${term}</div>
+                    <div class="faq-def">${def}</div>
+                </div>
+            `).join('')}
+            <h3 style="margin:18px 0 8px">Material events (from our code)</h3>
+            <div class="faq-item">
+                <div class="faq-term">Take / capture</div>
+                <div class="faq-def">You captured a piece and, after a short lookahead of the next few moves, the material balance is still in your favour (sequence net &gt; 0). We may phrase it as “Took the …” or “Won the …”.</div>
+                <div class="faq-code">capturedPiece && sequenceNet &gt; 0 → kind: 'capture'</div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-term">Exchange</div>
+                <div class="faq-def">You captured, but the immediate material swing is roughly even (|immediateNet| ≤ 1). Tracked as an exchange, not a win of material.</div>
+                <div class="faq-code">capturedPiece && |immediateNet| ≤ 1 → kind: 'exchange'</div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-term">Hang</div>
+                <div class="faq-def">After your move, one of your pieces (usually the highest-value newly hanging piece) is en prise and was not hanging before. We treat it as a hang if the opponent takes it in the lookahead, or the move is already Miss/Mistake/Blunder, or the offer is not compensated.</div>
+                <div class="faq-code">primaryHang && (hangTaken || isNegative || !compensated) → kind: 'hang'</div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-term">Sacrifice</div>
+                <div class="faq-def">You appear to offer material (hanging a piece, or moving onto a square that gets taken, or capturing down in value while leaving your piece hanging), but the sequence is compensated (lookahead net recovers) or the eval still supports it, and the move is not labelled Miss/Mistake/Blunder.</div>
+                <div class="faq-code">looksLikeOffer && (compensated || evalSupportsSac) && !isNegative → kind: 'sacrifice'</div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-term">Missed capture</div>
+                <div class="faq-def">The engine’s best move would take a hanging opponent piece on a different square than what you played.</div>
+                <div class="faq-code">best move captures hanging opponent piece you ignored → kind: 'missed_capture'</div>
+            </div>
+        `;
+        el.dataset.ready = '1';
+    }
+
+    function refreshDashboard() {
+        if (!profileState) return;
+        document.getElementById('dashboard').style.display = 'block';
+        renderProfileHeader(profileState);
+        renderOverviewTab(profileState);
+        const active = document.querySelector('.dash-tab.active')?.dataset?.tab || 'overview';
+        if (active === 'matches') renderMatchesTab();
+        if (active === 'advanced') renderAdvancedTab(profileState);
     }
 
     function topOpeningEntries(bucket, totalForColor, limit = 3) {
@@ -1500,84 +2108,23 @@
     ];
 
     function renderProfileOverview(profile) {
-        const box = document.getElementById('profile-overview');
-        box.style.display = 'block';
-        document.getElementById('profile-title').innerText = `${profile.username} — Profile Overview`;
-        document.getElementById('profile-sub').innerText = profile.finished
-            ? `Based on ${profile.games} analyzed games (${profile.whiteGames} white · ${profile.blackGames} black)`
-            : `Live overview · ${profile.games} game${profile.games === 1 ? '' : 's'} analyzed so far`;
-
-        renderOpeningRankList(
-            'profile-white-openings',
-            topOpeningEntries(profile.openingsWhite, profile.whiteGames, 3),
-            profile.whiteGames ? 'No white openings yet.' : 'Gathering white games…'
-        );
-        renderOpeningRankList(
-            'profile-black-defences',
-            topOpeningEntries(profile.openingsBlack, profile.blackGames, 3),
-            profile.blackGames ? 'No black defences yet.' : 'Gathering black games…'
-        );
-
-        const insights = document.getElementById('profile-insights');
-        const total = profile.playerMoves || 0;
-        if (!total) {
-            insights.innerHTML = `<div class="insight-empty">${profile.games ? 'No player moves counted yet.' : 'Move quality breakdown will appear as games are analyzed.'}</div>`;
-            return;
-        }
-
-        const rows = MOVE_QUALITY_ORDER
-            .map(q => {
-                const count = profile.moveLabels[q.label] || 0;
-                const pct = Math.round((count / total) * 1000) / 10;
-                return { ...q, count, pct };
-            })
-            .filter(q => q.count > 0);
-
-        let html = `<div class="quality-meta">${total} of your moves across ${profile.games} game${profile.games === 1 ? '' : 's'}</div>`;
-        html += rows.map(q => `
-            <div class="quality-row">
-                <div class="quality-label" style="color:${q.color}">${q.label}</div>
-                <div class="quality-track"><div class="quality-fill" style="width:${Math.max(q.pct, q.count ? 2 : 0)}%;background:${q.color}"></div></div>
-                <div class="quality-pct">${q.pct}%</div>
-            </div>
-        `).join('');
-
-        const tacticLines = Object.entries(profile.themeHits || {})
-            .filter(([, hits]) => hits > 0)
-            .map(([id, hits]) => {
-                const pct = Math.round((hits / total) * 1000) / 10;
-                const cat = THEME_CATALOG[id];
-                return { id, hits, pct, polarity: cat?.polarity || 'bad', label: id.replace(/_/g, ' ') };
-            })
-            .filter(t => t.pct >= 1)
-            .sort((a, b) => b.pct - a.pct)
-            .slice(0, 5);
-
-        if (tacticLines.length) {
-            html += `<div class="quality-tactics"><div class="profile-kicker">Notable tactics</div>`;
-            html += tacticLines.map(t => `
-                <div class="quality-tactic-line">
-                    ${t.label} — <strong>${t.pct}%</strong> of your moves
-                    <span>(${t.hits}× · ${t.polarity === 'good' ? 'strength' : 'leak'})</span>
-                </div>
-            `).join('');
-            html += `</div>`;
-        }
-
-        insights.innerHTML = html;
+        refreshDashboard();
     }
 
     function applyAnalysisToUi(game, analysis, gameKey, stats) {
-        stats.blunders += analysis.blunders;
-        stats.great += analysis.greatMoves;
-        stats.book += analysis.bookCount;
-        renderGameItem(game, analysis);
-        document.getElementById('stats-container').style.display = 'grid';
-        document.getElementById('stat-blunder').innerText = stats.blunders;
-        document.getElementById('stat-great').innerText = stats.great;
-        document.getElementById('stat-book').innerText = stats.book;
+        if (stats) {
+            stats.blunders += analysis.blunders;
+            stats.great += analysis.greatMoves;
+            stats.book += analysis.bookCount;
+        }
+        if (game) {
+            analysis.endTime = game.end_time || analysis.endTime || 0;
+            analysis.resultDetail = (analysis.isWhite ? game.white.result : game.black.result) || analysis.resultDetail || '';
+            analysis.oppResultDetail = (analysis.isWhite ? game.black.result : game.white.result) || analysis.oppResultDetail || '';
+        }
+        analysis.qualityScore = gameQualityScore(analysis);
         ingestAnalysis(profileState, analysis, gameKey);
-        renderProfileOverview(profileState);
+        refreshDashboard();
     }
 
     async function fetchRecentGames(username, limit = GAMES_LIMIT) {
@@ -1609,14 +2156,23 @@
         document.getElementById('btnStop').style.display = 'block';
         document.getElementById('progress-box').style.display = 'block';
         document.getElementById('game-list-view').innerHTML = '';
-        document.getElementById('stats-container').style.display = 'none';
+        document.getElementById('filter-color').value = 'all';
+        document.getElementById('filter-result').value = 'all';
 
         profileState = createProfileState(user);
-        document.getElementById('profile-overview').style.display = 'block';
-        renderProfileOverview(profileState);
+        document.getElementById('dashboard').style.display = 'block';
+        document.getElementById('review-view').style.display = 'none';
+        switchDashTab('overview');
+        refreshDashboard();
 
         log(`Connecting to Chess.com for ${user}...`);
         try {
+            try {
+                profileState.playerInfo = await fetchPlayerProfile(user);
+                refreshDashboard();
+            } catch (pe) {
+                log(`Profile header fetch failed: ${pe.message}`, true);
+            }
             const games = await fetchRecentGames(user, GAMES_LIMIT);
             if (!games.length) throw new Error("No games found");
 
@@ -1812,7 +2368,10 @@
 
         return finalizeAnalysis({ 
             moves: moveData, isWhite, opponent: isWhite ? game.black.username : game.white.username, 
-            result: normalizeResult(game, isWhite), 
+            result: normalizeResult(game, isWhite),
+            resultDetail: isWhite ? game.white.result : game.black.result,
+            oppResultDetail: isWhite ? game.black.result : game.white.result,
+            endTime: game.end_time || 0,
             blunders: counters.blunders, greatMoves: counters.great, bookCount: counters.book,
             openingName: theoryMatch.name || openingMatch.name,
             moveThemes: [...new Set(moveThemes)],
@@ -2077,7 +2636,7 @@
                 <div style="font-weight:bold">vs ${analysis.opponent}</div>
                 <div style="color:var(--primary); font-size:11px; margin-bottom:5px">${analysis.openingName || ''}</div>
                 <div style="display:flex; justify-content:space-between; align-items:center">
-                    <span style="font-size:11px; color:var(--subtext)">${analysis.moves.length} moves</span>
+                    <span style="font-size:11px; color:var(--subtext)">${analysis.isWhite ? 'White' : 'Black'} · ${analysis.moves.length} moves</span>
                     <span style="font-weight:bold; color:${resultColor}">${analysis.result}</span>
                 </div>
                 ${story}
@@ -2086,10 +2645,10 @@
         list.appendChild(card);
     }
 
-    function openReview(analysis) {
+    function openReview(analysis, jumpIdx) {
         if (!analysis.gameStory) finalizeAnalysis(analysis);
         currentReviewGame = analysis;
-        document.getElementById('game-list-view').style.display = 'none';
+        document.getElementById('dashboard').style.display = 'none';
         document.getElementById('review-view').style.display = 'grid';
         const listUi = document.getElementById('moves-tab');
         const graphUi = document.getElementById('eval-graph');
@@ -2136,7 +2695,9 @@
             bar.onclick = () => goToMove(idx);
             graphUi.appendChild(bar);
         });
-        goToMove(story?.keyMoveIndex != null ? story.keyMoveIndex : 0);
+        const startIdx = (jumpIdx != null) ? jumpIdx
+            : (story?.keyMoveIndex != null ? story.keyMoveIndex : 0);
+        goToMove(startIdx);
     }
 
     function goToMove(idx) {
@@ -2239,8 +2800,9 @@
     }
 
     function exitReview() {
-        document.getElementById('game-list-view').style.display = 'grid';
         document.getElementById('review-view').style.display = 'none';
+        document.getElementById('dashboard').style.display = 'block';
+        refreshDashboard();
     }
 
     function stopAnalysis() {
