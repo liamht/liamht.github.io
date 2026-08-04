@@ -107,6 +107,51 @@
         
         .opening-tag { font-size: 11px; color: #a29bfe; font-weight: bold; margin-bottom: 4px; display: block; }
 
+        .game-story {
+            background: #111;
+            border: 1px solid #222;
+            border-left: 3px solid var(--primary);
+            border-radius: 8px;
+            padding: 12px 14px;
+            margin-bottom: 12px;
+        }
+        .game-story.win { border-left-color: var(--success); }
+        .game-story.loss { border-left-color: var(--accent); }
+        .game-story.draw { border-left-color: var(--warning); }
+        .game-story-kicker {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--subtext);
+            margin-bottom: 4px;
+        }
+        .game-story-headline {
+            font-size: 14px;
+            font-weight: 700;
+            line-height: 1.35;
+            color: var(--text);
+        }
+        .game-story-detail {
+            margin-top: 6px;
+            font-size: 12px;
+            color: var(--subtext);
+            line-height: 1.4;
+        }
+        .game-story-link {
+            margin-top: 8px;
+            font-size: 11px;
+            color: var(--primary);
+            cursor: pointer;
+            font-weight: 700;
+        }
+        .game-card-story {
+            margin-top: 8px;
+            font-size: 11px;
+            color: var(--subtext);
+            line-height: 1.35;
+            text-align: left;
+        }
+
         #profile-overview {
             display: none;
             margin-bottom: 20px;
@@ -213,6 +258,57 @@
             color: var(--subtext);
             padding: 8px 0;
         }
+        .quality-row {
+            display: grid;
+            grid-template-columns: 72px 1fr 48px;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .quality-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .quality-track {
+            height: 8px;
+            background: #1a1a1a;
+            border-radius: 4px;
+            overflow: hidden;
+            border: 1px solid #222;
+        }
+        .quality-fill {
+            height: 100%;
+            border-radius: 4px;
+            min-width: 0;
+        }
+        .quality-pct {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--subtext);
+            text-align: right;
+        }
+        .quality-meta {
+            font-size: 11px;
+            color: var(--subtext);
+            margin-top: 4px;
+            margin-bottom: 10px;
+        }
+        .quality-tactics {
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid #222;
+        }
+        .quality-tactic-line {
+            font-size: 12px;
+            color: var(--text);
+            margin-bottom: 6px;
+            line-height: 1.35;
+        }
+        .quality-tactic-line span {
+            color: var(--subtext);
+            font-size: 11px;
+        }
     </style>
     </head>
 <body>
@@ -249,9 +345,9 @@
                 </div>
             </div>
             <div>
-                <div class="profile-kicker">Game Analysis</div>
+                <div class="profile-kicker">Move Quality</div>
                 <div class="insight-list" id="profile-insights">
-                    <div class="insight-empty">Move themes will appear as games are analyzed.</div>
+                    <div class="insight-empty">Move quality breakdown will appear as games are analyzed.</div>
                 </div>
             </div>
         </div>
@@ -279,6 +375,13 @@
     <div id="review-view">
         <div class="review-main">
             <button onclick="exitReview()" style="background:#333; margin-bottom:15px; padding: 10px 20px; border-radius:6px; color:white; border:none; cursor:pointer; font-weight:bold;">← BACK TO LIST</button>
+
+            <div id="game-story-box" class="game-story" style="display:none">
+                <div class="game-story-kicker" id="game-story-kicker">Why you won</div>
+                <div class="game-story-headline" id="game-story-headline"></div>
+                <div class="game-story-detail" id="game-story-detail"></div>
+                <div class="game-story-link" id="game-story-link" style="display:none">Jump to key moment →</div>
+            </div>
             
             <div id="current-move-info" class="move-card">
                 <span id="move-opening" class="opening-tag"></span>
@@ -332,11 +435,12 @@
 <script>
     const STOCKFISH_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
     const STOCKFISH_LOCAL = '/stockfish.js?v=20260803';
-    const APP_BUILD = '2026-08-03e';
-    const CACHE_VERSION = 2;
+    const APP_BUILD = '2026-08-04c';
+    const CACHE_VERSION = 5;
     // Root-absolute path so this works from both /chess and /chess.html
     const EXTERNAL_BOOK_URL = '/openings.json';
     const ENGINE_DEPTH = 5;
+    const EVAL_NOISE_FLOOR_CP = 100; // ignore first 1.0 pawn of depth-5 wobble
     const GAMES_LIMIT = 100;
     const PARALLEL_GAMES = Math.min(4, navigator.hardwareConcurrency || 4);
     
@@ -563,54 +667,68 @@
     }
 
     function moveToUci(move) {
-        return move.from + move.to + (move.promotion ? move.promotion : '');
+        const promo = move.promotion ? String(move.promotion).toLowerCase() : '';
+        return move.from + move.to + promo;
     }
 
     function scoreForSideToMove(analysis) {
         if (!analysis) return 0;
         if (analysis.isMate) {
-            // Mate scores: positive = side to move is mating
+            // Mate scores: positive = side to move is mating. Cap magnitude so mate-distance
+            // flicker cannot invent multi-pawn "blunders" between two shallow searches.
             const n = Math.abs(analysis.score) || 1;
-            return analysis.score > 0 ? (10000 - n) : (-10000 + n);
+            const capped = Math.min(n, 10);
+            return analysis.score > 0 ? (600 - capped * 10) : (-600 + capped * 10);
         }
-        // Clamp so one noisy depth-5 spike can't invent fake blunders
-        return Math.max(-2000, Math.min(2000, analysis.score || 0));
+        // Clamp ordinary evals so one noisy depth-5 spike can't dominate
+        return Math.max(-1500, Math.min(1500, analysis.score || 0));
     }
 
-    function centipawnLossForPlayer(bestBefore, actualAfter) {
+    function computeEvalDelta(bestBefore, actualAfter) {
         // UCI scores are from the side to move:
-        // before = player's turn, after = opponent's turn
+        // before = player's turn, after = opponent's turn → playerEvalAfter = -scoreAfter
         const before = scoreForSideToMove(bestBefore);
-        const after = -scoreForSideToMove(actualAfter);
-        return before - after;
+        const afterForPlayer = -scoreForSideToMove(actualAfter);
+        const rawCpl = Math.max(0, before - afterForPlayer);
+        const evalDeltaCp = Math.max(0, rawCpl - EVAL_NOISE_FLOOR_CP);
+        return { rawCpl, evalDeltaCp, evalDelta: evalDeltaCp / 100 };
     }
 
     function getEngineAnalysis(engine, fen) {
         return new Promise((resolve) => {
-            if (!enginesReady || !engine) return resolve({ score: 0, isMate: false, bestMove: '' });
+            if (!enginesReady || !engine) {
+                return resolve({ score: 0, isMate: false, bestMove: '', reliable: false });
+            }
             let score = 0, isMate = false, bestMove = '';
+            let settled = false;
             
-            const timeout = setTimeout(() => {
+            const finish = (reliable) => {
+                if (settled) return;
+                settled = true;
                 engine.removeEventListener('message', handler);
+                clearTimeout(timeout);
+                resolve({ score, isMate, bestMove, reliable });
+            };
+
+            const timeout = setTimeout(() => {
                 try { engine.postMessage('stop'); } catch (_) {}
-                resolve({ score, isMate, bestMove });
+                // Timed out without a clean bestmove → unreliable for harsh labels
+                finish(!!bestMove);
             }, 2500);
 
             const handler = (e) => {
                 if (typeof e.data !== 'string') return;
                 if (e.data.includes('score cp')) {
                     const m = e.data.match(/score cp (-?\d+)/);
-                    if (m) score = parseInt(m[1]);
+                    if (m) { score = parseInt(m[1]); isMate = false; }
                 } else if (e.data.includes('score mate')) {
                     const m = e.data.match(/score mate (-?\d+)/);
                     if (m) { score = parseInt(m[1]); isMate = true; }
                 }
                 if (e.data.startsWith('bestmove')) {
                     const m = e.data.match(/bestmove\s+(\S+)/);
-                    bestMove = m ? m[1] : '';
-                    engine.removeEventListener('message', handler);
-                    clearTimeout(timeout);
-                    resolve({ score, isMate, bestMove });
+                    bestMove = m && m[1] !== '(none)' ? m[1] : '';
+                    finish(!!bestMove);
                 }
             };
             engine.addEventListener('message', handler);
@@ -619,7 +737,7 @@
         });
     }
 
-    function classifyMove({ cpl, isUserTurn, isBook, isTheory, playedBest, theoryName, openingName }) {
+    function classifyMove({ evalDelta, isUserTurn, isBook, isTheory, playedBest, reliable, theoryName, openingName }) {
         if (!isUserTurn) return { label: '', class: '', desc: '' };
 
         if (isTheory) {
@@ -637,16 +755,22 @@
             };
         }
 
-        // Engine's chosen move is always Best, regardless of noisy depth-5 eval wobble
-        if (playedBest || cpl <= 25) {
-            return { label: 'Best', class: 'cls-best', desc: 'Engine top choice.' };
+        // Engine's chosen move is always Best
+        if (playedBest || evalDelta <= 0.50) {
+            return { label: 'Best', class: 'cls-best', desc: playedBest ? 'Engine top choice.' : 'Negligible eval change.' };
         }
-        if (cpl <= 60) return { label: 'Good', class: 'cls-good', desc: 'Strong, practical move.' };
-        if (cpl <= 120) return { label: 'Okay', class: 'cls-okay', desc: 'Playable; only a small concession.' };
-        if (cpl <= 200) return { label: 'Miss', class: 'cls-miss', desc: 'Missed a clearly stronger continuation.' };
-        if (cpl <= 300) return { label: 'Mistake', class: 'cls-mistake', desc: 'Costly inaccuracy (~2 pawns).' };
-        // Blunder ≈ 3+ pawns of swing
-        return { label: 'Blunder', class: 'cls-blunder', desc: 'Severe error (~3+ pawns).' };
+
+        // Unreliable search sample: never emit Mistake/Blunder
+        if (!reliable) {
+            if (evalDelta <= 1.20) return { label: 'Good', class: 'cls-good', desc: 'Strong, practical move.' };
+            return { label: 'Okay', class: 'cls-okay', desc: 'Uncertain engine sample — treated as playable.' };
+        }
+
+        if (evalDelta <= 1.20) return { label: 'Good', class: 'cls-good', desc: 'Slight pull; still healthy.' };
+        if (evalDelta <= 2.00) return { label: 'Okay', class: 'cls-okay', desc: 'Visible concession, not serious.' };
+        if (evalDelta <= 3.00) return { label: 'Miss', class: 'cls-miss', desc: 'Missed something clearly better.' };
+        if (evalDelta <= 4.50) return { label: 'Mistake', class: 'cls-mistake', desc: 'Real damage to the position.' };
+        return { label: 'Blunder', class: 'cls-blunder', desc: 'Catastrophic eval collapse.' };
     }
 
     const PIECE_VAL = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 100 };
@@ -669,7 +793,7 @@
         great_sacrifice: {
             polarity: 'good',
             text: (pct) => `You play material sacrifices in ${pct}% of your games`,
-            detail: 'Giving material for initiative, attack, or a forced sequence.'
+            detail: 'Giving a specific piece for initiative, attack, or a forced regain of material.'
         },
         forked_piece: {
             polarity: 'good',
@@ -688,13 +812,13 @@
         },
         won_material: {
             polarity: 'good',
-            text: (pct) => `You convert tactical material wins in ${pct}% of your games`,
-            detail: 'Captures that leave you ahead after the dust settles.'
+            text: (pct) => `You win concrete material in ${pct}% of your games`,
+            detail: 'Captures of a named piece that leave you ahead after the sequence.'
         },
         hung_piece: {
             polarity: 'bad',
-            text: (pct) => `You hang pieces in ${pct}% of your games`,
-            detail: 'Leaving a piece en prise or under-defended after your move.'
+            text: (pct) => `You hang specific pieces in ${pct}% of your games`,
+            detail: 'Leaving a named piece en prise without getting it back.'
         },
         discovered_attack: {
             polarity: 'bad',
@@ -907,11 +1031,50 @@
         return ({ p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', k: 'king' })[type] || 'piece';
     }
 
-    function describePlayerMove(before, after, move, bestMoveUci, userColor, clsLabel) {
+    function materialCount(chess, color) {
+        let total = 0;
+        for (const p of eachPieceSquare(chess, color)) {
+            if (p.type !== 'k') total += p.value;
+        }
+        return total;
+    }
+
+    function lookAheadMaterialNet(startFen, userColor, futureMoves, maxPlies = 6) {
+        const c = new Chess(startFen);
+        let net = 0;
+        const takes = [];
+        for (let i = 0; i < Math.min(maxPlies, futureMoves.length); i++) {
+            const mv = futureMoves[i];
+            const moverIsUser = c.turn() === userColor;
+            // Apply via from/to so we don't depend on SAN ambiguity
+            const played = c.move({ from: mv.from, to: mv.to, promotion: mv.promotion });
+            if (!played) break;
+            if (played.captured) {
+                const val = PIECE_VAL[played.captured] || 0;
+                net += moverIsUser ? val : -val;
+                takes.push({
+                    ply: i + 1,
+                    byUser: moverIsUser,
+                    piece: played.captured,
+                    san: played.san,
+                    square: played.to
+                });
+            }
+        }
+        return { net, takes };
+    }
+
+    function describePlayerMove(opts) {
+        const {
+            before, after, move, bestMoveUci, userColor, clsLabel,
+            futureMoves = [], evalDelta = 0
+        } = opts;
         const themes = [];
         const bits = [];
         const opp = userColor === 'w' ? 'b' : 'w';
         const isNegative = ['Miss', 'Mistake', 'Blunder'].includes(clsLabel);
+        const isPositive = ['Best', 'Good'].includes(clsLabel);
+        let materialEvent = null;
 
         if (move.san === 'O-O' || move.san === 'O-O-O') {
             themes.push('castled_safe');
@@ -932,13 +1095,7 @@
             }
         }
 
-        // Gave a fork with this move
-        if (!isNegative && allowsFork(after, opp) && !allowsFork(before, opp)) {
-            // allowsFork(victimColor) — check if WE now fork them: victim is opp
-            themes.push('forked_piece');
-            bits.push('Forked enemy pieces');
-        }
-        // Better fork check: does our moved piece attack 2 valuables?
+        // Fork detection
         {
             const board = after.board();
             const a = sqCoords(move.to);
@@ -953,28 +1110,118 @@
                 const hasKing = hits.some(h => h.type === 'k');
                 const valuables = hits.filter(h => h.type !== 'k');
                 if ((hasKing && valuables.length) || valuables.length >= 2) {
-                    if (!themes.includes('forked_piece')) {
-                        themes.push('forked_piece');
-                        bits.push('Created a fork');
-                    }
+                    themes.push('forked_piece');
+                    const names = valuables.map(v => pieceLabel(v.type));
+                    bits.push(hasKing
+                        ? `Forked king and ${names.join('/')}`
+                        : `Forked ${names.join(' and ')}`);
                 }
             }
         }
 
-        if (move.captured) {
-            const gained = PIECE_VAL[move.captured] || 0;
-            const gave = PIECE_VAL[move.piece] || 0;
-            if (gained >= 3) {
-                themes.push('won_material');
-                bits.push(`Took the ${pieceLabel(move.captured)}`);
+        // --- Material: captures, hangs, sacrifices (with lookahead) ---
+        const ourMatBefore = materialCount(before, userColor);
+        const oppMatBefore = materialCount(before, opp);
+        const ourMatAfter = materialCount(after, userColor);
+        const oppMatAfter = materialCount(after, opp);
+        const immediateNet = (ourMatAfter - oppMatAfter) - (ourMatBefore - oppMatBefore);
+
+        const lookahead = lookAheadMaterialNet(after.fen(), userColor, futureMoves, 6);
+        const sequenceNet = immediateNet + lookahead.net;
+
+        // What we captured this move
+        const capturedPiece = move.captured || null;
+        // Newly hanging our pieces after the move
+        const hangingOurs = [];
+        for (const p of eachPieceSquare(after, userColor)) {
+            if (p.type === 'k' || p.value < 1) continue;
+            if (isHanging(after, p.sq, userColor) && !isHanging(before, p.sq, userColor)) {
+                hangingOurs.push(p);
             }
-            if (gave < gained && !isNegative) {
-                // already covered
+        }
+        // Prefer highest-value hanger
+        hangingOurs.sort((a, b) => b.value - a.value);
+        const primaryHang = hangingOurs[0] || null;
+
+        // Did opponent actually take a hanging piece soon?
+        const hangTaken = primaryHang
+            ? lookahead.takes.find(t => !t.byUser && t.piece === primaryHang.type && t.square === primaryHang.sq)
+              || lookahead.takes.find(t => !t.byUser && t.piece === primaryHang.type)
+            : null;
+
+        // Reciprocal take of our moved piece (sacrificed onto a square)
+        const movedPieceTaken = lookahead.takes.find(t => !t.byUser && t.square === move.to && t.piece === move.piece);
+
+        if (capturedPiece) {
+            bits.push(`Took the ${pieceLabel(capturedPiece)}`);
+        }
+
+        // Classify material event
+        const offeredPiece = primaryHang?.type || (movedPieceTaken ? move.piece : null);
+        const offeredValue = offeredPiece ? (PIECE_VAL[offeredPiece] || 0) : 0;
+        const gainedValue = capturedPiece ? (PIECE_VAL[capturedPiece] || 0) : 0;
+
+        const looksLikeOffer = !!(primaryHang || movedPieceTaken || (capturedPiece && gainedValue < (PIECE_VAL[move.piece] || 0) && isHanging(after, move.to, userColor)));
+        const compensated = sequenceNet >= -0.5 || (lookahead.net >= offeredValue - 1 && offeredValue > 0);
+        const evalSupportsSac = isPositive || evalDelta <= 1.2;
+
+        if (looksLikeOffer && (compensated || evalSupportsSac) && !isNegative && offeredPiece) {
+            themes.push('great_sacrifice');
+            const regain = lookahead.takes.filter(t => t.byUser).map(t => pieceLabel(t.piece));
+            materialEvent = {
+                kind: 'sacrifice',
+                offered: offeredPiece,
+                captured: capturedPiece,
+                regained: lookahead.takes.filter(t => t.byUser).map(t => t.piece),
+                net: sequenceNet
+            };
+            bits.unshift(
+                regain.length
+                    ? `Sacrificed the ${pieceLabel(offeredPiece)} to win ${regain.join('/')}`
+                    : `Sacrificed the ${pieceLabel(offeredPiece)} for a better outcome`
+            );
+        } else if (primaryHang && (hangTaken || isNegative || (!compensated && offeredValue >= 1))) {
+            themes.push('hung_piece');
+            materialEvent = {
+                kind: 'hang',
+                offered: primaryHang.type,
+                captured: capturedPiece,
+                taken: !!hangTaken,
+                net: sequenceNet
+            };
+            bits.unshift(
+                hangTaken
+                    ? `Hung the ${pieceLabel(primaryHang.type)} (taken on ${hangTaken.san})`
+                    : `Hung the ${pieceLabel(primaryHang.type)}`
+            );
+            if (primaryHang.type === 'q') {
+                themes.push('queen_trap');
             }
-            if (gave > gained && !isNegative && gained >= 1) {
-                themes.push('great_sacrifice');
-                bits.push(`Sacrificed the ${pieceLabel(move.piece)} for activity`);
+        } else if (capturedPiece && sequenceNet > 0) {
+            themes.push('won_material');
+            materialEvent = {
+                kind: 'capture',
+                offered: null,
+                captured: capturedPiece,
+                net: sequenceNet
+            };
+            if (!bits.some(b => b.startsWith('Took the'))) {
+                bits.unshift(`Won the ${pieceLabel(capturedPiece)}`);
+            } else {
+                // Upgrade wording when lookahead confirms we're ahead
+                const idx = bits.findIndex(b => b.startsWith('Took the'));
+                if (idx >= 0 && sequenceNet >= gainedValue) {
+                    bits[idx] = `Won the ${pieceLabel(capturedPiece)}` +
+                        (lookahead.net > 0 ? ` (kept the material)` : '');
+                }
             }
+        } else if (capturedPiece && Math.abs(immediateNet) <= 1 && gainedValue >= 1) {
+            materialEvent = {
+                kind: 'exchange',
+                offered: null,
+                captured: capturedPiece,
+                net: sequenceNet
+            };
         }
 
         if (isPinnedToRoyalty(after, move.to, opp) || (move.captured && isPinnedToRoyalty(before, move.to, opp))) {
@@ -982,7 +1229,7 @@
             bits.push('Pinned an enemy piece');
         }
 
-        // Discovered attack we delivered: vacated square opens line onto enemy piece
+        // Discovered attack we delivered
         for (const vic of eachPieceSquare(after, opp)) {
             if (vic.value < 3) continue;
             const atkAfter = getAttackers(after, vic.sq, userColor).filter(a => a.type === 'b' || a.type === 'r' || a.type === 'q');
@@ -998,25 +1245,15 @@
             if (themes.includes('discovered_attack_given')) break;
         }
 
-        // Negative themes
-        let newHanger = null;
-        for (const p of eachPieceSquare(after, userColor)) {
-            if (p.value < 3) continue;
-            if (isHanging(after, p.sq, userColor) && !isHanging(before, p.sq, userColor)) {
-                newHanger = p;
-                themes.push('hung_piece');
-                bits.push(`Hung the ${pieceLabel(p.type)}`);
-                break;
-            }
-        }
-        if (newHanger) {
-            const atkAfter = getAttackers(after, newHanger.sq, opp).filter(a => a.type === 'b' || a.type === 'r' || a.type === 'q');
-            const atkBefore = getAttackers(before, newHanger.sq, opp).map(a => a.square);
+        // Discovered attack we walked into
+        if (primaryHang) {
+            const atkAfter = getAttackers(after, primaryHang.sq, opp).filter(a => a.type === 'b' || a.type === 'r' || a.type === 'q');
+            const atkBefore = getAttackers(before, primaryHang.sq, opp).map(a => a.square);
             for (const a of atkAfter) {
                 if (atkBefore.includes(a.square)) continue;
-                if (onSameLine(a.square, newHanger.sq, move.from)) {
+                if (onSameLine(a.square, primaryHang.sq, move.from)) {
                     themes.push('discovered_attack');
-                    bits.push('Walked into a discovered attack');
+                    bits.push(`Walked into a discovered attack on the ${pieceLabel(primaryHang.type)}`);
                     break;
                 }
             }
@@ -1028,6 +1265,9 @@
             if (target && target.color === opp && isHanging(before, to, opp) && !(move.captured && move.to === to)) {
                 themes.push('missed_hanging');
                 bits.push(`Missed a hanging ${pieceLabel(target.type)}`);
+                if (!materialEvent) {
+                    materialEvent = { kind: 'missed_capture', captured: target.type, offered: null, net: 0 };
+                }
             }
         }
 
@@ -1050,7 +1290,7 @@
         for (const p of eachPieceSquare(after, userColor)) {
             if (p.value >= 3 && isPinnedToRoyalty(after, p.sq, userColor) && isHanging(after, p.sq, userColor)) {
                 themes.push('pin_problem');
-                bits.push('Left a piece pinned and vulnerable');
+                bits.push(`Left the ${pieceLabel(p.type)} pinned and vulnerable`);
                 break;
             }
         }
@@ -1058,12 +1298,6 @@
         if (hasBackRankRisk(after, userColor) && isNegative) {
             themes.push('back_rank');
             bits.push('Allowed back-rank pressure');
-        }
-
-        const queen = eachPieceSquare(after, userColor).find(p => p.type === 'q');
-        if (queen && isHanging(after, queen.sq, userColor)) {
-            themes.push('queen_trap');
-            bits.push('Hung the queen');
         }
 
         const king = eachPieceSquare(after, userColor).find(p => p.type === 'k');
@@ -1088,8 +1322,48 @@
         const uniqueThemes = [...new Set(themes)].filter(t => THEME_CATALOG[t]);
         return {
             themes: uniqueThemes,
-            narrative: `What you did here: ${bits[0]}${bits[1] ? ` — ${bits[1]}` : ''}.`
+            narrative: `What you did here: ${bits[0]}${bits[1] ? ` — ${bits[1]}` : ''}.`,
+            materialEvent
         };
+    }
+
+    function refineMaterialWithEval(analysis) {
+        // Second pass: use eval trajectory to confirm sacrifices vs true hangs
+        const moves = analysis.moves || [];
+        const pe = (m) => analysis.isWhite ? m.eval : -m.eval;
+        for (let i = 0; i < moves.length; i++) {
+            const m = moves[i];
+            if (!m.materialEvent || !m.classification?.label) continue;
+            const now = pe(m);
+            let later = now;
+            for (let j = i + 1; j < Math.min(moves.length, i + 8); j++) {
+                later = pe(moves[j]);
+            }
+            const swing = later - now;
+            const ev = m.materialEvent;
+
+            if (ev.kind === 'hang' && swing >= 120 && !['Mistake', 'Blunder'].includes(m.classification.label)) {
+                // Looked like a hang but position improved → treat as sacrifice
+                ev.kind = 'sacrifice';
+                ev.confirmedByEval = true;
+                m.moveThemes = [...new Set([...(m.moveThemes || []).filter(t => t !== 'hung_piece' && t !== 'queen_trap'), 'great_sacrifice'])];
+                const offered = pieceLabel(ev.offered);
+                const regained = (ev.regained || []).map(pieceLabel).join('/');
+                m.classification.desc = `What you did here: Sacrificed the ${offered}${regained ? ` to win ${regained}` : ' for a better outcome'}.`;
+            } else if (ev.kind === 'sacrifice' && swing <= -150 && (m.evalDelta || 0) >= 2) {
+                // Called a sac but eval collapsed → true hang/blunder
+                ev.kind = 'hang';
+                ev.confirmedByEval = true;
+                m.moveThemes = [...new Set([...(m.moveThemes || []).filter(t => t !== 'great_sacrifice'), 'hung_piece'])];
+                if (ev.offered === 'q') m.moveThemes.push('queen_trap');
+                m.classification.desc = `What you did here: Hung the ${pieceLabel(ev.offered)} without getting enough back.`;
+            } else if (ev.kind === 'capture' && ev.captured) {
+                // Keep piece name prominent in narrative if missing
+                if (!/pawn|knight|bishop|rook|queen/i.test(m.classification.desc || '')) {
+                    m.classification.desc = `What you did here: Won the ${pieceLabel(ev.captured)}.`;
+                }
+            }
+        }
     }
 
     function openingFamily(name) {
@@ -1114,6 +1388,7 @@
             if (!raw) return null;
             const parsed = JSON.parse(raw);
             if (!parsed || !parsed.moves || !Array.isArray(parsed.moves)) return null;
+            if (!parsed.gameStory) finalizeAnalysis(parsed);
             return parsed;
         } catch (_) {
             return null;
@@ -1138,8 +1413,9 @@
             blackGames: 0,
             openingsWhite: {},
             openingsBlack: {},
-            themeGames: {},
-            themeHits: {},
+            moveLabels: {},   // label -> count of player moves
+            playerMoves: 0,
+            themeHits: {},    // interesting tactical themes only (move counts)
             finished: false
         };
     }
@@ -1152,6 +1428,11 @@
         bucket[family].variations[full] = (bucket[family].variations[full] || 0) + 1;
     }
 
+    // Themes that appear in almost every game — keep for move review, skip profile % noise
+    const PROFILE_SKIP_THEMES = new Set([
+        'developed_piece', 'claimed_center', 'castled_safe', 'quiet_improve'
+    ]);
+
     function ingestAnalysis(profile, analysis, gameKey) {
         profile.games++;
         if (analysis.isWhite) {
@@ -1162,11 +1443,15 @@
             trackOpeningBucket(profile.openingsBlack, analysis.openingName);
         }
 
-        const themeSet = new Set(analysis.moveThemes || []);
-        for (const id of themeSet) {
-            if (!profile.themeGames[id]) profile.themeGames[id] = {};
-            profile.themeGames[id][gameKey] = true;
-            profile.themeHits[id] = (profile.themeHits[id] || 0) + (analysis.moveThemeCounts?.[id] || 1);
+        for (const m of analysis.moves || []) {
+            const label = m.classification?.label;
+            if (!label) continue;
+            profile.playerMoves++;
+            profile.moveLabels[label] = (profile.moveLabels[label] || 0) + 1;
+            for (const id of (m.moveThemes || [])) {
+                if (PROFILE_SKIP_THEMES.has(id)) continue;
+                profile.themeHits[id] = (profile.themeHits[id] || 0) + 1;
+            }
         }
     }
 
@@ -1203,6 +1488,17 @@
         `).join('');
     }
 
+    const MOVE_QUALITY_ORDER = [
+        { label: 'Best', className: 'cls-best', color: 'var(--success)' },
+        { label: 'Good', className: 'cls-good', color: 'var(--excellent)' },
+        { label: 'Okay', className: 'cls-okay', color: 'var(--primary)' },
+        { label: 'Book', className: 'cls-book', color: '#a29bfe' },
+        { label: 'Theory', className: 'cls-theory', color: '#6c5ce7' },
+        { label: 'Miss', className: 'cls-miss', color: 'var(--warning)' },
+        { label: 'Mistake', className: 'cls-mistake', color: '#e67e22' },
+        { label: 'Blunder', className: 'cls-blunder', color: 'var(--accent)' }
+    ];
+
     function renderProfileOverview(profile) {
         const box = document.getElementById('profile-overview');
         box.style.display = 'block';
@@ -1223,30 +1519,52 @@
         );
 
         const insights = document.getElementById('profile-insights');
-        const ranked = Object.keys(THEME_CATALOG)
-            .map(id => {
-                const gameCount = profile.themeGames[id] ? Object.keys(profile.themeGames[id]).length : 0;
-                const pct = profile.games ? Math.round((gameCount / profile.games) * 100) : 0;
-                return { id, gameCount, pct, hits: profile.themeHits[id] || 0, polarity: THEME_CATALOG[id].polarity };
-            })
-            .filter(x => x.gameCount > 0 && x.pct >= 8)
-            .sort((a, b) => b.pct - a.pct || b.hits - a.hits)
-            .slice(0, 8);
-
-        if (!ranked.length) {
-            insights.innerHTML = `<div class="insight-empty">${profile.games ? 'No recurring move themes yet — keep analyzing.' : 'Move themes will appear as games are analyzed.'}</div>`;
+        const total = profile.playerMoves || 0;
+        if (!total) {
+            insights.innerHTML = `<div class="insight-empty">${profile.games ? 'No player moves counted yet.' : 'Move quality breakdown will appear as games are analyzed.'}</div>`;
             return;
         }
 
-        insights.innerHTML = ranked.map(({ id, pct, gameCount, hits, polarity }) => {
-            const cat = THEME_CATALOG[id];
-            const tone = polarity === 'good' ? ' good' : '';
-            return `<div class="insight-item${tone}">
-                <div class="insight-pct">${pct}% of games · ${hits} move${hits === 1 ? '' : 's'} tagged · ${polarity === 'good' ? 'strength' : 'leak'}</div>
-                <div class="insight-text">${cat.text(pct)}</div>
-                <div class="insight-detail">${cat.detail} Appeared in ${gameCount} game${gameCount === 1 ? '' : 's'}.</div>
-            </div>`;
-        }).join('');
+        const rows = MOVE_QUALITY_ORDER
+            .map(q => {
+                const count = profile.moveLabels[q.label] || 0;
+                const pct = Math.round((count / total) * 1000) / 10;
+                return { ...q, count, pct };
+            })
+            .filter(q => q.count > 0);
+
+        let html = `<div class="quality-meta">${total} of your moves across ${profile.games} game${profile.games === 1 ? '' : 's'}</div>`;
+        html += rows.map(q => `
+            <div class="quality-row">
+                <div class="quality-label" style="color:${q.color}">${q.label}</div>
+                <div class="quality-track"><div class="quality-fill" style="width:${Math.max(q.pct, q.count ? 2 : 0)}%;background:${q.color}"></div></div>
+                <div class="quality-pct">${q.pct}%</div>
+            </div>
+        `).join('');
+
+        const tacticLines = Object.entries(profile.themeHits || {})
+            .filter(([, hits]) => hits > 0)
+            .map(([id, hits]) => {
+                const pct = Math.round((hits / total) * 1000) / 10;
+                const cat = THEME_CATALOG[id];
+                return { id, hits, pct, polarity: cat?.polarity || 'bad', label: id.replace(/_/g, ' ') };
+            })
+            .filter(t => t.pct >= 1)
+            .sort((a, b) => b.pct - a.pct)
+            .slice(0, 5);
+
+        if (tacticLines.length) {
+            html += `<div class="quality-tactics"><div class="profile-kicker">Notable tactics</div>`;
+            html += tacticLines.map(t => `
+                <div class="quality-tactic-line">
+                    ${t.label} — <strong>${t.pct}%</strong> of your moves
+                    <span>(${t.hits}× · ${t.polarity === 'good' ? 'strength' : 'leak'})</span>
+                </div>
+            `).join('');
+            html += `</div>`;
+        }
+
+        insights.innerHTML = html;
     }
 
     function applyAnalysisToUi(game, analysis, gameKey, stats) {
@@ -1394,7 +1712,7 @@
         const moveThemes = [];
         const moveThemeCounts = {};
         const tempChess = new Chess();
-        let lastEval = { score: 0, isMate: false, bestMove: '' };
+        let lastEval = { score: 0, isMate: false, bestMove: '', reliable: false };
 
         for (let i = 0; i < history.length; i++) {
             if (!isScanning) return null;
@@ -1409,20 +1727,23 @@
             tempChess.move(history[i]);
             const fenAfter = tempChess.fen();
 
-            let best = { score: 0, isMate: false, bestMove: '' };
-            let actual = lastEval;
-            let cpl = 0;
+            let best = { score: 0, isMate: false, bestMove: '', reliable: false };
+            let actual = { ...lastEval, reliable: lastEval.reliable || false };
+            let evalDelta = 0;
+            let evalDeltaCp = 0;
             let playedBest = false;
+            let reliable = true;
 
             // Skip heavy engine work for book/theory; still eval opponent moves after leaving book for the graph
             if (!isBook && !isTheory) {
                 if (isUserTurn) {
                     best = await getEngineAnalysis(engine, fenBefore);
                     actual = await getEngineAnalysis(engine, fenAfter);
-                    cpl = centipawnLossForPlayer(best, actual);
-                    playedBest = !!(best.bestMove && moveToUci(history[i]) === best.bestMove);
-                    // Tiny / negative CPL noise at depth 5 → treat as best/good
-                    if (cpl < 0) cpl = 0;
+                    const delta = computeEvalDelta(best, actual);
+                    evalDeltaCp = delta.evalDeltaCp;
+                    evalDelta = delta.evalDelta;
+                    playedBest = !!(best.bestMove && moveToUci(history[i]) === best.bestMove.toLowerCase());
+                    reliable = !!(best.reliable && actual.reliable);
                 } else {
                     actual = await getEngineAnalysis(engine, fenAfter);
                 }
@@ -1430,21 +1751,33 @@
             }
 
             const cls = classifyMove({
-                cpl,
+                evalDelta,
                 isUserTurn,
                 isBook,
                 isTheory,
                 playedBest,
+                reliable,
                 theoryName: theoryMatch.name,
                 openingName: openingMatch.name
             });
 
             let themes = [];
             let narrative = cls.desc || '';
+            let materialEvent = null;
             if (isUserTurn) {
                 try {
-                    const described = describePlayerMove(beforeSnap, tempChess, history[i], best.bestMove, userColor, cls.label);
+                    const described = describePlayerMove({
+                        before: beforeSnap,
+                        after: tempChess,
+                        move: history[i],
+                        bestMoveUci: best.bestMove,
+                        userColor,
+                        clsLabel: cls.label,
+                        futureMoves: history.slice(i + 1),
+                        evalDelta
+                    });
                     themes = described.themes;
+                    materialEvent = described.materialEvent || null;
                     narrative = described.narrative || cls.desc;
                     cls.desc = narrative;
                 } catch (_) {
@@ -1471,40 +1804,290 @@
                 moveNum: Math.floor(i/2) + 1, turn: i % 2 === 0 ? 'w' : 'b',
                 bestEngineMove: best.bestMove,
                 moveThemes: themes,
-                cpl: isUserTurn ? cpl : null
+                materialEvent,
+                evalDelta: isUserTurn && !isBook && !isTheory ? evalDelta : null,
+                evalDeltaCp: isUserTurn && !isBook && !isTheory ? evalDeltaCp : null
             });
         }
 
-        return { 
+        return finalizeAnalysis({ 
             moves: moveData, isWhite, opponent: isWhite ? game.black.username : game.white.username, 
-            result: (isWhite ? game.white.result : game.black.result) === 'win' ? 'WIN' : 'LOSS', 
+            result: normalizeResult(game, isWhite), 
             blunders: counters.blunders, greatMoves: counters.great, bookCount: counters.book,
             openingName: theoryMatch.name || openingMatch.name,
             moveThemes: [...new Set(moveThemes)],
             moveThemeCounts
+        });
+    }
+
+    function normalizeResult(game, isWhite) {
+        const mine = (isWhite ? game.white.result : game.black.result) || '';
+        const theirs = (isWhite ? game.black.result : game.white.result) || '';
+        if (mine === 'win') return 'WIN';
+        if (mine === 'lose' || theirs === 'win') return 'LOSS';
+        return 'DRAW';
+    }
+
+    function playerEvalAt(analysis, move) {
+        return analysis.isWhite ? move.eval : -move.eval;
+    }
+
+    function formatMoveRef(move) {
+        if (!move) return '';
+        return `${move.moveNum}${move.turn === 'w' ? '.' : '...'} ${move.san}`;
+    }
+
+    function themeHeadline(themeId, won, materialEvent) {
+        const piece = materialEvent?.offered ? pieceLabel(materialEvent.offered) : null;
+        const gained = materialEvent?.captured ? pieceLabel(materialEvent.captured) : null;
+        const regained = (materialEvent?.regained || []).map(pieceLabel).join('/');
+        const map = {
+            hung_piece: won ? null : (piece ? `You hung your ${piece} at the critical moment` : 'You hung a piece at the critical moment'),
+            queen_trap: won ? null : 'Your queen got trapped or hung',
+            discovered_attack: won ? null : (piece ? `A discovered attack on your ${piece} cost you the game` : 'A discovered attack cost you the game'),
+            discovered_attack_given: won ? (gained ? `A discovered attack on the ${gained} decided the game` : 'A discovered attack decided the game') : null,
+            forked_piece: won ? 'A fork created the decisive advantage' : null,
+            fork_victim: won ? null : 'You walked into a fork',
+            missed_hanging: won ? null : (gained ? `You missed a hanging ${gained}` : 'You missed a hanging piece'),
+            won_material: won ? (gained ? `You won the ${gained} and converted it` : 'You won material and converted it') : null,
+            great_sacrifice: won
+                ? (piece
+                    ? (regained ? `Sacrificing the ${piece} to win ${regained} decided the game` : `Sacrificing the ${piece} opened the winning attack`)
+                    : 'A sacrifice opened the winning attack')
+                : null,
+            pinned_piece: won ? 'A pin led to a decisive gain' : null,
+            pin_problem: won ? null : 'A pin left you unable to hold the position',
+            back_rank: won ? null : 'Back-rank weakness decided the game',
+            castle_pawn_push: won ? null : 'King-side pawn pushes left you exposed',
+            king_in_center: won ? null : 'An uncastled king got punished',
+            claimed_center: won ? 'Central control became a lasting edge' : null,
+            castled_safe: null,
+            developed_piece: null,
+            quiet_improve: null
+        };
+        return map[themeId] || null;
+    }
+
+    function explainGameOutcome(analysis) {
+        const moves = analysis.moves || [];
+        if (!moves.length) {
+            return { headline: 'No moves to review.', detail: '', keyMoveIndex: null };
+        }
+
+        const result = analysis.result;
+        const won = result === 'WIN';
+        const lost = result === 'LOSS';
+        const draw = result === 'DRAW';
+
+        const userMoves = [];
+        for (let idx = 0; idx < moves.length; idx++) {
+            const m = moves[idx];
+            if (!m.classification || !m.classification.label) continue;
+            const prevPe = idx > 0 ? playerEvalAt(analysis, moves[idx - 1]) : 0;
+            const pe = playerEvalAt(analysis, m);
+            userMoves.push({
+                idx,
+                move: m,
+                pe,
+                swing: pe - prevPe,
+                evalDelta: m.evalDelta == null ? 0 : m.evalDelta,
+                themes: m.moveThemes || [],
+                materialEvent: m.materialEvent || null,
+                label: m.classification.label,
+                narrative: (m.classification.desc || '').replace(/^What you did here:\s*/i, '')
+            });
+        }
+
+        if (!userMoves.length) {
+            return {
+                headline: draw ? 'The game fizzled into a draw.' : (won ? 'You won this game.' : 'You lost this game.'),
+                detail: 'Not enough labeled player moves to pinpoint a single cause.',
+                keyMoveIndex: null
+            };
+        }
+
+        // Biggest favorable / unfavorable eval swings on your moves
+        let bestUp = userMoves[0];
+        let worstDown = userMoves[0];
+        let worstDelta = userMoves[0];
+        for (const u of userMoves) {
+            if (u.swing > bestUp.swing) bestUp = u;
+            if (u.swing < worstDown.swing) worstDown = u;
+            if (u.evalDelta > worstDelta.evalDelta) worstDelta = u;
+        }
+
+        // First lasting advantage / disadvantage (±1.5 pawns for 4+ plies)
+        function firstLastingCross(threshold) {
+            for (let i = 0; i < moves.length; i++) {
+                const pe = playerEvalAt(analysis, moves[i]);
+                if (threshold > 0 ? pe < threshold : pe > threshold) continue;
+                let hold = 0;
+                for (let j = i; j < Math.min(moves.length, i + 8); j++) {
+                    const pej = playerEvalAt(analysis, moves[j]);
+                    if (threshold > 0 ? pej >= threshold * 0.6 : pej <= threshold * 0.6) hold++;
+                }
+                if (hold >= 4) {
+                    // Prefer the nearest preceding user move as the cause
+                    let cause = null;
+                    for (let k = userMoves.length - 1; k >= 0; k--) {
+                        if (userMoves[k].idx <= i) { cause = userMoves[k]; break; }
+                    }
+                    return { idx: i, cause, pe };
+                }
+            }
+            return null;
+        }
+
+        const firstAdv = firstLastingCross(150);
+        const firstDef = firstLastingCross(-150);
+
+        // Material conversion: early material theme + still ahead late
+        const endPe = playerEvalAt(analysis, moves[moves.length - 1]);
+        const mid = Math.floor(moves.length / 2);
+        const latePositive = endPe > 80;
+        const lateNegative = endPe < -80;
+        const earlyMaterialWin = userMoves.find(u =>
+            u.idx < mid && u.themes.includes('won_material') && u.swing > 40
+        );
+        const criticalBlunder = userMoves
+            .filter(u => ['Blunder', 'Mistake'].includes(u.label) || u.evalDelta >= 2.5)
+            .sort((a, b) => b.evalDelta - a.evalDelta || a.swing - b.swing)[0];
+
+        let key = null;
+        let headline = '';
+        let detail = '';
+
+        if (won) {
+            // Prefer a clear tactical turning point, then lasting advantage, then conversion story
+            const tacticalWin = userMoves
+                .filter(u => u.themes.some(t => ['forked_piece', 'discovered_attack_given', 'won_material', 'great_sacrifice', 'pinned_piece'].includes(t)) && u.swing > 60)
+                .sort((a, b) => b.swing - a.swing)[0];
+
+            if (tacticalWin) {
+                key = tacticalWin;
+                const theme = tacticalWin.themes.find(t => themeHeadline(t, true, tacticalWin.materialEvent)) || tacticalWin.themes[0];
+                headline = themeHeadline(theme, true, tacticalWin.materialEvent) || `A strong shot on ${formatMoveRef(tacticalWin.move)} decided the game`;
+                detail = `${formatMoveRef(tacticalWin.move)}: ${tacticalWin.narrative || 'You seized a concrete advantage and never gave it back.'}`;
+            } else if (earlyMaterialWin && latePositive) {
+                key = earlyMaterialWin;
+                const gained = earlyMaterialWin.materialEvent?.captured
+                    ? pieceLabel(earlyMaterialWin.materialEvent.captured)
+                    : 'material';
+                headline = `You won the ${gained} early and converted with clean trades`;
+                detail = `${formatMoveRef(earlyMaterialWin.move)} gave you the first lasting edge; you simplified while keeping the advantage into the endgame.`;
+            } else if (firstAdv && firstAdv.cause) {
+                key = firstAdv.cause;
+                headline = 'You created a lasting advantage and converted it';
+                detail = `From ${formatMoveRef(firstAdv.cause.move)} the eval stayed in your favor. ${firstAdv.cause.narrative || 'Pressure and accurate follow-up finished the job.'}`;
+            } else if (bestUp.swing > 80) {
+                key = bestUp;
+                headline = `The game swung your way around ${formatMoveRef(bestUp.move)}`;
+                detail = bestUp.narrative || 'That was the biggest positive shift in your favor.';
+            } else {
+                headline = 'You outplayed the position without a single obvious blow';
+                detail = 'Small edges added up — practical moves and fewer serious errors than your opponent.';
+                key = bestUp;
+            }
+        } else if (lost) {
+            const tacticalLoss = userMoves
+                .filter(u => u.themes.some(t => ['hung_piece', 'queen_trap', 'discovered_attack', 'fork_victim', 'missed_hanging', 'pin_problem', 'back_rank', 'king_in_center'].includes(t)))
+                .sort((a, b) => b.evalDelta - a.evalDelta || a.swing - b.swing)[0];
+
+            if (criticalBlunder && criticalBlunder.evalDelta >= 2.5) {
+                key = criticalBlunder;
+                const theme = (criticalBlunder.themes || []).find(t => themeHeadline(t, false, criticalBlunder.materialEvent));
+                headline = themeHeadline(theme, false, criticalBlunder.materialEvent) || `A heavy slip on ${formatMoveRef(criticalBlunder.move)} decided the game`;
+                detail = `${formatMoveRef(criticalBlunder.move)} (${criticalBlunder.evalDelta.toFixed(1)} pawn eval loss): ${criticalBlunder.narrative || criticalBlunder.label + '.'}`;
+            } else if (tacticalLoss) {
+                key = tacticalLoss;
+                const theme = tacticalLoss.themes.find(t => themeHeadline(t, false, tacticalLoss.materialEvent)) || tacticalLoss.themes[0];
+                headline = themeHeadline(theme, false, tacticalLoss.materialEvent) || `A tactical miss on ${formatMoveRef(tacticalLoss.move)} cost the game`;
+                detail = `${formatMoveRef(tacticalLoss.move)}: ${tacticalLoss.narrative || 'The position collapsed after this idea.'}`;
+            } else if (firstDef && firstDef.cause) {
+                key = firstDef.cause;
+                headline = 'You fell into a lasting disadvantage and never recovered';
+                detail = `After ${formatMoveRef(firstDef.cause.move)} the eval stayed against you. ${firstDef.cause.narrative || 'The deficit was converted in the endgame.'}`;
+            } else if (worstDown.swing < -80) {
+                key = worstDown;
+                headline = `The decisive downturn came on ${formatMoveRef(worstDown.move)}`;
+                detail = worstDown.narrative || 'That was the biggest swing against you.';
+            } else {
+                headline = 'You were gradually outplayed';
+                detail = 'No single collapse — small concessions accumulated until the position was lost.';
+                key = worstDelta;
+            }
+        } else {
+            // Draw
+            if (criticalBlunder && criticalBlunder.evalDelta >= 2.0 && criticalBlunder.pe < -50) {
+                key = criticalBlunder;
+                headline = 'You saved a difficult position after a serious slip';
+                detail = `${formatMoveRef(criticalBlunder.move)} hurt, but the game still ended drawn.`;
+            } else if (Math.abs(endPe) < 80 && bestUp.swing > 100 && worstDown.swing < -100) {
+                key = bestUp.swing > Math.abs(worstDown.swing) ? bestUp : worstDown;
+                headline = 'Chances for both sides; the point was split';
+                detail = 'The eval swung both ways before settling into a draw.';
+            } else {
+                headline = 'A balanced game that ended in a draw';
+                detail = latePositive || lateNegative
+                    ? 'One side had chances, but neither side converted.'
+                    : 'Neither side created a lasting, convertible edge.';
+                key = null;
+            }
+        }
+
+        return {
+            headline,
+            detail,
+            keyMoveIndex: key ? key.idx : null,
+            keyMoveRef: key ? formatMoveRef(key.move) : null
         };
     }
 
+    function finalizeAnalysis(analysis) {
+        refineMaterialWithEval(analysis);
+        // Rebuild theme aggregates after material refinement
+        const themeHits = {};
+        const themeSet = new Set();
+        for (const m of analysis.moves || []) {
+            for (const id of (m.moveThemes || [])) {
+                themeSet.add(id);
+                themeHits[id] = (themeHits[id] || 0) + 1;
+            }
+        }
+        analysis.moveThemes = [...themeSet];
+        analysis.moveThemeCounts = themeHits;
+        analysis.gameStory = explainGameOutcome(analysis);
+        return analysis;
+    }
+
     function renderGameItem(game, analysis) {
+        if (!analysis.gameStory) finalizeAnalysis(analysis);
         const list = document.getElementById('game-list-view');
         const card = document.createElement('div');
         card.className = "stat-card";
         card.style.cursor = "pointer";
         card.onclick = () => openReview(analysis);
+        const resultColor = analysis.result === 'WIN' ? 'var(--success)'
+            : analysis.result === 'DRAW' ? 'var(--warning)' : 'var(--accent)';
+        const story = analysis.gameStory?.headline
+            ? `<div class="game-card-story">${analysis.gameStory.headline}</div>`
+            : '';
         card.innerHTML = `
             <div style="text-align:left">
                 <div style="font-weight:bold">vs ${analysis.opponent}</div>
-                <div style="color:var(--primary); font-size:11px; margin-bottom:5px">${analysis.openingName}</div>
+                <div style="color:var(--primary); font-size:11px; margin-bottom:5px">${analysis.openingName || ''}</div>
                 <div style="display:flex; justify-content:space-between; align-items:center">
                     <span style="font-size:11px; color:var(--subtext)">${analysis.moves.length} moves</span>
-                    <span style="font-weight:bold; color:${analysis.result === 'WIN' ? 'var(--success)' : 'var(--accent)'}">${analysis.result}</span>
+                    <span style="font-weight:bold; color:${resultColor}">${analysis.result}</span>
                 </div>
+                ${story}
             </div>
         `;
         list.appendChild(card);
     }
 
     function openReview(analysis) {
+        if (!analysis.gameStory) finalizeAnalysis(analysis);
         currentReviewGame = analysis;
         document.getElementById('game-list-view').style.display = 'none';
         document.getElementById('review-view').style.display = 'grid';
@@ -1512,22 +2095,48 @@
         const graphUi = document.getElementById('eval-graph');
         listUi.innerHTML = ''; graphUi.innerHTML = '';
 
+        const storyBox = document.getElementById('game-story-box');
+        const story = analysis.gameStory;
+        if (story && story.headline) {
+            storyBox.style.display = 'block';
+            storyBox.className = 'game-story ' + (analysis.result === 'WIN' ? 'win' : analysis.result === 'DRAW' ? 'draw' : 'loss');
+            document.getElementById('game-story-kicker').innerText =
+                analysis.result === 'WIN' ? 'Why you won'
+                : analysis.result === 'DRAW' ? 'Why it was drawn'
+                : 'Why you lost';
+            document.getElementById('game-story-headline').innerText = story.headline;
+            document.getElementById('game-story-detail').innerText = story.detail || '';
+            const link = document.getElementById('game-story-link');
+            if (story.keyMoveIndex != null) {
+                link.style.display = 'block';
+                link.innerText = `Jump to key moment${story.keyMoveRef ? ` (${story.keyMoveRef})` : ''} →`;
+                link.onclick = () => goToMove(story.keyMoveIndex);
+            } else {
+                link.style.display = 'none';
+                link.onclick = null;
+            }
+        } else {
+            storyBox.style.display = 'none';
+        }
+
         analysis.moves.forEach((m, idx) => {
             const row = document.createElement('div');
             row.className = 'move-row';
             row.id = `move-${idx}`;
             row.onclick = () => goToMove(idx);
-            row.innerHTML = `<span style="color:#666; width:30px">${m.moveNum}${m.turn==='w'?'.':''}</span><b style="width:50px">${m.san}</b><span class="move-label ${m.classification.class}">${m.classification.label}</span>`;
+            const isKey = story && story.keyMoveIndex === idx;
+            row.innerHTML = `<span style="color:#666; width:30px">${m.moveNum}${m.turn==='w'?'.':''}</span><b style="width:50px">${m.san}</b>${isKey ? '<span style="color:var(--primary);font-size:10px;margin-right:6px;">KEY</span>' : ''}<span class="move-label ${m.classification.class}">${m.classification.label}</span>`;
             listUi.appendChild(row);
 
             const bar = document.createElement('div');
             bar.className = 'graph-bar';
             const v = currentReviewGame.isWhite ? m.eval : -m.eval;
             bar.style.height = `${Math.min(100, Math.max(5, 50 + (v / 20)))}%`;
+            if (isKey) bar.style.opacity = '1';
             bar.onclick = () => goToMove(idx);
             graphUi.appendChild(bar);
         });
-        goToMove(0);
+        goToMove(story?.keyMoveIndex != null ? story.keyMoveIndex : 0);
     }
 
     function goToMove(idx) {
@@ -1543,8 +2152,8 @@
         document.getElementById('move-opening').innerText = m.openingName || "";
         document.getElementById('move-title').innerText = `${m.moveNum}${m.turn==='w'?'.':''} ${m.san}`;
         let desc = m.classification.desc || '';
-        if (m.cpl != null && m.classification.label && !['Book', 'Theory'].includes(m.classification.label)) {
-            desc += ` (${(m.cpl / 100).toFixed(1)} pawn loss vs best)`;
+        if (m.evalDelta != null && m.classification.label && !['Book', 'Theory'].includes(m.classification.label)) {
+            desc += ` (${m.evalDelta.toFixed(1)} pawn eval loss)`;
         }
         document.getElementById('move-desc').innerText = desc;
         document.getElementById('move-badge').innerHTML = `<span class="move-label ${m.classification.class}">${m.classification.label}</span>`;
