@@ -9,10 +9,119 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeicons@7.0.0/primeicons.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeflex@3.3.1/primeflex.min.css">
     <style>
+        /*
+         * PrimeNG 17+ ships theme tokens only; component structure CSS is normally
+         * injected by Angular. Without it, tab <ul>s keep browser bullets and break layout.
+         */
+        @layer primeng {
+            .p-button {
+                margin: 0;
+                display: inline-flex;
+                cursor: pointer;
+                user-select: none;
+                align-items: center;
+                justify-content: center;
+                vertical-align: bottom;
+                text-align: center;
+                overflow: hidden;
+                position: relative;
+                gap: 0.5rem;
+            }
+            .p-button-label { flex: 0 1 auto; }
+            .p-button-icon-right { order: 1; }
+            .p-button:disabled { cursor: default; pointer-events: none; }
+            .p-buttonset { display: inline-flex; }
+            .p-buttonset .p-button:not(:last-child) { border-right: 0 none; }
+            .p-buttonset .p-button:first-of-type:not(:only-of-type) {
+                border-top-right-radius: 0;
+                border-bottom-right-radius: 0;
+            }
+            .p-buttonset .p-button:last-of-type:not(:only-of-type) {
+                border-top-left-radius: 0;
+                border-bottom-left-radius: 0;
+            }
+
+            .p-tabview-nav-container { position: relative; }
+            .p-tabview-nav-content {
+                overflow-x: auto;
+                overflow-y: hidden;
+                scrollbar-width: none;
+            }
+            .p-tabview-nav-content::-webkit-scrollbar { display: none; }
+            .p-tabview-nav {
+                display: flex;
+                flex-wrap: wrap;
+                width: 100%;
+                margin: 0;
+                padding: 0;
+                list-style: none;
+            }
+            .p-tabview-nav > li {
+                list-style: none;
+                margin: 0;
+                float: none;
+            }
+            .p-tabview-nav-link {
+                cursor: pointer;
+                user-select: none;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                position: relative;
+                text-decoration: none;
+                overflow: hidden;
+                box-sizing: border-box;
+            }
+            .p-tabview-title { line-height: 1; white-space: nowrap; }
+            .p-tabview-panels { outline: 0 none; }
+            .p-tabview-panel { display: block; }
+
+            .p-tag {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .p-progressbar { position: relative; overflow: hidden; }
+            .p-progressbar-determinate .p-progressbar-value {
+                height: 100%;
+                width: 0%;
+                position: absolute;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                overflow: hidden;
+                border: 0 none;
+            }
+            .p-progressbar-determinate .p-progressbar-value-animate {
+                transition: width 1s ease-in-out;
+            }
+
+            .p-inputtext { margin: 0; }
+            .p-input-icon-left,
+            .p-input-icon-right {
+                position: relative;
+                display: inline-block;
+            }
+            .p-input-icon-left > i,
+            .p-input-icon-right > i {
+                position: absolute;
+                top: 50%;
+                margin-top: -0.5rem;
+                z-index: 1;
+            }
+            .p-input-icon-left > i { left: 0.75rem; }
+            .p-input-icon-right > i { right: 0.75rem; }
+            .p-input-icon-left > .p-inputtext { padding-left: 2.5rem; }
+            .p-input-icon-right > .p-inputtext { padding-right: 2.5rem; }
+            .p-input-icon-left.w-full,
+            .p-input-icon-left.flex-1 { display: block; }
+        }
+
         :root {
             --board-white: #ebecd0;
             --board-black: #779556;
-            --highlight: rgba(255, 255, 0, 0.4);
+            --board-highlight: rgba(255, 255, 0, 0.4);
             --accent: #f87171;
             --warning: #fbbf24;
             --success: #34d399;
@@ -26,7 +135,7 @@
             min-height: 100%;
             background: var(--surface-ground, #0b1220);
             color: var(--text-color, #e2e8f0);
-            font-family: var(--font-family, Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif);
+            font-family: var(--font-family);
             overflow-x: hidden;
         }
 
@@ -34,11 +143,6 @@
             max-width: 1200px;
             margin: 0 auto;
             padding: 1rem;
-        }
-
-        /* Keep native controls from fighting Prime */
-        button:not(.p-button):not(.p-tabview-nav-link) {
-            font: inherit;
         }
 
         #dashboard { display: none; margin-bottom: 1.25rem; }
@@ -82,7 +186,7 @@
         .square { position: relative; display: flex; align-items: center; justify-content: center; }
         .square.white { background: var(--board-white); }
         .square.black { background: var(--board-black); }
-        .square.highlight { background: var(--highlight) !important; }
+        .square.highlight { background: var(--board-highlight) !important; }
         .piece { width: 90%; height: 90%; pointer-events: none; z-index: 2; }
         .arrow-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
 
@@ -259,20 +363,26 @@
             white-space: pre-wrap; word-break: break-word;
         }
 
-        /* Tabview nav as full-width segmented control */
-        #dash-tabs.p-tabview .p-tabview-nav { flex-wrap: wrap; }
-        #dash-tabs.p-tabview .p-tabview-nav li { flex: 1 1 auto; }
-        #dash-tabs.p-tabview .p-tabview-nav-link { justify-content: center; width: 100%; }
+        /* App panel switching (Prime only styles the active tab chrome) */
         .dash-panel { display: none; }
         .dash-panel.active { display: block; }
 
+        #dash-tabs .p-tabview-nav > li { flex: 1 1 auto; }
+        #dash-tabs .p-tabview-nav-link { width: 100%; }
+
         .p-card.stat-card { cursor: pointer; }
-        .p-card.stat-card:hover { box-shadow: var(--shadow-4); }
         .bw-card { cursor: pointer; text-align: left; }
         .bw-card.best { border-left: 3px solid var(--success); }
         .bw-card.worst { border-left: 3px solid var(--accent); }
 
         .review-nav .p-button { flex: 1 1 0; min-width: 4.5rem; }
+        .review-nav-step .p-button { min-width: 7rem; }
+
+        /* Native <select> — don't pretend it's a p-dropdown widget */
+        select.p-inputtext {
+            cursor: pointer;
+            min-width: 9rem;
+        }
     </style>
 </head>
 <body>
@@ -315,7 +425,7 @@
                     </div>
                 </div>
             </div>
-            <div class="p-progressbar p-component mt-3" style="height:0.5rem">
+            <div class="p-progressbar p-component p-progressbar-determinate mt-3" style="height:0.5rem">
                 <div id="progress-fill" class="p-progressbar-value p-progressbar-value-animate" style="width:0%"></div>
             </div>
         </div>
@@ -335,44 +445,45 @@
             </div>
         </div>
 
-        <div id="dash-tabs" class="p-tabview p-component mb-0">
-            <ul class="p-tabview-nav" role="tablist">
-                <li class="p-highlight" role="presentation">
-                    <a class="p-tabview-nav-link" data-tab="overview" onclick="switchDashTab('overview', this)" role="tab">
-                        <span class="p-tabview-title">Overview</span>
-                    </a>
-                </li>
-                <li role="presentation">
-                    <a class="p-tabview-nav-link" data-tab="matches" onclick="switchDashTab('matches', this)" role="tab">
-                        <span class="p-tabview-title">Matches</span>
-                    </a>
-                </li>
-                <li role="presentation">
-                    <a class="p-tabview-nav-link" data-tab="learning" onclick="switchDashTab('learning', this)" role="tab">
-                        <span class="p-tabview-title">Learning</span>
-                    </a>
-                </li>
-                <li role="presentation">
-                    <a class="p-tabview-nav-link" data-tab="advanced" onclick="switchDashTab('advanced', this)" role="tab">
-                        <span class="p-tabview-title">Advanced</span>
-                    </a>
-                </li>
-                <li role="presentation">
-                    <a class="p-tabview-nav-link" data-tab="faq" onclick="switchDashTab('faq', this)" role="tab">
-                        <span class="p-tabview-title">FAQ</span>
-                    </a>
-                </li>
-                <li role="presentation">
-                    <a class="p-tabview-nav-link" data-tab="console" onclick="switchDashTab('console', this)" role="tab">
-                        <span class="p-tabview-title">Console</span>
-                    </a>
-                </li>
-            </ul>
-        </div>
-
-        <div class="p-card" style="border-top-left-radius:0;border-top-right-radius:0">
-            <div class="p-card-body">
-                <div id="tab-overview" class="dash-panel active">
+        <div id="dash-tabs" class="p-tabview p-component">
+            <div class="p-tabview-nav-container">
+                <div class="p-tabview-nav-content">
+                    <ul class="p-tabview-nav" role="tablist">
+                        <li class="p-highlight" role="presentation">
+                            <a href="#" class="p-tabview-nav-link" data-tab="overview" onclick="switchDashTab('overview', this); return false;" role="tab">
+                                <span class="p-tabview-title">Overview</span>
+                            </a>
+                        </li>
+                        <li role="presentation">
+                            <a href="#" class="p-tabview-nav-link" data-tab="matches" onclick="switchDashTab('matches', this); return false;" role="tab">
+                                <span class="p-tabview-title">Matches</span>
+                            </a>
+                        </li>
+                        <li role="presentation">
+                            <a href="#" class="p-tabview-nav-link" data-tab="learning" onclick="switchDashTab('learning', this); return false;" role="tab">
+                                <span class="p-tabview-title">Learning</span>
+                            </a>
+                        </li>
+                        <li role="presentation">
+                            <a href="#" class="p-tabview-nav-link" data-tab="advanced" onclick="switchDashTab('advanced', this); return false;" role="tab">
+                                <span class="p-tabview-title">Advanced</span>
+                            </a>
+                        </li>
+                        <li role="presentation">
+                            <a href="#" class="p-tabview-nav-link" data-tab="faq" onclick="switchDashTab('faq', this); return false;" role="tab">
+                                <span class="p-tabview-title">FAQ</span>
+                            </a>
+                        </li>
+                        <li role="presentation">
+                            <a href="#" class="p-tabview-nav-link" data-tab="console" onclick="switchDashTab('console', this); return false;" role="tab">
+                                <span class="p-tabview-title">Console</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            <div class="p-tabview-panels">
+                <div id="tab-overview" class="p-tabview-panel dash-panel active">
                     <div class="overview-grid">
                         <div class="p-card">
                             <div class="p-card-body">
@@ -395,14 +506,14 @@
                     </div>
                 </div>
 
-                <div id="tab-matches" class="dash-panel">
+                <div id="tab-matches" class="p-tabview-panel dash-panel">
                     <div class="flex flex-wrap gap-2 mb-3 align-items-center">
-                        <select id="filter-color" class="p-dropdown p-component p-inputtext" onchange="renderMatchesTab()">
+                        <select id="filter-color" class="p-inputtext p-component" onchange="renderMatchesTab()">
                             <option value="all">All colours</option>
                             <option value="white">White</option>
                             <option value="black">Black</option>
                         </select>
-                        <select id="filter-result" class="p-dropdown p-component p-inputtext" onchange="renderMatchesTab()">
+                        <select id="filter-result" class="p-inputtext p-component" onchange="renderMatchesTab()">
                             <option value="all">All results</option>
                             <option value="WIN">Wins</option>
                             <option value="LOSS">Losses</option>
@@ -416,10 +527,10 @@
                     <div id="game-list-view"></div>
                 </div>
 
-                <div id="tab-learning" class="dash-panel">
+                <div id="tab-learning" class="p-tabview-panel dash-panel">
                     <div id="learn-browse">
-                        <div class="p-selectbutton p-buttonset flex mb-3">
-                            <button type="button" class="p-button p-component learn-subtab active" data-learn="openings" onclick="switchLearnSection('openings', this)">Openings</button>
+                        <div class="p-buttonset mb-3">
+                            <button type="button" class="p-button p-component learn-subtab" data-learn="openings" onclick="switchLearnSection('openings', this)">Openings</button>
                             <button type="button" class="p-button p-component p-button-outlined learn-subtab" data-learn="famous" onclick="switchLearnSection('famous', this)">Famous games</button>
                         </div>
                         <span class="p-input-icon-left w-full mb-3 block">
@@ -431,7 +542,7 @@
                     <div id="learn-detail" style="display:none"></div>
                 </div>
 
-                <div id="tab-advanced" class="dash-panel">
+                <div id="tab-advanced" class="p-tabview-panel dash-panel">
                     <div class="p-card mb-3">
                         <div class="p-card-body">
                             <div class="profile-kicker">Openings</div>
@@ -475,19 +586,13 @@
                     </div>
                 </div>
 
-                <div id="tab-faq" class="dash-panel">
-                    <div class="p-card">
-                        <div class="p-card-body" id="faq-content"></div>
-                    </div>
+                <div id="tab-faq" class="p-tabview-panel dash-panel">
+                    <div id="faq-content"></div>
                 </div>
 
-                <div id="tab-console" class="dash-panel">
-                    <div class="p-card">
-                        <div class="p-card-body">
-                            <div class="p-card-title mb-3">Debug console</div>
-                            <div id="debug-log">System initializing...</div>
-                        </div>
-                    </div>
+                <div id="tab-console" class="p-tabview-panel dash-panel">
+                    <div class="p-card-title mb-3">Debug console</div>
+                    <div id="debug-log">System initializing...</div>
                 </div>
             </div>
         </div>
@@ -520,6 +625,21 @@
                 </div>
             </div>
 
+            <div class="review-nav review-nav-jump flex flex-wrap gap-2 mb-3">
+                <button type="button" class="p-button p-component p-button-secondary" onclick="goToStart()" title="Start of game">
+                    <span class="p-button-icon-left pi pi-step-backward"></span>
+                    <span class="p-button-label">Start</span>
+                </button>
+                <button type="button" id="btn-key-move" class="p-button p-component" onclick="goToKeyMove()" title="Jump to key moment" disabled>
+                    <span class="p-button-icon-left pi pi-star-fill"></span>
+                    <span class="p-button-label">Key</span>
+                </button>
+                <button type="button" class="p-button p-component p-button-secondary" onclick="goToEnd()" title="End of game">
+                    <span class="p-button-label">End</span>
+                    <span class="p-button-icon-right pi pi-step-forward"></span>
+                </button>
+            </div>
+
             <div class="board-wrapper" id="board-container">
                 <div id="active-board" class="chess-board"></div>
                 <svg id="arrow-overlay" class="arrow-overlay" viewBox="0 0 100 100">
@@ -537,40 +657,32 @@
                 <div id="eval-label" class="eval-text">0.0</div>
             </div>
 
-            <div class="review-nav flex flex-wrap gap-2 mt-3">
-                <button type="button" class="p-button p-component p-button-secondary" onclick="goToStart()" title="Start of game">
-                    <span class="p-button-icon-left pi pi-step-backward"></span>
-                    <span class="p-button-label">Start</span>
-                </button>
+            <div class="review-nav review-nav-step flex flex-wrap gap-2 mt-3">
                 <button type="button" class="p-button p-component p-button-secondary" onclick="stepMove(-1)" title="Previous move">
                     <span class="p-button-icon-left pi pi-caret-left"></span>
                     <span class="p-button-label">Prev</span>
                 </button>
-                <button type="button" id="btn-key-move" class="p-button p-component" onclick="goToKeyMove()" title="Jump to key moment" disabled>
-                    <span class="p-button-icon-left pi pi-star-fill"></span>
-                    <span class="p-button-label">Key</span>
-                </button>
                 <button type="button" class="p-button p-component p-button-secondary" onclick="stepMove(1)" title="Next move">
                     <span class="p-button-label">Next</span>
                     <span class="p-button-icon-right pi pi-caret-right"></span>
-                </button>
-                <button type="button" class="p-button p-component p-button-secondary" onclick="goToEnd()" title="End of game">
-                    <span class="p-button-label">End</span>
-                    <span class="p-button-icon-right pi pi-step-forward"></span>
                 </button>
             </div>
         </div>
 
         <div class="review-side">
             <div class="p-tabview p-component">
-                <ul class="p-tabview-nav" role="tablist">
-                    <li class="p-highlight" role="presentation">
-                        <a class="p-tabview-nav-link" onclick="switchTab('moves', this)" role="tab"><span class="p-tabview-title">Moves</span></a>
-                    </li>
-                    <li role="presentation">
-                        <a class="p-tabview-nav-link" onclick="switchTab('graph', this)" role="tab"><span class="p-tabview-title">Graph</span></a>
-                    </li>
-                </ul>
+                <div class="p-tabview-nav-container">
+                    <div class="p-tabview-nav-content">
+                        <ul class="p-tabview-nav" role="tablist">
+                            <li class="p-highlight" role="presentation">
+                                <a href="#" class="p-tabview-nav-link" onclick="switchTab('moves', this); return false;" role="tab"><span class="p-tabview-title">Moves</span></a>
+                            </li>
+                            <li role="presentation">
+                                <a href="#" class="p-tabview-nav-link" onclick="switchTab('graph', this); return false;" role="tab"><span class="p-tabview-title">Graph</span></a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
                 <div class="p-tabview-panels">
                     <div id="moves-tab" class="p-tabview-panel" style="max-height:400px;overflow:auto"></div>
                     <div id="graph-tab" class="p-tabview-panel" style="display:none;height:400px">
@@ -585,14 +697,17 @@
 <script>
     const STOCKFISH_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
     const STOCKFISH_LOCAL = '/stockfish.js?v=20260803';
-    const APP_BUILD = '2026-08-04l';
+    const APP_BUILD = '2026-08-04n';
     const CACHE_VERSION = 6;
     // Root-absolute path so this works from both /chess and /chess.html
     const EXTERNAL_BOOK_URL = '/openings.json';
     const FAMOUS_GAMES_URL = '/famous-games.json';
     const ENGINE_DEPTH = 5;
     const EVAL_NOISE_FLOOR_CP = 100; // ignore first 1.0 pawn of depth-5 wobble
-    const GAMES_LIMIT = 100;
+    /** Max NEW (uncached) games to analyze in one scan. Cached games accumulate beyond this. */
+    const SCAN_NEW_LIMIT = 100;
+    /** Newest-first archive walk stops after this many consecutive already-cached games. */
+    const CACHE_CATCHUP_STREAK = 10;
     const PARALLEL_GAMES = Math.min(4, navigator.hardwareConcurrency || 4);
     
     const INTERNAL_BOOK = [
@@ -1958,20 +2073,73 @@
     }
 
     function loadCachedAnalysis(username, gameKey) {
-        // Prefer current version; fall back to recent prior versions
-        const versions = [CACHE_VERSION, CACHE_VERSION - 1, CACHE_VERSION - 2].filter(v => v >= 1);
-        for (const ver of versions) {
-            try {
-                const raw = localStorage.getItem(cacheStorageKey(username, gameKey, ver));
-                if (!raw) continue;
-                const parsed = JSON.parse(raw);
-                if (!parsed || !parsed.moves || !Array.isArray(parsed.moves)) continue;
-                parsed.gameKey = gameKey;
-                if (!parsed.gameStory) finalizeAnalysis(parsed);
-                return parsed;
-            } catch (_) { /* try next */ }
+        // Same CACHE_VERSION only — version bumps intentionally force re-analysis
+        try {
+            const raw = localStorage.getItem(cacheStorageKey(username, gameKey));
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            if (!parsed || !parsed.moves || !Array.isArray(parsed.moves)) return null;
+            parsed.gameKey = gameKey;
+            if (!parsed.gameStory) finalizeAnalysis(parsed);
+            return parsed;
+        } catch (_) {
+            return null;
         }
-        return null;
+    }
+
+    function hasCachedAnalysis(username, gameKey) {
+        try {
+            return !!localStorage.getItem(cacheStorageKey(username, gameKey));
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function rebuildCacheIndexFromStorage(username) {
+        const prefix = `chessAnalyzed:v${CACHE_VERSION}:${username.toLowerCase()}:`;
+        const indexKey = cacheIndexKey(username);
+        const index = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (!k || !k.startsWith(prefix) || k === indexKey) continue;
+            const gameKey = k.slice(prefix.length);
+            if (!gameKey) continue;
+            let endTime = 0;
+            try {
+                const parsed = JSON.parse(localStorage.getItem(k) || '');
+                endTime = parsed?.endTime || 0;
+            } catch (_) {}
+            index.push({ gameKey, endTime });
+        }
+        index.sort((a, b) => (b.endTime || 0) - (a.endTime || 0));
+        writeCacheIndex(username, index);
+        return index;
+    }
+
+    function getCacheIndex(username) {
+        let index = readCacheIndex(username);
+        if (index.length) return index;
+        // Index missing but games may still exist (quota / older builds)
+        if (listCachedGameKeys(username).length) return rebuildCacheIndexFromStorage(username);
+        return index;
+    }
+
+    function loadAllCachedAnalyses(username) {
+        const index = getCacheIndex(username);
+        const loaded = [];
+        const seen = new Set();
+        for (const entry of index) {
+            const gameKey = entry.gameKey;
+            if (!gameKey || seen.has(gameKey)) continue;
+            const analysis = loadCachedAnalysis(username, gameKey);
+            if (!analysis) continue;
+            seen.add(gameKey);
+            if (!analysis.endTime && entry.endTime) analysis.endTime = entry.endTime;
+            hydrateCachedAnalysis(analysis, analysis.pgn);
+            analysis.qualityScore = analysis.qualityScore ?? gameQualityScore(analysis);
+            loaded.push(analysis);
+        }
+        return loaded;
     }
 
     function saveCachedAnalysis(username, gameKey, analysis) {
@@ -1986,14 +2154,7 @@
                 let index = readCacheIndex(username).filter(e => e.gameKey !== gameKey);
                 index.push({ gameKey, endTime: analysis.endTime || 0 });
                 index.sort((a, b) => (b.endTime || 0) - (a.endTime || 0));
-                // Cap index to a bit above scan limit
-                if (index.length > GAMES_LIMIT + 20) {
-                    const dropped = index.slice(GAMES_LIMIT + 20);
-                    index = index.slice(0, GAMES_LIMIT + 20);
-                    for (const d of dropped) {
-                        try { localStorage.removeItem(cacheStorageKey(username, d.gameKey)); } catch (_) {}
-                    }
-                }
+                // Grow freely — only prune when quota forces it (below)
                 writeCacheIndex(username, index);
                 return true;
             } catch (e) {
@@ -2059,16 +2220,7 @@
         'developed_piece', 'claimed_center', 'castled_safe', 'quiet_improve'
     ]);
 
-    function ingestAnalysis(profile, analysis, gameKey) {
-        analysis.gameKey = gameKey || analysis.gameKey || null;
-        if (!analysis.qualityScore && analysis.qualityScore !== 0) {
-            analysis.qualityScore = gameQualityScore(analysis);
-        }
-        const existingIdx = profile.analyzedGames.findIndex(g => g.gameKey && g.gameKey === analysis.gameKey);
-        if (existingIdx >= 0) profile.analyzedGames[existingIdx] = analysis;
-        else profile.analyzedGames.push(analysis);
-        sortAnalyzedGames(profile);
-
+    function rebuildProfileAggregates(profile) {
         profile.games = profile.analyzedGames.length;
         profile.whiteGames = 0;
         profile.blackGames = 0;
@@ -2108,6 +2260,18 @@
                 }
             }
         }
+    }
+
+    function ingestAnalysis(profile, analysis, gameKey) {
+        analysis.gameKey = gameKey || analysis.gameKey || null;
+        if (!analysis.qualityScore && analysis.qualityScore !== 0) {
+            analysis.qualityScore = gameQualityScore(analysis);
+        }
+        const existingIdx = profile.analyzedGames.findIndex(g => g.gameKey && g.gameKey === analysis.gameKey);
+        if (existingIdx >= 0) profile.analyzedGames[existingIdx] = analysis;
+        else profile.analyzedGames.push(analysis);
+        sortAnalyzedGames(profile);
+        rebuildProfileAggregates(profile);
     }
 
     function gameQualityScore(analysis) {
@@ -2603,25 +2767,46 @@
         if (!opts.deferRefresh) refreshDashboard();
     }
 
-    async function fetchRecentGames(username, limit = GAMES_LIMIT) {
+    async function fetchNewGamesToAnalyze(username, cachedKeys, limit = SCAN_NEW_LIMIT) {
         const res = await fetch(`https://api.chess.com/pub/player/${username.toLowerCase()}/games/archives`);
         const data = await res.json();
         if (!data.archives || data.archives.length === 0) throw new Error("No games found");
 
         const archives = [...data.archives].reverse(); // newest month first
-        const games = [];
+        const newGames = [];
+        let cachedStreak = 0;
+        let scanned = 0;
+        let skippedCached = 0;
+
         for (const archiveUrl of archives) {
-            if (games.length >= limit || !isScanning) break;
+            if (!isScanning) break;
+            if (newGames.length >= limit) break;
+            if (cachedKeys.size && cachedStreak >= CACHE_CATCHUP_STREAK) break;
+
             log(`Fetching archive ${archiveUrl.split('/').slice(-2).join('/')}...`);
             const gRes = await fetch(archiveUrl);
             const gData = await gRes.json();
             const monthGames = [...(gData.games || [])].reverse();
+
             for (const g of monthGames) {
-                games.push(g);
-                if (games.length >= limit) break;
+                if (!isScanning) break;
+                if (newGames.length >= limit) break;
+                scanned++;
+                const gameKey = getGameKey(g);
+                if (cachedKeys.has(gameKey) || hasCachedAnalysis(username, gameKey)) {
+                    skippedCached++;
+                    cachedStreak++;
+                    cachedKeys.add(gameKey);
+                    // Newest-first: once we've hit a run of known games, older months are already covered
+                    if (cachedKeys.size && cachedStreak >= CACHE_CATCHUP_STREAK) break;
+                    continue;
+                }
+                cachedStreak = 0;
+                newGames.push({ game: g, gameKey });
             }
         }
-        return games;
+
+        return { newGames, scanned, skippedCached };
     }
 
     async function startAnalysis() {
@@ -2650,50 +2835,33 @@
             } catch (pe) {
                 log(`Profile header fetch failed: ${pe.message}`, true);
             }
-            const games = await fetchRecentGames(user, GAMES_LIMIT);
-            if (!games.length) throw new Error("No games found");
 
-            const pending = [];
-            const stats = { blunders: 0, great: 0, book: 0 };
-            let completed = 0;
-            let cacheHits = 0;
-            let cacheSaves = 0;
-
-            for (let i = 0; i < games.length; i++) {
-                const game = games[i];
-                const gameKey = getGameKey(game);
-                const cached = loadCachedAnalysis(user, gameKey);
-                if (cached) {
-                    cacheHits++;
-                    completed++;
-                    // Ensure metadata + FENs, but don't thrash the dashboard 100x
-                    applyAnalysisToUi(game, cached, gameKey, stats, { deferRefresh: true });
-                    // Migrate older cache versions into compact v6 format once
-                    const alreadyCurrent = !!localStorage.getItem(cacheStorageKey(user, gameKey));
-                    if (!alreadyCurrent || !cached.pgn) {
-                        cached.pgn = cached.pgn || game.pgn || '';
-                        if (saveCachedAnalysis(user, gameKey, cached)) cacheSaves++;
-                    }
-                } else {
-                    pending.push({ index: i, game, gameKey });
-                }
-            }
-
+            // Restore every game already processed at this CACHE_VERSION
+            const cachedAnalyses = loadAllCachedAnalyses(user);
+            const cachedKeys = new Set(cachedAnalyses.map(a => a.gameKey).filter(Boolean));
+            profileState.analyzedGames = cachedAnalyses;
             sortAnalyzedGames(profileState);
+            rebuildProfileAggregates(profileState);
             refreshDashboard();
+            log(`Restored ${cachedAnalyses.length} cached game${cachedAnalyses.length === 1 ? '' : 's'} (v${CACHE_VERSION}).`);
 
-            const total = games.length;
-            document.getElementById('prog-val-games').innerText = `${completed} / ${total}`;
-            document.getElementById('progress-fill').style.width = ((completed / total) * 100) + '%';
-            log(`Loaded ${total} games · ${cacheHits} from cache · ${pending.length} to analyze.`);
+            const { newGames, scanned, skippedCached } = await fetchNewGamesToAnalyze(user, cachedKeys, SCAN_NEW_LIMIT);
+            const pending = newGames.map((item, i) => ({ ...item, index: i }));
+            const stats = { blunders: 0, great: 0, book: 0 };
+            let cacheSaves = 0;
+            let completed = 0;
+            const totalNew = pending.length;
+
+            document.getElementById('prog-val-games').innerText = `0 / ${totalNew}`;
+            document.getElementById('progress-fill').style.width = totalNew ? '0%' : '100%';
+            log(`Archive scan: ${scanned} looked at · ${skippedCached} already cached · ${totalNew} new to analyze · profile has ${profileState.games} game${profileState.games === 1 ? '' : 's'}.`);
 
             if (!pending.length) {
-                if (profileState) {
-                    profileState.finished = true;
-                    sortAnalyzedGames(profileState);
-                    renderProfileOverview(profileState);
-                }
-                log('All games already cached — nothing new to analyze.');
+                if (!profileState.games) throw new Error("No games found");
+                profileState.finished = true;
+                sortAnalyzedGames(profileState);
+                renderProfileOverview(profileState);
+                log('Nothing new to analyze — using cached games only.');
                 stopAnalysis();
                 return;
             }
@@ -2707,13 +2875,23 @@
                     if (jobIdx >= pending.length) break;
                     const { index, game, gameKey } = pending[jobIdx];
 
+                    // Extra guard: never re-engine a game already at this cache version
+                    if (hasCachedAnalysis(user, gameKey)) {
+                        const cached = loadCachedAnalysis(user, gameKey);
+                        completed++;
+                        document.getElementById('prog-val-games').innerText = `${completed} / ${totalNew}`;
+                        document.getElementById('progress-fill').style.width = ((completed / totalNew) * 100) + '%';
+                        if (cached) applyAnalysisToUi(game, cached, gameKey, stats);
+                        continue;
+                    }
+
                     const analysis = await analyzeGame(game, user, engine, (curr, moveTotal) => {
-                        document.getElementById('prog-val-moves').innerText = `game ${index + 1}: ${curr}/${moveTotal}`;
+                        document.getElementById('prog-val-moves').innerText = `new ${index + 1}/${totalNew}: ${curr}/${moveTotal}`;
                     });
 
                     completed++;
-                    document.getElementById('prog-val-games').innerText = `${completed} / ${total}`;
-                    document.getElementById('progress-fill').style.width = ((completed / total) * 100) + '%';
+                    document.getElementById('prog-val-games').innerText = `${completed} / ${totalNew}`;
+                    document.getElementById('progress-fill').style.width = ((completed / totalNew) * 100) + '%';
 
                     if (analysis) {
                         if (saveCachedAnalysis(user, gameKey, analysis)) cacheSaves++;
@@ -2729,8 +2907,8 @@
                 renderProfileOverview(profileState);
             }
             log(isScanning
-                ? `Done. ${cacheHits} cached + ${completed - cacheHits} newly analyzed · ${cacheSaves} saved to localStorage.`
-                : `Stopped after ${completed} / ${total} games (${cacheHits} were cached).`);
+                ? `Done. Analyzed ${completed} new game${completed === 1 ? '' : 's'} · ${cacheSaves} saved · profile now ${profileState.games} total.`
+                : `Stopped after ${completed} / ${totalNew} new games · profile has ${profileState.games} total.`);
         } catch (e) { log(`Analysis Error: ${e.message}`, true); }
         stopAnalysis();
     }
