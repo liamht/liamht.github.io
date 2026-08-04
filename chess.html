@@ -4,618 +4,520 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chess Pro Analyser</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeng@17.18.15/resources/themes/lara-dark-blue/theme.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeng@17.18.15/resources/primeng.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeicons@7.0.0/primeicons.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeflex@3.3.1/primeflex.min.css">
     <style>
         :root {
-            --bg-dark: #0f0f0f;
-            --card-bg: #1a1a1a;
-            --primary: #3498db;
-            --accent: #e74c3c;
-            --warning: #f39c12;
-            --success: #2ecc71;
-            --excellent: #27ae60;
-            --text: #f5f5f5;
-            --subtext: #888;
-            --border: #2a2a2a;
             --board-white: #ebecd0;
             --board-black: #779556;
             --highlight: rgba(255, 255, 0, 0.4);
-        }
-        body { font-family: 'Segoe UI', Roboto, sans-serif; background: var(--bg-dark); color: var(--text); margin: 0; overflow-x: hidden; }
-        .container { max-width: 1200px; margin: auto; padding: 10px; }
-
-        .header-bar { display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px; }
-        @media (min-width: 768px) { .header-bar { flex-direction: row; align-items: center; } }
-
-        .controls { background: var(--card-bg); padding: 10px; border-radius: 10px; display: flex; gap: 8px; border: 1px solid var(--border); flex: 1; }
-        input { flex: 1; padding: 12px; border-radius: 6px; border: 1px solid #333; background: #000; color: #fff; outline: none; min-width: 0; }
-        button { padding: 12px 18px; border-radius: 6px; border: none; background: var(--primary); color: white; cursor: pointer; font-weight: bold; transition: 0.2s; }
-        button:hover { opacity: 0.9; }
-        button:disabled { opacity: 0.5; cursor: not-allowed; }
-        #btnStop { background: var(--accent); display: none; }
-
-        #debug-log { 
-            background: #000; 
-            color: #0f0; 
-            font-family: monospace; 
-            font-size: 11px; 
-            padding: 10px; 
-            border-radius: 6px; 
-            margin-top: 20px; 
-            max-height: 150px; 
-            overflow-y: auto; 
-            border: 1px solid #333;
-            display: block;
+            --accent: #f87171;
+            --warning: #fbbf24;
+            --success: #34d399;
+            --excellent: #4ade80;
+            --cls-book: #a78bfa;
+            --cls-theory: #8b5cf6;
         }
 
-        #progress-box { display: none; margin-bottom: 15px; background: #111; padding: 15px; border-radius: 10px; border: 1px solid #333; }
-        .progress-details { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; font-size: 12px; }
-        .prog-item { background: #1a1a1a; padding: 8px; border-radius: 6px; border: solid 1px #222; }
-        .prog-label { color: var(--subtext); margin-bottom: 2px; text-transform: uppercase; font-size: 10px; }
-        .prog-val { font-weight: bold; color: var(--primary); font-size: 14px; }
-        .progress-bg { width: 100%; height: 8px; background: #333; border-radius: 4px; margin-top: 12px; overflow: hidden; position: relative; }
-        .progress-fill { width: 0%; height: 100%; background: linear-gradient(90deg, var(--primary), #5dade2); transition: width 0.3s; }
+        html, body {
+            margin: 0;
+            min-height: 100%;
+            background: var(--surface-ground, #0b1220);
+            color: var(--text-color, #e2e8f0);
+            font-family: var(--font-family, Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif);
+            overflow-x: hidden;
+        }
 
-        .stats-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 10px; margin-bottom: 20px; }
-        .stat-card { background: var(--card-bg); padding: 15px; border-radius: 10px; border: 1px solid var(--border); text-align: center; }
-        .stat-val { font-size: 20px; font-weight: bold; color: var(--primary); }
-        .stat-label { font-size: 10px; color: var(--subtext); text-transform: uppercase; font-size: 10px; }
+        .app-shell {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1rem;
+        }
 
-        #game-list-view { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; }
+        /* Keep native controls from fighting Prime */
+        button:not(.p-button):not(.p-tabview-nav-link) {
+            font: inherit;
+        }
 
-        #review-view { display: none; grid-template-columns: 1fr; gap: 20px; }
-        @media (min-width: 992px) { #review-view { grid-template-columns: 1fr 400px; } }
+        #dashboard { display: none; margin-bottom: 1.25rem; }
+        #btnStop { display: none; }
 
-        .board-wrapper { position: relative; width: 100%; aspect-ratio: 1/1; background: #222; border-radius: 4px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        .chess-board { display: grid; grid-template-columns: repeat(8, 12.5%); grid-template-rows: repeat(8, 12.5%); width: 100%; height: 100%; }
+        #progress-box { display: none; margin-bottom: 1rem; }
+        .progress-details { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 0.75rem; }
+        .prog-label {
+            color: var(--text-color-secondary);
+            text-transform: uppercase;
+            font-size: 0.7rem;
+            letter-spacing: 0.04em;
+            margin-bottom: 0.15rem;
+        }
+        .prog-val { font-weight: 700; color: var(--primary-color); font-size: 0.95rem; }
+
+        #game-list-view {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+
+        #review-view { display: none; grid-template-columns: 1fr; gap: 1.25rem; }
+        @media (min-width: 992px) {
+            #review-view { grid-template-columns: 1fr 380px; }
+        }
+
+        .board-wrapper {
+            position: relative; width: 100%; aspect-ratio: 1/1;
+            background: var(--surface-800, #1e293b);
+            border-radius: var(--border-radius, 6px);
+            overflow: hidden;
+            box-shadow: var(--shadow-3, 0 4px 16px rgba(0,0,0,.35));
+        }
+        .chess-board {
+            display: grid;
+            grid-template-columns: repeat(8, 12.5%);
+            grid-template-rows: repeat(8, 12.5%);
+            width: 100%; height: 100%;
+        }
         .square { position: relative; display: flex; align-items: center; justify-content: center; }
         .square.white { background: var(--board-white); }
         .square.black { background: var(--board-black); }
         .square.highlight { background: var(--highlight) !important; }
         .piece { width: 90%; height: 90%; pointer-events: none; z-index: 2; }
-        .arrow-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
-        
-        .tabs { display: flex; background: #222; border-radius: 8px 8px 0 0; border: 1px solid var(--border); border-bottom: none; }
-        .tab { flex: 1; padding: 12px; text-align: center; cursor: pointer; font-size: 13px; font-weight: bold; color: var(--subtext); }
-        .tab.active { color: white; border-bottom: 2px solid var(--primary); background: var(--card-bg); }
-        .tab-content { background: var(--card-bg); border: 1px solid var(--border); border-radius: 0 0 8px 8px; height: 400px; overflow-y: auto; }
-
-        .move-card { background: #222; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid var(--primary); transition: all 0.3s; }
-        .move-card.blunder { border-left-color: var(--accent); background: rgba(231, 76, 60, 0.05); }
-        .move-card.best { border-left-color: var(--success); background: rgba(46, 204, 113, 0.05); }
+        .arrow-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
 
         .eval-bar-container {
-            width: 100%; height: 24px; border-radius: 12px; margin: 10px 0;
+            width: 100%; height: 1.5rem; border-radius: 999px; margin: 0.75rem 0;
             position: relative; overflow: hidden; display: flex;
-            border: 1px solid #444; background: #111;
+            border: 1px solid var(--surface-border, #334155); background: #111;
         }
         .eval-bar-container.player-white { background: #111; }
-        .eval-bar-container.player-black { background: #ebecd0; }
+        .eval-bar-container.player-black { background: var(--board-white); }
         .eval-bar-fill {
             height: 100%; transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            background: #fff; min-width: 0;
+            min-width: 0; background: #fff;
         }
-        .eval-bar-container.player-white .eval-bar-fill { background: #ebecd0; }
+        .eval-bar-container.player-white .eval-bar-fill { background: var(--board-white); }
         .eval-bar-container.player-black .eval-bar-fill { background: #111; }
         .eval-text {
-            position: absolute; width: 100%; height: 100%; top: 0;
+            position: absolute; inset: 0;
             display: flex; align-items: center; justify-content: center;
-            font-size: 11px; font-weight: 900; color: #fff;
-            text-shadow: 0 0 3px #000, 0 1px 2px #000, 1px 0 2px #000;
+            font-size: 0.75rem; font-weight: 800; color: #fff;
+            text-shadow: 0 0 3px #000, 0 1px 2px #000;
             pointer-events: none;
         }
 
-        .move-row { display: flex; padding: 12px; border-bottom: 1px solid #222; cursor: pointer; align-items: center; transition: 0.1s; }
-        .move-row:hover { background: #252525; }
-        .move-row.active { background: #2c3e50; }
-        .move-label { font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: auto; font-weight: bold; text-transform: uppercase; }
-        
-        .cls-best { background: var(--success); color: white; }
-        .cls-good { background: var(--excellent); color: white; }
-        .cls-okay { background: var(--primary); color: white; }
-        .cls-miss { background: var(--warning); color: black; }
-        .cls-mistake { background: #e67e22; color: white; }
-        .cls-blunder { background: var(--accent); color: white; }
-        .cls-book { background: #a29bfe; color: white; }
-        .cls-theory { background: #6c5ce7; color: white; }
-
-        .graph-container { padding: 20px; height: 100%; display: flex; align-items: flex-end; gap: 2px; }
-        .graph-bar { flex: 1; background: var(--primary); min-width: 4px; border-radius: 2px 2px 0 0; cursor: pointer; position: relative; opacity: 0.6; }
-        .graph-bar:hover { opacity: 1; filter: brightness(1.3); }
-        
-        .opening-tag { font-size: 11px; color: #a29bfe; font-weight: bold; margin-bottom: 4px; display: block; }
-
-        .game-story {
-            background: #111;
-            border: 1px solid #222;
-            border-left: 3px solid var(--primary);
-            border-radius: 8px;
-            padding: 12px 14px;
-            margin-bottom: 12px;
+        .move-row {
+            display: flex; padding: 0.75rem 0.85rem;
+            border-bottom: 1px solid var(--surface-border, #334155);
+            cursor: pointer; align-items: center;
         }
+        .move-row:hover { background: var(--surface-hover, rgba(255,255,255,.04)); }
+        .move-row.active { background: color-mix(in srgb, var(--primary-color) 18%, transparent); }
+
+        .move-label {
+            font-size: 0.65rem; padding: 0.15rem 0.45rem; border-radius: var(--border-radius);
+            margin-left: auto; font-weight: 700; text-transform: uppercase;
+        }
+        .cls-best { background: var(--success); color: #062; }
+        .cls-good { background: var(--excellent); color: #043; }
+        .cls-okay { background: var(--primary-color); color: var(--primary-color-text, #fff); }
+        .cls-miss { background: var(--warning); color: #422006; }
+        .cls-mistake { background: #fb923c; color: #431407; }
+        .cls-blunder { background: var(--accent); color: #450a0a; }
+        .cls-book { background: var(--cls-book); color: #1e1b4b; }
+        .cls-theory { background: var(--cls-theory); color: #fff; }
+
+        .graph-container { padding: 1rem; height: 100%; display: flex; align-items: flex-end; gap: 2px; }
+        .graph-bar {
+            flex: 1; background: var(--primary-color); min-width: 4px;
+            border-radius: 2px 2px 0 0; cursor: pointer; opacity: 0.65;
+        }
+        .graph-bar:hover { opacity: 1; }
+
+        .opening-tag {
+            display: inline-block; font-size: 0.8rem; font-weight: 700;
+            color: var(--primary-color); margin-bottom: 0.35rem;
+        }
+        .opening-tag.clickable {
+            cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+        }
+
+        .game-story { border-left: 3px solid var(--primary-color); }
         .game-story.win { border-left-color: var(--success); }
         .game-story.loss { border-left-color: var(--accent); }
         .game-story.draw { border-left-color: var(--warning); }
         .game-story-kicker {
-            font-size: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            color: var(--subtext);
-            margin-bottom: 4px;
+            font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em;
+            color: var(--text-color-secondary); margin-bottom: 0.25rem;
         }
-        .game-story-headline {
-            font-size: 14px;
-            font-weight: 700;
-            line-height: 1.35;
-            color: var(--text);
-        }
-        .game-story-detail {
-            margin-top: 6px;
-            font-size: 12px;
-            color: var(--subtext);
-            line-height: 1.4;
-        }
+        .game-story-headline { font-size: 0.95rem; font-weight: 700; line-height: 1.35; }
+        .game-story-detail { margin-top: 0.35rem; font-size: 0.8rem; color: var(--text-color-secondary); }
         .game-story-link {
-            margin-top: 8px;
-            font-size: 11px;
-            color: var(--primary);
-            cursor: pointer;
-            font-weight: 700;
+            margin-top: 0.5rem; font-size: 0.8rem; color: var(--primary-color);
+            cursor: pointer; font-weight: 700;
         }
-        .game-card-story {
-            margin-top: 8px;
-            font-size: 11px;
-            color: var(--subtext);
-            line-height: 1.35;
-            text-align: left;
-        }
+        .game-card-story { margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-color-secondary); line-height: 1.35; text-align: left; }
+        .game-card-sort { margin-top: 0.4rem; font-size: 0.8rem; font-weight: 700; color: var(--primary-color); }
 
-        #profile-overview {
-            display: none;
-            margin-bottom: 20px;
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 18px;
-        }
-        #profile-overview h2 {
-            margin: 0 0 4px;
-            font-size: 18px;
-            font-weight: 700;
-        }
-        .profile-sub {
-            color: var(--subtext);
-            font-size: 12px;
-            margin-bottom: 16px;
-        }
-        .profile-grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 16px;
-        }
-        @media (min-width: 900px) {
-            .profile-grid { grid-template-columns: 1fr 1fr 1.2fr; }
-        }
-        .profile-opening {
-            background: #111;
-            border: 1px solid #222;
-            border-radius: 8px;
-            padding: 14px;
-        }
-        .profile-kicker {
-            font-size: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            color: var(--subtext);
-            margin-bottom: 8px;
-        }
-        .opening-rank-list { display: flex; flex-direction: column; gap: 8px; }
-        .opening-rank-item {
-            display: grid;
-            grid-template-columns: 22px 1fr auto;
-            gap: 8px;
-            align-items: start;
-            padding: 8px 0;
-            border-bottom: 1px solid #1c1c1c;
-        }
-        .opening-rank-item:last-child { border-bottom: none; padding-bottom: 0; }
-        .opening-rank-num {
-            font-size: 12px;
-            font-weight: 700;
-            color: var(--subtext);
-            padding-top: 2px;
-        }
-        .opening-rank-name {
-            font-size: 14px;
-            font-weight: 700;
-            color: #a29bfe;
-            line-height: 1.3;
-        }
-        .opening-rank-meta {
-            margin-top: 3px;
-            font-size: 11px;
-            color: var(--subtext);
-            line-height: 1.35;
-        }
-        .opening-rank-pct {
-            font-size: 12px;
-            font-weight: 700;
-            color: var(--primary);
-            white-space: nowrap;
-            padding-top: 2px;
-        }
-        .insight-list { display: flex; flex-direction: column; gap: 10px; }
-        .insight-item {
-            background: #111;
-            border: 1px solid #222;
-            border-left: 3px solid var(--accent);
-            border-radius: 8px;
-            padding: 12px 14px;
-        }
-        .insight-item.good { border-left-color: var(--success); }
-        .insight-pct {
-            font-size: 12px;
-            font-weight: 700;
-            color: var(--accent);
-            margin-bottom: 4px;
-        }
-        .insight-item.good .insight-pct { color: var(--success); }
-        .insight-text {
-            font-size: 13px;
-            line-height: 1.45;
-            color: var(--text);
-        }
-        .insight-detail {
-            margin-top: 4px;
-            font-size: 11px;
-            color: var(--subtext);
-            line-height: 1.4;
-        }
-        .insight-empty {
-            font-size: 13px;
-            color: var(--subtext);
-            padding: 8px 0;
-        }
-        .quality-row {
-            display: grid;
-            grid-template-columns: 72px 1fr 48px;
-            gap: 8px;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-        .quality-label {
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
-        }
-        .quality-track {
-            height: 8px;
-            background: #1a1a1a;
-            border-radius: 4px;
-            overflow: hidden;
-            border: 1px solid #222;
-        }
-        .quality-fill {
-            height: 100%;
-            border-radius: 4px;
-            min-width: 0;
-        }
-        .quality-pct {
-            font-size: 11px;
-            font-weight: 700;
-            color: var(--subtext);
-            text-align: right;
-        }
-        .quality-meta {
-            font-size: 11px;
-            color: var(--subtext);
-            margin-top: 4px;
-            margin-bottom: 10px;
-        }
-        .quality-tactics {
-            margin-top: 12px;
-            padding-top: 10px;
-            border-top: 1px solid #222;
-        }
-        .quality-tactic-line {
-            font-size: 12px;
-            color: var(--text);
-            margin-bottom: 6px;
-            line-height: 1.35;
-        }
-        .quality-tactic-line span {
-            color: var(--subtext);
-            font-size: 11px;
-        }
-
-        #dashboard { display: none; margin-bottom: 20px; }
-        .profile-header {
-            display: flex; gap: 16px; align-items: center;
-            background: var(--card-bg); border: 1px solid var(--border);
-            border-radius: 10px; padding: 16px 18px; margin-bottom: 0;
-            border-bottom-left-radius: 0; border-bottom-right-radius: 0;
-        }
         .profile-avatar {
             width: 72px; height: 72px; border-radius: 50%;
-            object-fit: cover; background: #111; border: 2px solid #333;
-            flex-shrink: 0;
+            object-fit: cover; border: 2px solid var(--surface-border);
+            flex-shrink: 0; background: var(--surface-100);
         }
         .profile-avatar[src=""] { display: none; }
-        .profile-header-main { flex: 1; min-width: 0; }
-        .profile-header-main h2 {
-            margin: 0 0 4px; font-size: 20px; font-weight: 700;
-        }
-        .profile-header-sub {
-            font-size: 12px; color: var(--subtext); margin-bottom: 10px;
-        }
-        .profile-stat-row {
-            display: flex; flex-wrap: wrap; gap: 8px;
-        }
-        .profile-pill {
-            background: #111; border: 1px solid #2a2a2a; border-radius: 6px;
-            padding: 6px 10px; min-width: 72px;
-        }
-        .profile-pill-val {
-            font-size: 14px; font-weight: 700; color: var(--primary);
-        }
-        .profile-pill-label {
-            font-size: 9px; text-transform: uppercase; letter-spacing: 0.04em;
-            color: var(--subtext); margin-top: 1px;
-        }
-        .dash-tabs {
-            display: flex; flex-wrap: wrap; gap: 0;
-            background: #151515; border: 1px solid var(--border); border-top: none;
-            border-bottom: none;
-        }
-        .dash-tab {
-            flex: 1; min-width: 90px; padding: 12px 10px; border-radius: 0;
-            background: transparent; color: var(--subtext); font-size: 12px;
-            border-bottom: 2px solid transparent;
-        }
-        .dash-tab:hover { color: #fff; opacity: 1; }
-        .dash-tab.active {
-            color: #fff; border-bottom-color: var(--primary);
-            background: var(--card-bg);
-        }
-        .dash-panel {
-            display: none; background: var(--card-bg);
-            border: 1px solid var(--border); border-top: none;
-            border-radius: 0 0 10px 10px; padding: 16px;
-        }
-        .dash-panel.active { display: block; }
-        .dash-section {
-            background: #111; border: 1px solid #222; border-radius: 8px;
-            padding: 14px; margin-bottom: 14px;
-        }
-        .dash-section:last-child { margin-bottom: 0; }
-        .dash-section h3 {
-            margin: 0 0 10px; font-size: 14px; font-weight: 700;
-        }
-        .dash-section.full { grid-column: 1 / -1; }
-        .overview-grid {
-            display: grid; grid-template-columns: 1fr; gap: 14px;
-        }
-        @media (min-width: 900px) {
-            .overview-grid { grid-template-columns: 1.2fr 1fr; }
-        }
-        .best-worst-grid { display: grid; gap: 10px; }
-        .bw-card {
-            background: #0a0a0a; border: 1px solid #222; border-radius: 8px;
-            padding: 12px; cursor: pointer; border-left: 3px solid var(--primary);
-            text-align: left;
-        }
-        .bw-card.best { border-left-color: var(--success); }
-        .bw-card.worst { border-left-color: var(--accent); }
-        .bw-card:hover { border-color: #444; }
-        .bw-kicker {
-            font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
-            color: var(--subtext); margin-bottom: 4px;
-        }
-        .bw-title { font-size: 14px; font-weight: 700; }
-        .bw-meta { font-size: 11px; color: var(--subtext); margin-top: 4px; line-height: 1.35; }
-        .mini-game-list { display: flex; flex-direction: column; gap: 8px; }
-        .mini-game-row {
-            display: grid; grid-template-columns: 56px 52px 1fr; gap: 10px;
-            align-items: start; padding: 10px 12px; background: #0a0a0a;
-            border: 1px solid #222; border-radius: 8px; cursor: pointer;
-            text-align: left;
-        }
-        .mini-game-row:hover { border-color: #444; }
-        .mini-result { font-size: 12px; font-weight: 700; }
-        .mini-color {
-            font-size: 11px; color: var(--subtext); padding-top: 1px;
-        }
-        .mini-body { min-width: 0; }
-        .mini-opp { font-size: 13px; font-weight: 700; }
-        .mini-reason { font-size: 11px; color: var(--subtext); margin-top: 3px; line-height: 1.35; }
-        .match-filters {
-            display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;
-        }
-        .match-filters select {
-            background: #000; color: #fff; border: 1px solid #333;
-            border-radius: 6px; padding: 10px 12px; font-size: 13px;
-        }
-        .loss-group {
-            background: #0a0a0a; border: 1px solid #222; border-left: 3px solid var(--accent);
-            border-radius: 8px; padding: 12px 14px; margin-bottom: 10px;
-        }
-        .loss-group-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
-        .loss-group-meta { font-size: 11px; color: var(--subtext); margin-bottom: 8px; }
-        .loss-example {
-            font-size: 12px; color: var(--primary); cursor: pointer;
-            padding: 4px 0; font-weight: 600;
-        }
-        .loss-example:hover { text-decoration: underline; }
-        .faq-item {
-            border-bottom: 1px solid #222; padding: 12px 0;
-        }
-        .faq-item:last-child { border-bottom: none; }
-        .faq-term {
-            font-size: 14px; font-weight: 700; margin-bottom: 4px;
-        }
-        .faq-def {
-            font-size: 12px; color: var(--subtext); line-height: 1.45;
-        }
-        .faq-code {
-            margin-top: 6px; font-size: 11px; color: #aaa; font-family: monospace;
-            background: #0a0a0a; border: 1px solid #222; border-radius: 4px;
-            padding: 8px 10px; line-height: 1.4;
-        }
-        #tab-console #debug-log {
-            margin-top: 0; max-height: 420px; min-height: 200px;
-        }
-        .review-nav {
-            display: flex; flex-wrap: wrap; gap: 8px; margin-top: 15px;
-        }
-        .review-nav button {
-            flex: 1; min-width: 72px; background: #2c3e50; padding: 14px 10px;
-            font-size: 12px;
-        }
-        .review-nav button:disabled {
-            opacity: 0.35; cursor: not-allowed;
-        }
-        #btn-key-move:not(:disabled) {
-            background: var(--primary);
-        }
-    </style>
-    </head>
-<body>
 
-<div class="container">
-    <div class="header-bar">
-        <div class="controls">
-            <input type="text" id="username" placeholder="Chess.com Username">
-            <button id="btnScan" onclick="startAnalysis()" disabled>Initializing Engine...</button>
-            <button id="btnStop" onclick="stopAnalysis()">Stop</button>
+        .quality-row {
+            display: grid; grid-template-columns: 72px 1fr 48px; gap: 0.5rem;
+            align-items: center; margin-bottom: 0.35rem;
+            cursor: pointer; padding: 0.4rem 0.5rem; border-radius: var(--border-radius);
+        }
+        .quality-row:hover { background: var(--surface-hover, rgba(255,255,255,.04)); }
+        .quality-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
+        .quality-track {
+            height: 0.5rem; background: var(--surface-ground);
+            border-radius: 999px; overflow: hidden; border: 1px solid var(--surface-border);
+        }
+        .quality-fill { height: 100%; border-radius: 999px; min-width: 0; }
+        .quality-pct { font-size: 0.75rem; font-weight: 700; color: var(--text-color-secondary); text-align: right; }
+        .quality-meta { font-size: 0.8rem; color: var(--text-color-secondary); margin-bottom: 0.65rem; }
+        .quality-tactic-line { font-size: 0.85rem; margin-bottom: 0.4rem; line-height: 1.35; }
+        .quality-tactic-line span { color: var(--text-color-secondary); font-size: 0.75rem; }
+
+        .overview-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+        @media (min-width: 900px) { .overview-grid { grid-template-columns: 1.2fr 1fr; } }
+        .overview-grid .full { grid-column: 1 / -1; }
+
+        .best-worst-grid { display: grid; gap: 0.75rem; }
+        .bw-kicker { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-color-secondary); margin-bottom: 0.25rem; }
+        .bw-title { font-size: 0.95rem; font-weight: 700; }
+        .bw-meta { font-size: 0.8rem; color: var(--text-color-secondary); margin-top: 0.25rem; line-height: 1.35; }
+
+        .mini-game-list { display: flex; flex-direction: column; gap: 0.5rem; }
+        .mini-game-row {
+            display: grid; grid-template-columns: 56px 52px 1fr; gap: 0.65rem;
+            align-items: start; cursor: pointer; text-align: left;
+        }
+        .mini-result { font-size: 0.8rem; font-weight: 700; }
+        .mini-color { font-size: 0.75rem; color: var(--text-color-secondary); }
+        .mini-opp { font-size: 0.9rem; font-weight: 700; }
+        .mini-reason { font-size: 0.75rem; color: var(--text-color-secondary); margin-top: 0.2rem; line-height: 1.35; }
+
+        .opening-rank-list { display: flex; flex-direction: column; gap: 0.5rem; }
+        .opening-rank-item {
+            display: grid; grid-template-columns: 22px 1fr auto; gap: 0.5rem; align-items: start;
+            padding: 0.5rem 0; border-bottom: 1px solid var(--surface-border);
+        }
+        .opening-rank-item:last-child { border-bottom: none; }
+        .opening-rank-num { font-size: 0.8rem; font-weight: 700; color: var(--text-color-secondary); }
+        .opening-rank-name { font-size: 0.9rem; font-weight: 700; color: var(--primary-color); }
+        .opening-rank-meta { margin-top: 0.15rem; font-size: 0.75rem; color: var(--text-color-secondary); }
+        .opening-rank-pct { font-size: 0.8rem; font-weight: 700; color: var(--primary-color); }
+
+        .insight-empty { font-size: 0.9rem; color: var(--text-color-secondary); padding: 0.5rem 0; }
+        .insight-item { border-left: 3px solid var(--accent); }
+        .insight-item.good { border-left-color: var(--success); }
+        .profile-kicker {
+            font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em;
+            color: var(--text-color-secondary); margin-bottom: 0.5rem;
+        }
+
+        .loss-group { border-left: 3px solid var(--accent); margin-bottom: 0.65rem; }
+        .loss-group-title { font-size: 0.9rem; font-weight: 700; margin-bottom: 0.2rem; }
+        .loss-group-meta { font-size: 0.75rem; color: var(--text-color-secondary); margin-bottom: 0.5rem; }
+        .loss-example { font-size: 0.85rem; color: var(--primary-color); cursor: pointer; padding: 0.25rem 0; font-weight: 600; }
+        .loss-example:hover { text-decoration: underline; }
+
+        .faq-item { border-bottom: 1px solid var(--surface-border); padding: 0.75rem 0; }
+        .faq-item:last-child { border-bottom: none; }
+        .faq-term { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.25rem; }
+        .faq-def { font-size: 0.85rem; color: var(--text-color-secondary); line-height: 1.45; }
+        .faq-code {
+            margin-top: 0.4rem; font-size: 0.75rem; font-family: monospace;
+            background: var(--surface-ground); border: 1px solid var(--surface-border);
+            border-radius: var(--border-radius); padding: 0.5rem 0.65rem; color: var(--text-color-secondary);
+        }
+
+        #debug-log {
+            background: #020617; color: #4ade80; font-family: ui-monospace, monospace;
+            font-size: 0.75rem; padding: 0.75rem; border-radius: var(--border-radius);
+            max-height: 420px; min-height: 180px; overflow-y: auto;
+            border: 1px solid var(--surface-border);
+        }
+
+        .match-sort-chip { display: none; }
+        .match-sort-chip.active { display: inline-flex; align-items: center; gap: 0.5rem; }
+
+        .learn-group { margin-bottom: 0.65rem; }
+        .learn-group-body { display: none; max-height: 280px; overflow-y: auto; }
+        .learn-group.open .learn-group-body { display: block; }
+        .learn-item-meta { display: block; margin-top: 0.15rem; font-size: 0.75rem; color: var(--text-color-secondary); font-weight: 400; }
+        .learn-moves {
+            font-family: ui-monospace, monospace; font-size: 0.8rem; line-height: 1.55;
+            background: var(--surface-ground); border: 1px solid var(--surface-border);
+            border-radius: var(--border-radius); padding: 0.75rem; max-height: 240px; overflow-y: auto;
+            white-space: pre-wrap; word-break: break-word;
+        }
+
+        /* Tabview nav as full-width segmented control */
+        #dash-tabs.p-tabview .p-tabview-nav { flex-wrap: wrap; }
+        #dash-tabs.p-tabview .p-tabview-nav li { flex: 1 1 auto; }
+        #dash-tabs.p-tabview .p-tabview-nav-link { justify-content: center; width: 100%; }
+        .dash-panel { display: none; }
+        .dash-panel.active { display: block; }
+
+        .p-card.stat-card { cursor: pointer; }
+        .p-card.stat-card:hover { box-shadow: var(--shadow-4); }
+        .bw-card { cursor: pointer; text-align: left; }
+        .bw-card.best { border-left: 3px solid var(--success); }
+        .bw-card.worst { border-left: 3px solid var(--accent); }
+
+        .review-nav .p-button { flex: 1 1 0; min-width: 4.5rem; }
+    </style>
+</head>
+<body>
+<div class="app-shell">
+    <div class="p-card mb-3">
+        <div class="p-card-body">
+            <div class="flex flex-column md:flex-row gap-2 align-items-stretch md:align-items-center">
+                <span class="p-input-icon-left flex-1 w-full">
+                    <i class="pi pi-user"></i>
+                    <input type="text" id="username" class="p-inputtext p-component w-full" placeholder="Chess.com Username">
+                </span>
+                <div class="flex gap-2">
+                    <button id="btnScan" type="button" class="p-button p-component" onclick="startAnalysis()" disabled>
+                        <span class="p-button-icon-left pi pi-spin pi-spinner"></span>
+                        <span class="p-button-label">Initializing…</span>
+                    </button>
+                    <button id="btnStop" type="button" class="p-button p-component p-button-danger" onclick="stopAnalysis()">
+                        <span class="p-button-icon-left pi pi-stop"></span>
+                        <span class="p-button-label">Stop</span>
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
-    <div id="progress-box">
-        <div id="progress-text" style="font-size: 13px; font-weight: bold; color: var(--text)">Preparing...</div>
-        <div class="progress-details">
-            <div class="prog-item">
-                <div class="prog-label">Games</div>
-                <div id="prog-val-games" class="prog-val">0 / 0</div>
+    <div id="progress-box" class="p-card mb-3">
+        <div class="p-card-body">
+            <div id="progress-text" class="font-bold">Preparing...</div>
+            <div class="progress-details">
+                <div class="p-card">
+                    <div class="p-card-body py-2">
+                        <div class="prog-label">Games</div>
+                        <div id="prog-val-games" class="prog-val">0 / 0</div>
+                    </div>
+                </div>
+                <div class="p-card">
+                    <div class="p-card-body py-2">
+                        <div class="prog-label">Moves (Current)</div>
+                        <div id="prog-val-moves" class="prog-val">0 / 0</div>
+                    </div>
+                </div>
             </div>
-            <div class="prog-item">
-                <div class="prog-label">Moves (Current)</div>
-                <div id="prog-val-moves" class="prog-val">0 / 0</div>
+            <div class="p-progressbar p-component mt-3" style="height:0.5rem">
+                <div id="progress-fill" class="p-progressbar-value p-progressbar-value-animate" style="width:0%"></div>
             </div>
-        </div>
-        <div class="progress-bg">
-            <div id="progress-fill" class="progress-fill"></div>
         </div>
     </div>
 
     <div id="dashboard">
-        <div class="profile-header" id="profile-header">
-            <img id="profile-avatar" class="profile-avatar" alt="avatar" src="">
-            <div class="profile-header-main">
-                <h2 id="profile-display-name">Player</h2>
-                <div class="profile-header-sub" id="profile-header-sub">Loading profile…</div>
-                <div class="profile-stat-row" id="profile-stat-row"></div>
-            </div>
-        </div>
-
-        <div class="dash-tabs" id="dash-tabs">
-            <button type="button" class="dash-tab active" data-tab="overview" onclick="switchDashTab('overview', this)">Overview</button>
-            <button type="button" class="dash-tab" data-tab="matches" onclick="switchDashTab('matches', this)">Matches</button>
-            <button type="button" class="dash-tab" data-tab="advanced" onclick="switchDashTab('advanced', this)">Advanced</button>
-            <button type="button" class="dash-tab" data-tab="faq" onclick="switchDashTab('faq', this)">FAQ</button>
-            <button type="button" class="dash-tab" data-tab="console" onclick="switchDashTab('console', this)">Console</button>
-        </div>
-
-        <div id="tab-overview" class="dash-panel active">
-            <div class="overview-grid">
-                <div class="dash-section">
-                    <h3>Move quality</h3>
-                    <div id="overview-quality"></div>
-                </div>
-                <div class="dash-section">
-                    <h3>Best &amp; worst</h3>
-                    <div class="best-worst-grid" id="overview-best-worst"></div>
-                </div>
-                <div class="dash-section full">
-                    <h3>Last 5 games</h3>
-                    <div class="mini-game-list" id="overview-recent"></div>
-                </div>
-            </div>
-        </div>
-
-        <div id="tab-matches" class="dash-panel">
-            <div class="match-filters">
-                <select id="filter-color" onchange="renderMatchesTab()">
-                    <option value="all">All colours</option>
-                    <option value="white">White</option>
-                    <option value="black">Black</option>
-                </select>
-                <select id="filter-result" onchange="renderMatchesTab()">
-                    <option value="all">All results</option>
-                    <option value="WIN">Wins</option>
-                    <option value="LOSS">Losses</option>
-                    <option value="DRAW">Draws</option>
-                </select>
-            </div>
-            <div id="game-list-view"></div>
-        </div>
-
-        <div id="tab-advanced" class="dash-panel">
-            <div class="dash-section">
-                <div class="profile-kicker">Openings</div>
-                <div class="profile-grid" style="margin-top:10px">
-                    <div class="profile-opening">
-                        <div class="profile-kicker">Top as White</div>
-                        <div class="opening-rank-list" id="profile-white-openings"></div>
-                    </div>
-                    <div class="profile-opening">
-                        <div class="profile-kicker">Top as Black</div>
-                        <div class="opening-rank-list" id="profile-black-defences"></div>
+        <div class="p-card mb-3" id="profile-header">
+            <div class="p-card-body">
+                <div class="flex gap-3 align-items-center">
+                    <img id="profile-avatar" class="profile-avatar" alt="avatar" src="">
+                    <div class="flex-1">
+                        <div id="profile-display-name" class="text-2xl font-bold mb-1">Player</div>
+                        <div id="profile-header-sub" class="text-color-secondary text-sm mb-3">Loading profile…</div>
+                        <div class="flex flex-wrap gap-2" id="profile-stat-row"></div>
                     </div>
                 </div>
             </div>
-            <div class="dash-section">
-                <h3>Expanded move stats</h3>
-                <div id="advanced-move-stats"></div>
-            </div>
-            <div class="dash-section">
-                <h3>Why you lose</h3>
-                <div id="advanced-loss-reasons"></div>
-            </div>
-            <div class="dash-section">
-                <h3>Notable tactics</h3>
-                <div id="advanced-tactics"></div>
-            </div>
         </div>
 
-        <div id="tab-faq" class="dash-panel">
-            <div class="dash-section" id="faq-content"></div>
+        <div id="dash-tabs" class="p-tabview p-component mb-0">
+            <ul class="p-tabview-nav" role="tablist">
+                <li class="p-highlight" role="presentation">
+                    <a class="p-tabview-nav-link" data-tab="overview" onclick="switchDashTab('overview', this)" role="tab">
+                        <span class="p-tabview-title">Overview</span>
+                    </a>
+                </li>
+                <li role="presentation">
+                    <a class="p-tabview-nav-link" data-tab="matches" onclick="switchDashTab('matches', this)" role="tab">
+                        <span class="p-tabview-title">Matches</span>
+                    </a>
+                </li>
+                <li role="presentation">
+                    <a class="p-tabview-nav-link" data-tab="learning" onclick="switchDashTab('learning', this)" role="tab">
+                        <span class="p-tabview-title">Learning</span>
+                    </a>
+                </li>
+                <li role="presentation">
+                    <a class="p-tabview-nav-link" data-tab="advanced" onclick="switchDashTab('advanced', this)" role="tab">
+                        <span class="p-tabview-title">Advanced</span>
+                    </a>
+                </li>
+                <li role="presentation">
+                    <a class="p-tabview-nav-link" data-tab="faq" onclick="switchDashTab('faq', this)" role="tab">
+                        <span class="p-tabview-title">FAQ</span>
+                    </a>
+                </li>
+                <li role="presentation">
+                    <a class="p-tabview-nav-link" data-tab="console" onclick="switchDashTab('console', this)" role="tab">
+                        <span class="p-tabview-title">Console</span>
+                    </a>
+                </li>
+            </ul>
         </div>
 
-        <div id="tab-console" class="dash-panel">
-            <div class="dash-section">
-                <h3>Debug console</h3>
-                <div id="debug-log">System initializing...</div>
+        <div class="p-card" style="border-top-left-radius:0;border-top-right-radius:0">
+            <div class="p-card-body">
+                <div id="tab-overview" class="dash-panel active">
+                    <div class="overview-grid">
+                        <div class="p-card">
+                            <div class="p-card-body">
+                                <div class="p-card-title mb-3">Move quality</div>
+                                <div id="overview-quality"></div>
+                            </div>
+                        </div>
+                        <div class="p-card">
+                            <div class="p-card-body">
+                                <div class="p-card-title mb-3">Best &amp; worst</div>
+                                <div class="best-worst-grid" id="overview-best-worst"></div>
+                            </div>
+                        </div>
+                        <div class="p-card full">
+                            <div class="p-card-body">
+                                <div class="p-card-title mb-3">Last 5 games</div>
+                                <div class="mini-game-list" id="overview-recent"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tab-matches" class="dash-panel">
+                    <div class="flex flex-wrap gap-2 mb-3 align-items-center">
+                        <select id="filter-color" class="p-dropdown p-component p-inputtext" onchange="renderMatchesTab()">
+                            <option value="all">All colours</option>
+                            <option value="white">White</option>
+                            <option value="black">Black</option>
+                        </select>
+                        <select id="filter-result" class="p-dropdown p-component p-inputtext" onchange="renderMatchesTab()">
+                            <option value="all">All results</option>
+                            <option value="WIN">Wins</option>
+                            <option value="LOSS">Losses</option>
+                            <option value="DRAW">Draws</option>
+                        </select>
+                        <div id="match-sort-chip" class="match-sort-chip p-tag p-component">
+                            <span id="match-sort-label">Sorted by Best %</span>
+                            <button type="button" class="p-button p-button-text p-button-sm p-component" onclick="clearMatchesSort()">Clear</button>
+                        </div>
+                    </div>
+                    <div id="game-list-view"></div>
+                </div>
+
+                <div id="tab-learning" class="dash-panel">
+                    <div id="learn-browse">
+                        <div class="p-selectbutton p-buttonset flex mb-3">
+                            <button type="button" class="p-button p-component learn-subtab active" data-learn="openings" onclick="switchLearnSection('openings', this)">Openings</button>
+                            <button type="button" class="p-button p-component p-button-outlined learn-subtab" data-learn="famous" onclick="switchLearnSection('famous', this)">Famous games</button>
+                        </div>
+                        <span class="p-input-icon-left w-full mb-3 block">
+                            <i class="pi pi-search"></i>
+                            <input type="search" id="learn-search" class="p-inputtext p-component w-full" placeholder="Search openings or famous games…" oninput="renderLearningBrowse()">
+                        </span>
+                        <div id="learn-groups"></div>
+                    </div>
+                    <div id="learn-detail" style="display:none"></div>
+                </div>
+
+                <div id="tab-advanced" class="dash-panel">
+                    <div class="p-card mb-3">
+                        <div class="p-card-body">
+                            <div class="profile-kicker">Openings</div>
+                            <div class="grid mt-2">
+                                <div class="col-12 md:col-6">
+                                    <div class="p-card">
+                                        <div class="p-card-body">
+                                            <div class="profile-kicker">Top as White</div>
+                                            <div class="opening-rank-list" id="profile-white-openings"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-12 md:col-6">
+                                    <div class="p-card">
+                                        <div class="p-card-body">
+                                            <div class="profile-kicker">Top as Black</div>
+                                            <div class="opening-rank-list" id="profile-black-defences"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-card mb-3">
+                        <div class="p-card-body">
+                            <div class="p-card-title mb-3">Expanded move stats</div>
+                            <div id="advanced-move-stats"></div>
+                        </div>
+                    </div>
+                    <div class="p-card mb-3">
+                        <div class="p-card-body">
+                            <div class="p-card-title mb-3">Why you lose</div>
+                            <div id="advanced-loss-reasons"></div>
+                        </div>
+                    </div>
+                    <div class="p-card">
+                        <div class="p-card-body">
+                            <div class="p-card-title mb-3">Notable tactics</div>
+                            <div id="advanced-tactics"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tab-faq" class="dash-panel">
+                    <div class="p-card">
+                        <div class="p-card-body" id="faq-content"></div>
+                    </div>
+                </div>
+
+                <div id="tab-console" class="dash-panel">
+                    <div class="p-card">
+                        <div class="p-card-body">
+                            <div class="p-card-title mb-3">Debug console</div>
+                            <div id="debug-log">System initializing...</div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
     <div id="review-view">
         <div class="review-main">
-            <button onclick="exitReview()" style="background:#333; margin-bottom:15px; padding: 10px 20px; border-radius:6px; color:white; border:none; cursor:pointer; font-weight:bold;">← BACK TO PROFILE</button>
+            <button type="button" class="p-button p-component p-button-secondary mb-3" onclick="exitReview()">
+                <span class="p-button-icon-left pi pi-arrow-left"></span>
+                <span class="p-button-label">Back to profile</span>
+            </button>
 
-            <div id="game-story-box" class="game-story" style="display:none">
-                <div class="game-story-kicker" id="game-story-kicker">Why you won</div>
-                <div class="game-story-headline" id="game-story-headline"></div>
-                <div class="game-story-detail" id="game-story-detail"></div>
-                <div class="game-story-link" id="game-story-link" style="display:none">Jump to key moment →</div>
-            </div>
-            
-            <div id="current-move-info" class="move-card">
-                <span id="move-opening" class="opening-tag"></span>
-                <div style="display:flex; justify-content:space-between; align-items:center">
-                    <div id="move-title" style="font-weight:bold; font-size:18px;">Select a move</div>
-                    <div id="move-badge"></div>
+            <div id="game-story-box" class="p-card game-story mb-3" style="display:none">
+                <div class="p-card-body">
+                    <div class="game-story-kicker" id="game-story-kicker">Why you won</div>
+                    <div class="game-story-headline" id="game-story-headline"></div>
+                    <div class="game-story-detail" id="game-story-detail"></div>
+                    <div class="game-story-link" id="game-story-link" style="display:none">Jump to key moment →</div>
                 </div>
-                <div id="move-desc" style="font-size:12px; color:var(--subtext); margin-top:4px;">Detailed analysis results appear here.</div>
+            </div>
+
+            <div id="current-move-info" class="p-card mb-3">
+                <div class="p-card-body">
+                    <span id="move-opening" class="opening-tag"></span>
+                    <div class="flex justify-content-between align-items-center">
+                        <div id="move-title" class="text-xl font-bold">Select a move</div>
+                        <div id="move-badge"></div>
+                    </div>
+                    <div id="move-desc" class="text-color-secondary text-sm mt-2">Detailed analysis results appear here.</div>
+                </div>
             </div>
 
             <div class="board-wrapper" id="board-container">
@@ -623,36 +525,57 @@
                 <svg id="arrow-overlay" class="arrow-overlay" viewBox="0 0 100 100">
                     <defs>
                         <marker id="arrowhead" markerWidth="4" markerHeight="4" refX="2" refY="2" orient="auto">
-                            <path d="M0,0 L4,2 L0,4 Z" fill="rgba(46, 204, 113, 0.9)" />
+                            <path d="M0,0 L4,2 L0,4 Z" fill="rgba(52, 211, 153, 0.9)" />
                         </marker>
                     </defs>
-                    <line id="best-move-arrow" x1="0" y1="0" x2="0" y2="0" stroke="rgba(46, 204, 113, 0.75)" stroke-width="2" stroke-linecap="round" marker-end="url(#arrowhead)" display="none" />
+                    <line id="best-move-arrow" x1="0" y1="0" x2="0" y2="0" stroke="rgba(52, 211, 153, 0.75)" stroke-width="2" stroke-linecap="round" marker-end="url(#arrowhead)" display="none" />
                 </svg>
             </div>
-            
+
             <div class="eval-bar-container player-white" id="eval-bar">
                 <div id="eval-fill" class="eval-bar-fill" style="width: 50%"></div>
                 <div id="eval-label" class="eval-text">0.0</div>
             </div>
 
-            <div class="review-nav">
-                <button type="button" onclick="goToStart()" title="Start of game">⏮ Start</button>
-                <button type="button" onclick="stepMove(-1)" title="Previous move">◀ Prev</button>
-                <button type="button" id="btn-key-move" onclick="goToKeyMove()" title="Jump to key moment" disabled>★ Key</button>
-                <button type="button" onclick="stepMove(1)" title="Next move">Next ▶</button>
-                <button type="button" onclick="goToEnd()" title="End of game">End ⏭</button>
+            <div class="review-nav flex flex-wrap gap-2 mt-3">
+                <button type="button" class="p-button p-component p-button-secondary" onclick="goToStart()" title="Start of game">
+                    <span class="p-button-icon-left pi pi-step-backward"></span>
+                    <span class="p-button-label">Start</span>
+                </button>
+                <button type="button" class="p-button p-component p-button-secondary" onclick="stepMove(-1)" title="Previous move">
+                    <span class="p-button-icon-left pi pi-caret-left"></span>
+                    <span class="p-button-label">Prev</span>
+                </button>
+                <button type="button" id="btn-key-move" class="p-button p-component" onclick="goToKeyMove()" title="Jump to key moment" disabled>
+                    <span class="p-button-icon-left pi pi-star-fill"></span>
+                    <span class="p-button-label">Key</span>
+                </button>
+                <button type="button" class="p-button p-component p-button-secondary" onclick="stepMove(1)" title="Next move">
+                    <span class="p-button-label">Next</span>
+                    <span class="p-button-icon-right pi pi-caret-right"></span>
+                </button>
+                <button type="button" class="p-button p-component p-button-secondary" onclick="goToEnd()" title="End of game">
+                    <span class="p-button-label">End</span>
+                    <span class="p-button-icon-right pi pi-step-forward"></span>
+                </button>
             </div>
         </div>
 
         <div class="review-side">
-            <div class="tabs">
-                <div class="tab active" onclick="switchTab('moves', this)">MOVES</div>
-                <div class="tab" onclick="switchTab('graph', this)">GRAPH</div>
-            </div>
-            <div class="tab-content">
-                <div id="moves-tab" class="tab-pane"></div>
-                <div id="graph-tab" class="tab-pane" style="display:none; height:100%;">
-                    <div id="eval-graph" class="graph-container"></div>
+            <div class="p-tabview p-component">
+                <ul class="p-tabview-nav" role="tablist">
+                    <li class="p-highlight" role="presentation">
+                        <a class="p-tabview-nav-link" onclick="switchTab('moves', this)" role="tab"><span class="p-tabview-title">Moves</span></a>
+                    </li>
+                    <li role="presentation">
+                        <a class="p-tabview-nav-link" onclick="switchTab('graph', this)" role="tab"><span class="p-tabview-title">Graph</span></a>
+                    </li>
+                </ul>
+                <div class="p-tabview-panels">
+                    <div id="moves-tab" class="p-tabview-panel" style="max-height:400px;overflow:auto"></div>
+                    <div id="graph-tab" class="p-tabview-panel" style="display:none;height:400px">
+                        <div id="eval-graph" class="graph-container"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -662,7 +585,7 @@
 <script>
     const STOCKFISH_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
     const STOCKFISH_LOCAL = '/stockfish.js?v=20260803';
-    const APP_BUILD = '2026-08-04h';
+    const APP_BUILD = '2026-08-04l';
     const CACHE_VERSION = 6;
     // Root-absolute path so this works from both /chess and /chess.html
     const EXTERNAL_BOOK_URL = '/openings.json';
@@ -690,6 +613,10 @@
     let currentReviewGame = null;
     let currentMoveIndex = -1;
     let profileState = null;
+    let matchesSortLabel = null; // e.g. 'Best' — sort Matches by that label's % of player moves
+    let learnSection = 'openings'; // 'openings' | 'famous'
+    let learnOpenGroups = new Set();
+    let learnDetail = null; // { kind: 'opening'|'theory', name }
 
     function log(msg, isError = false) {
         const d = document.getElementById('debug-log');
@@ -742,6 +669,12 @@
             setFamousGames(INTERNAL_FAMOUS_GAMES);
         }
 
+        // Learning is usable as soon as books are loaded
+        document.getElementById('dashboard').style.display = 'block';
+        document.getElementById('profile-display-name').innerText = 'Chess Pro Analyser';
+        document.getElementById('profile-header-sub').innerText = 'Scan a Chess.com username to analyse games — or browse Learning anytime.';
+        renderLearningBrowse();
+
         log(`Initializing up to ${PARALLEL_GAMES} engines (depth ${ENGINE_DEPTH})...`);
         try {
             const workerUrl = await resolveStockfishWorkerUrl();
@@ -764,11 +697,11 @@
 
             enginesReady = true;
             btn.disabled = false;
-            btn.innerText = "Review Profile";
+            btn.innerHTML = '<span class="p-button-icon-left pi pi-search"></span><span class="p-button-label">Review Profile</span>';
             log(`System Online (${engines.length} workers).`);
         } catch (err) { 
             log(`Engine Error: ${err.message}`, true);
-            btn.innerText = "Engine Error"; 
+            btn.innerHTML = '<span class="p-button-icon-left pi pi-exclamation-triangle"></span><span class="p-button-label">Engine Error</span>';
         }
     }
 
@@ -893,6 +826,301 @@
         ACTIVE_FAMOUS_GAMES = Array.isArray(games) && games.length
             ? games.filter(g => g && g.name && Array.isArray(g.moves) && g.moves.length >= 12)
             : INTERNAL_FAMOUS_GAMES;
+    }
+
+    function famousEra(year) {
+        if (!year || year < 1900) return 'Romantic & classics';
+        if (year < 1946) return 'Early world champions';
+        if (year < 1972) return 'Post-war champions';
+        if (year < 2000) return 'Fischer to Kasparov era';
+        return 'Modern championships';
+    }
+
+    function formatMovesLine(moves) {
+        if (!moves?.length) return '';
+        const parts = [];
+        for (let i = 0; i < moves.length; i++) {
+            if (i % 2 === 0) parts.push(`${Math.floor(i / 2) + 1}.`);
+            parts.push(moves[i]);
+        }
+        return parts.join(' ');
+    }
+
+    function findOpeningByName(name) {
+        if (!name) return null;
+        const book = ACTIVE_OPENING_BOOK || [];
+        const exact = book.find(o => o.name === name);
+        if (exact) return exact;
+        const lower = name.toLowerCase();
+        return book.find(o => (o.name || '').toLowerCase() === lower) || null;
+    }
+
+    function findFamousByName(name) {
+        if (!name) return null;
+        const catalog = ACTIVE_FAMOUS_GAMES.length ? ACTIVE_FAMOUS_GAMES : INTERNAL_FAMOUS_GAMES;
+        const exact = catalog.find(g => g.name === name);
+        if (exact) return exact;
+        const lower = name.toLowerCase();
+        return catalog.find(g => (g.name || '').toLowerCase() === lower)
+            || catalog.find(g => (g.name || '').toLowerCase().includes(lower) || lower.includes((g.name || '').toLowerCase()))
+            || null;
+    }
+
+    function openingsByFamily() {
+        const map = new Map();
+        for (const op of (ACTIVE_OPENING_BOOK || [])) {
+            if (!op?.name) continue;
+            const family = openingFamily(op.name);
+            if (!map.has(family)) map.set(family, []);
+            map.get(family).push(op);
+        }
+        for (const list of map.values()) {
+            list.sort((a, b) => a.name.localeCompare(b.name));
+        }
+        return [...map.entries()].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+    }
+
+    function famousByEra() {
+        const map = new Map();
+        const catalog = ACTIVE_FAMOUS_GAMES.length ? ACTIVE_FAMOUS_GAMES : INTERNAL_FAMOUS_GAMES;
+        for (const g of catalog) {
+            const era = famousEra(g.year);
+            if (!map.has(era)) map.set(era, []);
+            map.get(era).push(g);
+        }
+        for (const list of map.values()) {
+            list.sort((a, b) => (a.year || 0) - (b.year || 0) || a.name.localeCompare(b.name));
+        }
+        const order = [
+            'Romantic & classics',
+            'Early world champions',
+            'Post-war champions',
+            'Fischer to Kasparov era',
+            'Modern championships'
+        ];
+        return order.filter(k => map.has(k)).map(k => [k, map.get(k)]);
+    }
+
+    function switchLearnSection(section, el) {
+        learnSection = section === 'famous' ? 'famous' : 'openings';
+        learnDetail = null;
+        document.querySelectorAll('.learn-subtab').forEach(t => {
+            t.classList.remove('active');
+            t.classList.add('p-button-outlined');
+        });
+        const btn = el || document.querySelector(`.learn-subtab[data-learn="${learnSection}"]`);
+        if (btn) {
+            btn.classList.add('active');
+            btn.classList.remove('p-button-outlined');
+        }
+        const search = document.getElementById('learn-search');
+        if (search) {
+            search.placeholder = learnSection === 'famous'
+                ? 'Search famous games…'
+                : 'Search openings…';
+            search.value = '';
+        }
+        renderLearningBrowse();
+    }
+
+    function toggleLearnGroup(groupId) {
+        if (learnOpenGroups.has(groupId)) learnOpenGroups.delete(groupId);
+        else learnOpenGroups.add(groupId);
+        renderLearningBrowse();
+    }
+
+    function renderLearningBrowse() {
+        const browse = document.getElementById('learn-browse');
+        const detail = document.getElementById('learn-detail');
+        const groupsEl = document.getElementById('learn-groups');
+        if (!browse || !groupsEl) return;
+
+        if (learnDetail) {
+            browse.style.display = 'none';
+            detail.style.display = 'block';
+            renderLearningDetail();
+            return;
+        }
+        browse.style.display = 'block';
+        detail.style.display = 'none';
+
+        const q = (document.getElementById('learn-search')?.value || '').trim().toLowerCase();
+        let html = '';
+
+        if (learnSection === 'famous') {
+            const groups = famousByEra();
+            for (const [era, games] of groups) {
+                const filtered = q
+                    ? games.filter(g =>
+                        (g.name || '').toLowerCase().includes(q)
+                        || (g.white || '').toLowerCase().includes(q)
+                        || (g.black || '').toLowerCase().includes(q)
+                        || (g.theme || '').toLowerCase().includes(q))
+                    : games;
+                if (!filtered.length) continue;
+                const gid = `famous:${era}`;
+                const open = learnOpenGroups.has(gid) || !!q;
+                const gidEnc = encodeURIComponent(gid);
+                html += `
+                    <div class="p-card p-component learn-group${open ? ' open' : ''} mb-2">
+                        <button type="button" class="p-button p-button-text p-component w-full justify-content-between" onclick="toggleLearnGroup(decodeURIComponent('${gidEnc}'))">
+                            <span class="font-bold">${era}</span>
+                            <span class="text-color-secondary text-sm">${filtered.length} game${filtered.length === 1 ? '' : 's'}</span>
+                        </button>
+                        <div class="learn-group-body px-3 pb-3">
+                            ${filtered.map(g => `
+                                <button type="button" class="p-button p-button-text p-component w-full text-left justify-content-start mb-1" onclick="openLearningItem('theory', decodeURIComponent('${encodeURIComponent(g.name)}'))">
+                                    <span>
+                                        <span class="font-semibold">${g.name}</span>
+                                        <span class="learn-item-meta">${g.year || '—'} · ${g.white || '?'} vs ${g.black || '?'}${g.theme ? ' · ' + g.theme : ''}</span>
+                                    </span>
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            if (!html) html = '<div class="insight-empty">No famous games match that search.</div>';
+        } else {
+            const families = openingsByFamily();
+            let shown = 0;
+            for (const [family, ops] of families) {
+                const filtered = q
+                    ? ops.filter(o => (o.name || '').toLowerCase().includes(q) || family.toLowerCase().includes(q))
+                    : ops;
+                if (!filtered.length) continue;
+                shown++;
+                // When searching, auto-expand; otherwise keep accordion state
+                const gid = `opening:${family}`;
+                const open = learnOpenGroups.has(gid) || !!q;
+                const list = q ? filtered.slice(0, 80) : filtered.slice(0, 60);
+                const more = filtered.length - list.length;
+                const gidEnc = encodeURIComponent(gid);
+                html += `
+                    <div class="p-card p-component learn-group${open ? ' open' : ''} mb-2">
+                        <button type="button" class="p-button p-button-text p-component w-full justify-content-between" onclick="toggleLearnGroup(decodeURIComponent('${gidEnc}'))">
+                            <span class="font-bold">${family}</span>
+                            <span class="text-color-secondary text-sm">${filtered.length} line${filtered.length === 1 ? '' : 's'}</span>
+                        </button>
+                        <div class="learn-group-body px-3 pb-3">
+                            ${list.map(o => `
+                                <button type="button" class="p-button p-button-text p-component w-full text-left justify-content-start mb-1" onclick="openLearningItem('opening', decodeURIComponent('${encodeURIComponent(o.name)}'))">
+                                    ${o.name}
+                                </button>
+                            `).join('')}
+                            ${more > 0 ? `<div class="insight-empty">+${more} more — refine search to narrow</div>` : ''}
+                        </div>
+                    </div>
+                `;
+                if (q && shown >= 40) break;
+            }
+            if (!html) html = '<div class="insight-empty">No openings match that search.</div>';
+        }
+        groupsEl.innerHTML = html;
+    }
+
+    function renderLearningDetail() {
+        const detail = document.getElementById('learn-detail');
+        if (!detail || !learnDetail) return;
+
+        if (learnDetail.kind === 'theory') {
+            const g = findFamousByName(learnDetail.name);
+            if (!g) {
+                detail.innerHTML = `
+                    <button type="button" class="p-button p-component p-button-secondary mb-3" onclick="closeLearningDetail()">
+                        <span class="p-button-icon-left pi pi-arrow-left"></span>
+                        <span class="p-button-label">Back</span>
+                    </button>
+                    <div class="insight-empty">Famous game not found: ${learnDetail.name}</div>
+                `;
+                return;
+            }
+            detail.innerHTML = `
+                <div class="p-card p-component">
+                    <div class="p-card-body">
+                        <button type="button" class="p-button p-component p-button-secondary mb-3" onclick="closeLearningDetail()">
+                            <span class="p-button-icon-left pi pi-arrow-left"></span>
+                            <span class="p-button-label">Back to famous games</span>
+                        </button>
+                        <div class="profile-kicker">Famous game · Theory</div>
+                        <div class="text-2xl font-bold mb-2">${g.name}</div>
+                        <div class="text-color-secondary text-sm mb-3 line-height-3">
+                            ${g.year || '—'} · ${g.white || '?'} vs ${g.black || '?'}${g.result ? ` · ${g.result}` : ''}<br>
+                            ${g.theme || 'A curated study game from our theory book.'}
+                        </div>
+                        <div class="learn-moves">${formatMovesLine(g.moves)}</div>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        const op = findOpeningByName(learnDetail.name);
+        const family = openingFamily(learnDetail.name);
+        const siblings = (ACTIVE_OPENING_BOOK || [])
+            .filter(o => openingFamily(o.name) === family && o.name !== (op?.name || learnDetail.name))
+            .slice(0, 12);
+        detail.innerHTML = `
+            <div class="p-card p-component">
+                <div class="p-card-body">
+                    <button type="button" class="p-button p-component p-button-secondary mb-3" onclick="closeLearningDetail()">
+                        <span class="p-button-icon-left pi pi-arrow-left"></span>
+                        <span class="p-button-label">Back to openings</span>
+                    </button>
+                    <div class="profile-kicker">Opening · ${family}</div>
+                    <div class="text-2xl font-bold mb-2">${op?.name || learnDetail.name}</div>
+                    <div class="text-color-secondary text-sm mb-3 line-height-3">
+                        From our opening book${op?.fen ? ' (position-based FEN entry)' : ''}.
+                        When a reviewed move is tagged Book and matches this line, it means you were still inside theory for this opening family.
+                    </div>
+                    ${siblings.length ? `
+                        <div class="mt-3">
+                            <div class="profile-kicker">Related lines in ${family}</div>
+                            ${siblings.map(s => `
+                                <button type="button" class="p-button p-button-text p-component w-full text-left justify-content-start mb-1" onclick="openLearningItem('opening', decodeURIComponent('${encodeURIComponent(s.name)}'))">
+                                    ${s.name}
+                                </button>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    }
+
+    function openLearningItem(kind, name) {
+        learnDetail = { kind: kind === 'theory' ? 'theory' : 'opening', name };
+        learnSection = kind === 'theory' ? 'famous' : 'openings';
+        document.querySelectorAll('.learn-subtab').forEach(t => {
+            t.classList.remove('active');
+            t.classList.add('p-button-outlined');
+        });
+        const btn = document.querySelector(`.learn-subtab[data-learn="${learnSection === 'famous' ? 'famous' : 'openings'}"]`);
+        if (btn) {
+            btn.classList.add('active');
+            btn.classList.remove('p-button-outlined');
+        }
+        renderLearningBrowse();
+    }
+
+    function closeLearningDetail() {
+        learnDetail = null;
+        renderLearningBrowse();
+    }
+
+    function openLearningFromReview(name, moveLabel) {
+        if (!name) return;
+        document.getElementById('review-view').style.display = 'none';
+        document.getElementById('dashboard').style.display = 'block';
+
+        let kind = 'opening';
+        if (moveLabel === 'Theory' && findFamousByName(name)) kind = 'theory';
+        else if (findFamousByName(name) && !findOpeningByName(name)) kind = 'theory';
+        else if (findOpeningByName(name)) kind = 'opening';
+        else if (findFamousByName(name)) kind = 'theory';
+
+        openLearningItem(kind, name);
+        switchDashTab('learning');
     }
 
     function identifyTheory(historySans) {
@@ -1929,16 +2157,16 @@
     }
 
     function switchDashTab(name, el) {
-        document.querySelectorAll('.dash-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('#dash-tabs .p-tabview-nav > li').forEach(li => li.classList.remove('p-highlight'));
         document.querySelectorAll('.dash-panel').forEach(p => p.classList.remove('active'));
-        if (el) el.classList.add('active');
-        else {
-            const btn = document.querySelector(`.dash-tab[data-tab="${name}"]`);
-            if (btn) btn.classList.add('active');
-        }
+        const link = el?.classList?.contains('p-tabview-nav-link')
+            ? el
+            : document.querySelector(`#dash-tabs .p-tabview-nav-link[data-tab="${name}"]`);
+        if (link) link.closest('li')?.classList.add('p-highlight');
         const panel = document.getElementById('tab-' + name);
         if (panel) panel.classList.add('active');
         if (name === 'faq') renderFaqTab();
+        if (name === 'learning') renderLearningBrowse();
         if (name === 'advanced' && profileState) renderAdvancedTab(profileState);
         if (name === 'matches' && profileState) renderMatchesTab();
         if (name === 'overview' && profileState) renderOverviewTab(profileState);
@@ -2000,14 +2228,14 @@
         const whiteWin = profile.whiteGames ? `${pct(profile.whiteWins, profile.whiteGames)}%` : '—';
         const blackWin = profile.blackGames ? `${pct(profile.blackWins, profile.blackGames)}%` : '—';
         const eloBits = (info?.ratings || []).map(r =>
-            `<div class="profile-pill"><div class="profile-pill-val">${r.rating}</div><div class="profile-pill-label">${r.label}</div></div>`
+            `<span class="p-tag p-component"><span class="font-bold">${r.rating}</span>&nbsp;${r.label}</span>`
         ).join('');
 
         document.getElementById('profile-stat-row').innerHTML = `
-            <div class="profile-pill"><div class="profile-pill-val">${wld}</div><div class="profile-pill-label">W / L / D</div></div>
-            <div class="profile-pill"><div class="profile-pill-val">${whiteWin}</div><div class="profile-pill-label">Win as White</div></div>
-            <div class="profile-pill"><div class="profile-pill-val">${blackWin}</div><div class="profile-pill-label">Win as Black</div></div>
-            ${eloBits || '<div class="profile-pill"><div class="profile-pill-val">—</div><div class="profile-pill-label">ELO</div></div>'}
+            <span class="p-tag p-component p-tag-info">W/L/D ${wld}</span>
+            <span class="p-tag p-component">White win ${whiteWin}</span>
+            <span class="p-tag p-component">Black win ${blackWin}</span>
+            ${eloBits || '<span class="p-tag p-component">ELO —</span>'}
         `;
     }
 
@@ -2023,15 +2251,45 @@
                 return { ...q, count, pct: p };
             })
             .filter(q => q.count > 0);
-        let html = `<div class="quality-meta">${total} of your moves across ${profile.games} game${profile.games === 1 ? '' : 's'}</div>`;
+        let html = `<div class="quality-meta">${total} of your moves across ${profile.games} game${profile.games === 1 ? '' : 's'} · click a type to rank matches</div>`;
         html += rows.map(q => `
-            <div class="quality-row">
+            <div class="quality-row" onclick="openMatchesSortedByLabel('${q.label}')" title="Show matches ranked by % ${q.label} moves">
                 <div class="quality-label" style="color:${q.color}">${q.label}</div>
                 <div class="quality-track"><div class="quality-fill" style="width:${Math.max(q.pct, q.count ? 2 : 0)}%;background:${q.color}"></div></div>
                 <div class="quality-pct">${q.pct}%</div>
             </div>
         `).join('');
         return html;
+    }
+
+    function labelShareInGame(analysis, label) {
+        const playerMoves = (analysis.moves || []).filter(m => m.classification?.label);
+        if (!playerMoves.length) return { count: 0, total: 0, pct: 0 };
+        const count = playerMoves.filter(m => m.classification.label === label).length;
+        const pct = Math.round((count / playerMoves.length) * 1000) / 10;
+        return { count, total: playerMoves.length, pct };
+    }
+
+    function openMatchesSortedByLabel(label) {
+        matchesSortLabel = label || null;
+        switchDashTab('matches');
+    }
+
+    function clearMatchesSort() {
+        matchesSortLabel = null;
+        renderMatchesTab();
+    }
+
+    function updateMatchSortChip() {
+        const chip = document.getElementById('match-sort-chip');
+        const text = document.getElementById('match-sort-label');
+        if (!chip || !text) return;
+        if (matchesSortLabel) {
+            chip.classList.add('active');
+            text.innerText = `Sorted by ${matchesSortLabel} %`;
+        } else {
+            chip.classList.remove('active');
+        }
     }
 
     function renderOverviewTab(profile) {
@@ -2044,12 +2302,14 @@
             recentEl.innerHTML = '<div class="insight-empty">Games will show here after analysis.</div>';
         } else {
             recentEl.innerHTML = recent.map((g, i) => `
-                <div class="mini-game-row" data-idx="${i}" onclick="openReviewFromStore('${escAttr(g.gameKey)}')">
-                    <div class="mini-result" style="color:${resultColor(g.result)}">${g.result}</div>
-                    <div class="mini-color">${g.isWhite ? 'White' : 'Black'}</div>
-                    <div class="mini-body">
-                        <div class="mini-opp">vs ${g.opponent}</div>
-                        <div class="mini-reason">${outcomeReason(g)}${g.resultDetail ? ' · ' + chessComResultLabel(g.resultDetail) : ''}</div>
+                <div class="p-card p-component mb-2" data-idx="${i}" onclick="openReviewFromStore('${escAttr(g.gameKey)}')" style="cursor:pointer">
+                    <div class="p-card-body mini-game-row py-2">
+                        <div class="mini-result" style="color:${resultColor(g.result)}">${g.result}</div>
+                        <div class="mini-color">${g.isWhite ? 'White' : 'Black'}</div>
+                        <div class="mini-body">
+                            <div class="mini-opp">vs ${g.opponent}</div>
+                            <div class="mini-reason">${outcomeReason(g)}${g.resultDetail ? ' · ' + chessComResultLabel(g.resultDetail) : ''}</div>
+                        </div>
                     </div>
                 </div>
             `).join('');
@@ -2064,15 +2324,19 @@
         const best = scored.reduce((a, b) => b.score > a.score ? b : a);
         const worst = scored.reduce((a, b) => b.score < a.score ? b : a);
         bw.innerHTML = `
-            <div class="bw-card best" onclick="openReviewFromStore('${escAttr(best.g.gameKey)}')">
-                <div class="bw-kicker">Best game · score ${best.score.toFixed(2)}</div>
-                <div class="bw-title">vs ${best.g.opponent} · ${best.g.result}</div>
-                <div class="bw-meta">${best.g.isWhite ? 'White' : 'Black'} · ${best.g.openingName || 'Unknown opening'}<br>${outcomeReason(best.g)}</div>
+            <div class="p-card p-component bw-card best" onclick="openReviewFromStore('${escAttr(best.g.gameKey)}')">
+                <div class="p-card-body">
+                    <div class="bw-kicker">Best game · score ${best.score.toFixed(2)}</div>
+                    <div class="bw-title">vs ${best.g.opponent} · ${best.g.result}</div>
+                    <div class="bw-meta">${best.g.isWhite ? 'White' : 'Black'} · ${best.g.openingName || 'Unknown opening'}<br>${outcomeReason(best.g)}</div>
+                </div>
             </div>
-            <div class="bw-card worst" onclick="openReviewFromStore('${escAttr(worst.g.gameKey)}')">
-                <div class="bw-kicker">Worst game · score ${worst.score.toFixed(2)}</div>
-                <div class="bw-title">vs ${worst.g.opponent} · ${worst.g.result}</div>
-                <div class="bw-meta">${worst.g.isWhite ? 'White' : 'Black'} · ${worst.g.openingName || 'Unknown opening'}<br>${outcomeReason(worst.g)}</div>
+            <div class="p-card p-component bw-card worst" onclick="openReviewFromStore('${escAttr(worst.g.gameKey)}')">
+                <div class="p-card-body">
+                    <div class="bw-kicker">Worst game · score ${worst.score.toFixed(2)}</div>
+                    <div class="bw-title">vs ${worst.g.opponent} · ${worst.g.result}</div>
+                    <div class="bw-meta">${worst.g.isWhite ? 'White' : 'Black'} · ${worst.g.openingName || 'Unknown opening'}<br>${outcomeReason(worst.g)}</div>
+                </div>
             </div>
         `;
     }
@@ -2091,15 +2355,24 @@
         const list = document.getElementById('game-list-view');
         list.innerHTML = '';
         if (!profileState) return;
+        updateMatchSortChip();
         const color = document.getElementById('filter-color')?.value || 'all';
         const result = document.getElementById('filter-result')?.value || 'all';
-        const games = gamesByRecency(profileState)
+        let games = gamesByRecency(profileState)
             .filter(g => {
                 if (color === 'white' && !g.isWhite) return false;
                 if (color === 'black' && g.isWhite) return false;
                 if (result !== 'all' && g.result !== result) return false;
                 return true;
             });
+        if (matchesSortLabel) {
+            games = [...games].sort((a, b) => {
+                const pa = labelShareInGame(a, matchesSortLabel).pct;
+                const pb = labelShareInGame(b, matchesSortLabel).pct;
+                if (pb !== pa) return pb - pa;
+                return (b.endTime || 0) - (a.endTime || 0);
+            });
+        }
         if (!games.length) {
             list.innerHTML = '<div class="insight-empty">No matches for these filters.</div>';
             return;
@@ -2189,10 +2462,12 @@
                     </div>
                 `).join('');
                 return `
-                    <div class="loss-group">
-                        <div class="loss-group-title">${title}</div>
-                        <div class="loss-group-meta">${games.length} loss${games.length === 1 ? '' : 'es'} · ${pct(games.length, losses.length)}% of losses</div>
-                        ${examples}
+                    <div class="p-card p-component loss-group mb-2">
+                        <div class="p-card-body">
+                            <div class="loss-group-title">${title}</div>
+                            <div class="loss-group-meta">${games.length} loss${games.length === 1 ? '' : 'es'} · ${pct(games.length, losses.length)}% of losses</div>
+                            ${examples}
+                        </div>
                     </div>
                 `;
             }).join('');
@@ -2255,9 +2530,11 @@
         document.getElementById('dashboard').style.display = 'block';
         renderProfileHeader(profileState);
         renderOverviewTab(profileState);
-        const active = document.querySelector('.dash-tab.active')?.dataset?.tab || 'overview';
+        const active = document.querySelector('#dash-tabs .p-tabview-nav > li.p-highlight .p-tabview-nav-link')?.dataset?.tab || 'overview';
         if (active === 'matches') renderMatchesTab();
         if (active === 'advanced') renderAdvancedTab(profileState);
+        if (active === 'learning') renderLearningBrowse();
+        if (active === 'overview') renderOverviewTab(profileState);
     }
 
     function topOpeningEntries(bucket, totalForColor, limit = 3) {
@@ -2352,11 +2629,12 @@
         if (!user || !enginesReady) return;
         isScanning = true;
         document.getElementById('btnScan').style.display = 'none';
-        document.getElementById('btnStop').style.display = 'block';
+        document.getElementById('btnStop').style.display = 'inline-flex';
         document.getElementById('progress-box').style.display = 'block';
         document.getElementById('game-list-view').innerHTML = '';
         document.getElementById('filter-color').value = 'all';
         document.getElementById('filter-result').value = 'all';
+        matchesSortLabel = null;
 
         profileState = createProfileState(user);
         document.getElementById('dashboard').style.display = 'block';
@@ -2836,22 +3114,27 @@
         if (!analysis.gameStory) finalizeAnalysis(analysis);
         const list = document.getElementById('game-list-view');
         const card = document.createElement('div');
-        card.className = "stat-card";
-        card.style.cursor = "pointer";
+        card.className = "p-card p-component stat-card";
         card.onclick = () => openReview(analysis);
         const resultColor = analysis.result === 'WIN' ? 'var(--success)'
             : analysis.result === 'DRAW' ? 'var(--warning)' : 'var(--accent)';
         const story = analysis.gameStory?.headline
             ? `<div class="game-card-story">${analysis.gameStory.headline}</div>`
             : '';
+        let sortLine = '';
+        if (matchesSortLabel) {
+            const share = labelShareInGame(analysis, matchesSortLabel);
+            sortLine = `<div class="game-card-sort">${share.pct}% ${matchesSortLabel} · ${share.count}/${share.total} moves</div>`;
+        }
         card.innerHTML = `
-            <div style="text-align:left">
-                <div style="font-weight:bold">vs ${analysis.opponent}</div>
-                <div style="color:var(--primary); font-size:11px; margin-bottom:5px">${analysis.openingName || ''}</div>
-                <div style="display:flex; justify-content:space-between; align-items:center">
-                    <span style="font-size:11px; color:var(--subtext)">${analysis.isWhite ? 'White' : 'Black'} · ${analysis.moves.length} moves</span>
-                    <span style="font-weight:bold; color:${resultColor}">${analysis.result}</span>
+            <div class="p-card-body" style="text-align:left">
+                <div class="font-bold text-lg">vs ${analysis.opponent}</div>
+                <div class="text-primary text-sm mb-2">${analysis.openingName || ''}</div>
+                <div class="flex justify-content-between align-items-center">
+                    <span class="text-color-secondary text-sm">${analysis.isWhite ? 'White' : 'Black'} · ${analysis.moves.length} moves</span>
+                    <span class="p-tag p-component" style="background:${resultColor}">${analysis.result}</span>
                 </div>
+                ${sortLine}
                 ${story}
             </div>
         `;
@@ -2876,7 +3159,7 @@
         const keyBtn = document.getElementById('btn-key-move');
         if (story && story.headline) {
             storyBox.style.display = 'block';
-            storyBox.className = 'game-story ' + (analysis.result === 'WIN' ? 'win' : analysis.result === 'DRAW' ? 'draw' : 'loss');
+            storyBox.className = 'p-card game-story mb-3 ' + (analysis.result === 'WIN' ? 'win' : analysis.result === 'DRAW' ? 'draw' : 'loss');
             document.getElementById('game-story-kicker').innerText =
                 analysis.result === 'WIN' ? 'Why you won'
                 : analysis.result === 'DRAW' ? 'Why it was drawn'
@@ -2932,7 +3215,21 @@
     }
 
     function updateMoveCard(m) {
-        document.getElementById('move-opening').innerText = m.openingName || "";
+        const openingEl = document.getElementById('move-opening');
+        const name = m.openingName || '';
+        if (name) {
+            openingEl.innerText = name;
+            openingEl.classList.add('clickable');
+            openingEl.title = m.classification?.label === 'Theory'
+                ? 'Open this famous game in Learning'
+                : 'Open this opening in Learning';
+            openingEl.onclick = () => openLearningFromReview(name, m.classification?.label || '');
+        } else {
+            openingEl.innerText = '';
+            openingEl.classList.remove('clickable');
+            openingEl.title = '';
+            openingEl.onclick = null;
+        }
         document.getElementById('move-title').innerText = `${m.moveNum}${m.turn==='w'?'.':''} ${m.san}`;
         let desc = m.classification.desc || '';
         if (m.evalDelta != null && m.classification.label && !['Book', 'Theory'].includes(m.classification.label)) {
@@ -3035,8 +3332,9 @@
     }
 
     function switchTab(t, el) {
-        document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
-        el.classList.add('active');
+        const nav = el?.closest('.p-tabview-nav');
+        if (nav) nav.querySelectorAll('li').forEach(li => li.classList.remove('p-highlight'));
+        el?.closest('li')?.classList.add('p-highlight');
         document.getElementById('moves-tab').style.display = t === 'moves' ? 'block' : 'none';
         document.getElementById('graph-tab').style.display = t === 'graph' ? 'block' : 'none';
     }
@@ -3056,7 +3354,11 @@
             profileState.finished = true;
             renderProfileOverview(profileState);
         }
-        document.getElementById('btnScan').style.display = 'block';
+        const scanBtn = document.getElementById('btnScan');
+        scanBtn.style.display = '';
+        if (!scanBtn.querySelector('.p-button-label')) {
+            scanBtn.innerHTML = '<span class="p-button-icon-left pi pi-search"></span><span class="p-button-label">Review Profile</span>';
+        }
         document.getElementById('btnStop').style.display = 'none';
         document.getElementById('progress-box').style.display = 'none';
     }
