@@ -1,4 +1,4 @@
-/* chess/insights.js — narrative coach notes for the Insights tab */
+/* chess/insights.js — Coach Notes V2: evidence-backed, player-specific coaching */
 
 function sideMaterialFromFen(fen) {
     const board = String(fen || '').split(' ')[0] || '';
@@ -40,6 +40,69 @@ function movedPieceType(move) {
     return 'p';
 }
 
+function avg(nums) {
+    if (!nums.length) return 0;
+    return nums.reduce((a, b) => a + b, 0) / nums.length;
+}
+
+function makeEvidence(g, m, i) {
+    if (!g || !m) return null;
+    return {
+        gameKey: g.gameKey || null,
+        moveIndex: i,
+        san: m.san || '',
+        moveRef: typeof formatMoveRef === 'function' ? formatMoveRef(m) : `${m.moveNum}${m.turn === 'w' ? '.' : '...'} ${m.san}`,
+        opponent: g.opponent || (g.isWhite ? g.blackUsername : g.whiteUsername) || 'opponent',
+        result: g.result || '',
+        label: m.classification?.label || '',
+        evalDelta: m.evalDelta != null ? m.evalDelta : null,
+        endTime: g.endTime || 0
+    };
+}
+
+function pushThemeExample(store, themeId, hit, polarity) {
+    if (!store[themeId]) store[themeId] = { hits: 0, polarity, examples: [] };
+    store[themeId].hits += 1;
+    const examples = store[themeId].examples;
+    const score = (hit.m.classification?.label === 'Blunder' ? 3
+        : hit.m.classification?.label === 'Mistake' ? 2
+        : hit.m.classification?.label === 'Miss' ? 1 : 0)
+        + (hit.m.evalDelta || 0);
+    examples.push({ ...hit, _score: score });
+    examples.sort((a, b) => (b._score - a._score) || ((b.g.endTime || 0) - (a.g.endTime || 0)));
+    if (examples.length > 3) examples.length = 3;
+}
+
+function confidenceFromRated(ratedN) {
+    if (ratedN < 8) return 'low';
+    if (ratedN < 25) return 'medium';
+    return 'high';
+}
+
+function confidenceFactor(c) {
+    return c === 'high' ? 1 : c === 'medium' ? 0.75 : 0.45;
+}
+
+function makeInsightCard( partial ) {
+    return {
+        id: partial.id,
+        priority: Math.max(0, Math.min(100, Math.round(partial.priority || 0))),
+        confidence: partial.confidence || 'low',
+        title: partial.title || '',
+        body: partial.body || '',
+        advice: partial.advice || '',
+        evidence: (partial.evidence || []).filter(Boolean).slice(0, 3),
+        links: partial.links || [],
+        themeKey: partial.themeKey || null
+    };
+}
+
+function evidenceFromHits(hits) {
+    return (hits || [])
+        .map(h => makeEvidence(h.g, h.m, h.i))
+        .filter(e => e && e.gameKey);
+}
+
 function collectInsightCorpus(profile) {
     const games = profile.analyzedGames || [];
     const byPhase = {
@@ -62,11 +125,42 @@ function collectInsightCorpus(profile) {
     let pawnEndgameMoves = 0;
     const lossPhase = { opening: 0, middlegame: 0, endgame: 0, unknown: 0 };
 
+    const themeStore = {};
+    const phaseBlunders = { opening: [], middlegame: [], endgame: [] };
+    const openingFamilies = { white: {}, black: {} };
+    const keyLosses = { opening: [], middlegame: [], endgame: [] };
+    const endgameDownLosses = [];
+    const pieceEvidence = {};
+    for (const p of ['p', 'n', 'b', 'r', 'q', 'k']) {
+        pieceEvidence[p] = { bad: null, good: null };
+    }
+
+    const bumpFamily = (side, family, patch) => {
+        if (!openingFamilies[side][family]) {
+            openingFamilies[side][family] = {
+                family, side, games: 0, wins: 0, losses: 0, draws: 0,
+                openingBlunders: 0, worstLoss: null, sampleGame: null
+            };
+        }
+        const row = openingFamilies[side][family];
+        Object.assign(row, patch(row));
+    };
+
     for (const g of games) {
         const { phases, openingEnd, endgameStart } = assignMovePhases(g);
         const phaseSeen = { opening: false, middlegame: false, endgame: false };
-
         bookDepths.push(openingEnd >= 0 ? openingEnd + 1 : 0);
+
+        const family = openingFamily(g.openingName || 'Custom Game');
+        const side = g.isWhite ? 'white' : 'black';
+        bumpFamily(side, family, (row) => {
+            row.games += 1;
+            if (g.result === 'WIN') row.wins += 1;
+            else if (g.result === 'LOSS') row.losses += 1;
+            else row.draws += 1;
+            if (!row.sampleGame) row.sampleGame = g;
+            return row;
+        });
 
         let broke = null;
         for (let i = 0; i < (g.moves || []).length; i++) {
@@ -80,23 +174,36 @@ function collectInsightCorpus(profile) {
         else if (broke.player) youBrokeFirst += 1;
         else oppBrokeFirst += 1;
 
+        let enteredDown = false;
         if (endgameStart != null && g.moves[endgameStart]?.fen) {
             endgameEntered += 1;
             const mat = sideMaterialFromFen(g.moves[endgameStart].fen);
             const mine = g.isWhite ? mat.white : mat.black;
             const theirs = g.isWhite ? mat.black : mat.white;
-            const down = mine < theirs;
-            if (down) endgameEnteredDown += 1;
+            enteredDown = mine < theirs;
+            if (enteredDown) endgameEnteredDown += 1;
             if (g.result === 'LOSS') {
                 endgameLosses += 1;
-                if (down) endgameLossesEnteredDown += 1;
+                if (enteredDown) {
+                    endgameLossesEnteredDown += 1;
+                    endgameDownLosses.push(g);
+                }
             }
         }
 
         if (g.result === 'LOSS') {
             const keyIdx = g.gameStory?.keyMoveIndex;
-            if (keyIdx != null && phases[keyIdx]) lossPhase[phases[keyIdx]] += 1;
-            else lossPhase.unknown += 1;
+            if (keyIdx != null && phases[keyIdx]) {
+                lossPhase[phases[keyIdx]] += 1;
+                const m = g.moves[keyIdx];
+                keyLosses[phases[keyIdx]].push({ g, m, i: keyIdx });
+                const famRow = openingFamilies[side][family];
+                if (famRow && (!famRow.worstLoss || (g.endTime || 0) > (famRow.worstLoss.endTime || 0))) {
+                    famRow.worstLoss = { gameKey: g.gameKey, moveIndex: keyIdx, endTime: g.endTime || 0, g, m, i: keyIdx };
+                }
+            } else {
+                lossPhase.unknown += 1;
+            }
         }
 
         for (let i = 0; i < (g.moves || []).length; i++) {
@@ -113,21 +220,44 @@ function collectInsightCorpus(profile) {
             const label = m.classification.label;
             bucket.labels[label] = (bucket.labels[label] || 0) + 1;
             for (const t of m.moveThemes || []) {
+                if (PROFILE_SKIP_THEMES.has(t)) continue;
                 bucket.themes[t] = (bucket.themes[t] || 0) + 1;
+                const cat = THEME_CATALOG[t];
+                if (cat) pushThemeExample(themeStore, t, { g, m, i }, cat.polarity);
             }
             if (m.materialEvent) bucket.material.push(m.materialEvent);
 
+            if (['Blunder', 'Mistake', 'Miss'].includes(label)) {
+                phaseBlunders[phase].push({ g, m, i, evalDelta: m.evalDelta || 0 });
+                if (phase === 'opening') {
+                    const famRow = openingFamilies[side][family];
+                    if (famRow && label === 'Blunder') famRow.openingBlunders += 1;
+                }
+            }
+
             const piece = movedPieceType(m);
+            if (piece && pieceEvidence[piece]) {
+                if (['Blunder', 'Mistake'].includes(label)) {
+                    const cur = pieceEvidence[piece].bad;
+                    if (!cur || (m.evalDelta || 0) > (cur.m.evalDelta || 0)) {
+                        pieceEvidence[piece].bad = { g, m, i };
+                    }
+                }
+                if (label === 'Best') {
+                    if (!pieceEvidence[piece].good) pieceEvidence[piece].good = { g, m, i };
+                }
+            }
+
             if (phase === 'opening' && piece === 'b' && m.moveNum <= 4) {
                 const ev = m.materialEvent;
                 if (ev && (ev.kind === 'sacrifice' || ev.kind === 'hang') && (ev.offered === 'b' || !ev.offered)) {
-                    earlyBishopSacs.push({ m, ev, g });
+                    earlyBishopSacs.push({ m, ev, g, i });
                 }
             }
             if (phase === 'middlegame' && piece === 'n') {
-                knightDevelops.push(m);
+                knightDevelops.push({ m, g, i });
                 if (m.materialEvent?.kind === 'exchange' || (m.materialEvent?.kind === 'capture' && m.materialEvent?.offered === 'n')) {
-                    knightExchanges.push(m);
+                    knightExchanges.push({ m, g, i });
                 }
             }
             if (phase === 'endgame' && m.fen && onlyPawnsOrKings(m.fen)) {
@@ -135,6 +265,15 @@ function collectInsightCorpus(profile) {
                 if (label === 'Blunder' || label === 'Mistake') pawnEndgameBlunders += 1;
             }
         }
+    }
+
+    for (const phase of Object.keys(phaseBlunders)) {
+        phaseBlunders[phase].sort((a, b) => (b.evalDelta - a.evalDelta) || ((b.g.endTime || 0) - (a.g.endTime || 0)));
+        if (phaseBlunders[phase].length > 12) phaseBlunders[phase].length = 12;
+    }
+    for (const phase of Object.keys(keyLosses)) {
+        keyLosses[phase].sort((a, b) => ((b.g.endTime || 0) - (a.g.endTime || 0)));
+        if (keyLosses[phase].length > 5) keyLosses[phase].length = 5;
     }
 
     return {
@@ -153,7 +292,13 @@ function collectInsightCorpus(profile) {
         endgameLossesEnteredDown,
         pawnEndgameMoves,
         pawnEndgameBlunders,
-        lossPhase
+        lossPhase,
+        themeStore,
+        phaseBlunders,
+        openingFamilies,
+        keyLosses,
+        endgameDownLosses,
+        pieceEvidence
     };
 }
 
@@ -197,207 +342,427 @@ function favouriteOpeningLine(profile) {
     return pick;
 }
 
-function avg(nums) {
-    if (!nums.length) return 0;
-    return nums.reduce((a, b) => a + b, 0) / nums.length;
+function softBody(confidence, text) {
+    if (confidence === 'low') return `Early signal: ${text}`;
+    return text;
+}
+
+function rankAndCap(cards, limit = 4) {
+    return (cards || [])
+        .filter(Boolean)
+        .sort((a, b) => (b.priority - a.priority) || a.id.localeCompare(b.id))
+        .slice(0, limit);
+}
+
+function demoteDuplicateThemes(sections) {
+    const seen = new Set();
+    for (const key of ['overview', 'opening', 'middlegame', 'endgame']) {
+        const list = sections[key] || [];
+        const kept = [];
+        for (const card of list) {
+            if (card.themeKey && seen.has(card.themeKey)) {
+                card.priority = Math.max(0, card.priority - 25);
+            }
+            if (card.themeKey) seen.add(card.themeKey);
+            kept.push(card);
+        }
+        sections[key] = rankAndCap(kept, 4);
+    }
+}
+
+function pickWeeklyFocus(sections) {
+    const all = [];
+    for (const key of ['overview', 'opening', 'middlegame', 'endgame']) {
+        for (const c of sections[key] || []) all.push(c);
+    }
+    const eligible = all.filter(c => c.confidence !== 'low' || all.every(x => x.confidence === 'low'));
+    eligible.sort((a, b) => b.priority - a.priority);
+    return eligible[0] || null;
+}
+
+function themeCardFromStore(corpus, polarity, games) {
+    const minHits = Math.max(2, Math.floor(games * 0.12));
+    let best = null;
+    for (const [id, row] of Object.entries(corpus.themeStore || {})) {
+        if (row.polarity !== polarity || row.hits < minHits) continue;
+        if (PROFILE_SKIP_THEMES.has(id)) continue;
+        if (!best || row.hits > best.hits) best = { id, ...row, cat: THEME_CATALOG[id] };
+    }
+    if (!best?.cat) return null;
+    const conf = confidenceFromRated(best.hits * 2);
+    const sev = polarity === 'bad' ? 1.15 : 0.85;
+    const priority = Math.min(100, best.hits * 8 * sev * confidenceFactor(conf));
+    return makeInsightCard({
+        id: `theme_${polarity}_${best.id}`,
+        themeKey: best.id,
+        priority,
+        confidence: conf,
+        title: polarity === 'bad'
+            ? `Loudest leak · ${best.id.replace(/_/g, ' ')}`
+            : `Strength · ${best.id.replace(/_/g, ' ')}`,
+        body: softBody(conf, `${best.cat.detail} (${best.hits}× in this sample).`),
+        advice: polarity === 'bad'
+            ? 'Before you commit, slow-check the unprotected unit or tactic that keeps biting you.'
+            : 'Lean into this — force positions where this idea shows up.',
+        evidence: evidenceFromHits(best.examples)
+    });
+}
+
+function phaseAccuracyCard(phase, corpus) {
+    const bucket = corpus.byPhase[phase];
+    const q = phaseQualitySummary(bucket);
+    if (!q || q.rated < 6) return null;
+    const conf = confidenceFromRated(q.rated);
+    const blPct = Math.round(q.blunderRate * 100);
+    const bestPct = Math.round(q.bestRate * 100);
+    const isBad = blPct >= 10 || (phase === 'middlegame' && blPct >= 8);
+    const isGood = bestPct >= 40 && blPct <= 6;
+    if (!isBad && !isGood) return null;
+    const priority = isBad
+        ? Math.min(100, 40 + blPct * 2.2) * confidenceFactor(conf)
+        : Math.min(100, 30 + bestPct * 0.6) * confidenceFactor(conf) * 0.7;
+    const evidence = evidenceFromHits((corpus.phaseBlunders[phase] || []).slice(0, 3));
+    return makeInsightCard({
+        id: `phase_acc_${phase}`,
+        priority,
+        confidence: conf,
+        title: isBad
+            ? `${phase[0].toUpperCase()}${phase.slice(1)} accuracy dip`
+            : `${phase[0].toUpperCase()}${phase.slice(1)} looks clean`,
+        body: softBody(conf, isBad
+            ? `About ${blPct}% of your ${phase} moves are Blunders (${bestPct}% Best among rated tries).`
+            : `About ${bestPct}% Best among rated ${phase} moves, with blunders near ${blPct}%.`),
+        advice: isBad
+            ? `Spend training time on ${phase} calculation — review the cited slips before the next session.`
+            : `Keep converting calm ${phase} positions the same way.`,
+        evidence
+    });
+}
+
+function worstOpeningFamilyCard(corpus) {
+    const candidates = [];
+    for (const side of ['white', 'black']) {
+        for (const row of Object.values(corpus.openingFamilies[side] || {})) {
+            if (row.games < 3 || row.family === 'Custom / Unknown') continue;
+            const wr = row.games ? row.wins / row.games : 0;
+            if (wr > 0.4 && row.losses < 3) continue;
+            candidates.push({ ...row, wr });
+        }
+    }
+    if (!candidates.length) return null;
+    candidates.sort((a, b) => a.wr - b.wr || b.losses - a.losses);
+    const worst = candidates[0];
+    if (worst.losses < 2 && worst.wr >= 0.35) return null;
+    const conf = worst.games >= 6 ? 'high' : worst.games >= 3 ? 'medium' : 'low';
+    const priority = Math.min(100, (1 - worst.wr) * 70 + worst.losses * 6) * confidenceFactor(conf);
+    const evidence = [];
+    if (worst.worstLoss?.gameKey) {
+        evidence.push(makeEvidence(worst.worstLoss.g, worst.worstLoss.m, worst.worstLoss.i));
+    } else if (worst.sampleGame?.gameKey) {
+        const g = worst.sampleGame;
+        const idx = g.gameStory?.keyMoveIndex ?? Math.max(0, (g.moves || []).length - 1);
+        evidence.push(makeEvidence(g, g.moves?.[idx], idx));
+    }
+    return makeInsightCard({
+        id: `open_family_${worst.side}_${worst.family}`,
+        priority,
+        confidence: conf,
+        title: `${worst.family} as ${worst.side === 'white' ? 'White' : 'Black'}`,
+        body: softBody(conf,
+            `Record ${worst.wins}–${worst.losses}–${worst.draws} across ${worst.games} games` +
+            (worst.openingBlunders ? ` · ${worst.openingBlunders} opening blunder${worst.openingBlunders === 1 ? '' : 's'}` : '') +
+            ` (${Math.round(worst.wr * 100)}% wins).`),
+        advice: 'Study a model line in Learn, then replay your worst loss move-by-move.',
+        evidence,
+        links: [{ kind: 'learn-opening', name: worst.family }]
+    });
 }
 
 function buildOverviewInsights(profile, corpus) {
-    const lines = [];
+    const cards = [];
     const games = corpus.games;
-    if (!games) return ['Analyse a handful of games and this overview will fill in with patterns from your play.'];
+    if (!games) {
+        return [makeInsightCard({
+            id: 'need_games',
+            priority: 10,
+            confidence: 'low',
+            title: 'Waiting on sample size',
+            body: 'Analyse a handful of games and this overview will fill with patterns from your play.',
+            advice: 'Review a profile or a few single games to unlock coaching.'
+        })];
+    }
+
+    if (games < 5) {
+        cards.push(makeInsightCard({
+            id: 'small_sample',
+            priority: 20,
+            confidence: 'low',
+            title: 'Small sample',
+            body: `Only ${games} analyzed game${games === 1 ? '' : 's'} so far — reads will sharpen after ~8–10.`,
+            advice: 'Keep scanning; avoid overreacting to one result.'
+        }));
+    }
 
     const wr = profile.games ? Math.round((profile.wins / profile.games) * 100) : 0;
     const whiteWr = profile.whiteGames ? Math.round((profile.whiteWins / profile.whiteGames) * 100) : null;
     const blackWr = profile.blackGames ? Math.round((profile.blackWins / profile.blackGames) * 100) : null;
-    lines.push(
-        `Across ${games} analyzed game${games === 1 ? '' : 's'} you’re scoring ${wr}% wins` +
-        (whiteWr != null && blackWr != null
-            ? ` (${whiteWr}% as White · ${blackWr}% as Black).`
-            : '.')
-    );
+    cards.push(makeInsightCard({
+        id: 'scoreline',
+        priority: 25,
+        confidence: confidenceFromRated(profile.playerMoves || 0),
+        title: 'Scoreline',
+        body: `Across ${games} analyzed game${games === 1 ? '' : 's'} you’re scoring ${wr}% wins` +
+            (whiteWr != null && blackWr != null ? ` (${whiteWr}% as White · ${blackWr}% as Black).` : '.'),
+        advice: whiteWr != null && blackWr != null && Math.abs(whiteWr - blackWr) >= 15
+            ? (whiteWr < blackWr
+                ? 'Prioritize White repertoire and early plans — the colour gap is real in this sample.'
+                : 'Prioritize Black defences — you’re underperforming with that colour.')
+            : 'Use the focus card below as your single training target this week.'
+    }));
 
-    const labels = profile.moveLabels || {};
-    const moves = profile.playerMoves || 0;
-    if (moves >= 20) {
-        const bl = labels.Blunder || 0;
-        const best = labels.Best || 0;
-        const blPct = Math.round((bl / moves) * 1000) / 10;
-        const bestPct = Math.round((best / moves) * 1000) / 10;
-        lines.push(
-            `On the move sheet: ${bestPct}% Best moves versus ${blPct}% Blunders — ` +
-            (blPct >= 8
-                ? 'the swings from those blunders are doing a lot of damage.'
-                : bestPct >= 40
-                    ? 'you’re finding plenty of engine-approved ideas when the position is calm.'
-                    : 'there’s room to convert more “okay” positions into clean Best/Good moves.')
-        );
-    }
+    const leak = themeCardFromStore(corpus, 'bad', games);
+    if (leak) cards.push(leak);
+    const strength = themeCardFromStore(corpus, 'good', games);
+    if (strength) cards.push(strength);
 
     const lossParts = [];
+    let topLossPhase = null;
+    let topLossN = 0;
     for (const phase of ['opening', 'middlegame', 'endgame']) {
-        if (corpus.lossPhase[phase]) {
-            lossParts.push(`${corpus.lossPhase[phase]} decided in the ${phase}`);
+        const n = corpus.lossPhase[phase] || 0;
+        if (n) lossParts.push(`${n} decided in the ${phase}`);
+        if (n > topLossN) {
+            topLossN = n;
+            topLossPhase = phase;
         }
     }
-    if (profile.losses && lossParts.length) {
-        lines.push(`When you lose, the key moment is most often: ${lossParts.join(', ')}.`);
-    }
-
-    const leak = topTheme(
-        Object.fromEntries(
-            Object.entries(profile.themeHits || {}).filter(([id]) => !PROFILE_SKIP_THEMES.has(id))
-        ),
-        'bad',
-        Math.max(2, Math.floor(games * 0.15))
-    );
-    const strength = topTheme(
-        Object.fromEntries(
-            Object.entries(profile.themeHits || {}).filter(([id]) => !PROFILE_SKIP_THEMES.has(id))
-        ),
-        'good',
-        Math.max(2, Math.floor(games * 0.15))
-    );
-    if (strength) {
-        lines.push(`A recurring strength: ${strength.cat.detail}`);
-    }
-    if (leak) {
-        lines.push(`Your loudest leak right now: ${leak.cat.detail}`);
+    if (profile.losses && topLossPhase && topLossN >= 2) {
+        const conf = confidenceFromRated(topLossN * 3);
+        cards.push(makeInsightCard({
+            id: `loss_phase_${topLossPhase}`,
+            priority: Math.min(100, 35 + topLossN * 8) * confidenceFactor(conf),
+            confidence: conf,
+            title: `Losses cluster in the ${topLossPhase}`,
+            body: softBody(conf, `When you lose, the key moment is most often: ${lossParts.join(', ')}.`),
+            advice: `Drill ${topLossPhase} decisions — start with the cited key moments.`,
+            evidence: evidenceFromHits(corpus.keyLosses[topLossPhase] || [])
+        }));
     }
 
     if (corpus.endgameEntered >= 3 && corpus.endgameEnteredDown / corpus.endgameEntered >= 0.55) {
         const pctDown = Math.round((corpus.endgameEnteredDown / corpus.endgameEntered) * 100);
-        lines.push(
-            `You reach an endgame in ${corpus.endgameEntered} games, but enter it down on material ${pctDown}% of the time — so many losses are already decided before the last phase starts.`
-        );
+        const conf = confidenceFromRated(corpus.endgameEntered * 2);
+        cards.push(makeInsightCard({
+            id: 'endgame_enter_down',
+            priority: Math.min(100, 50 + pctDown * 0.4) * confidenceFactor(conf),
+            confidence: conf,
+            title: 'Endgames start from a deficit',
+            body: softBody(conf,
+                `You reach an endgame in ${corpus.endgameEntered} games, but enter it down on material ${pctDown}% of the time — many losses are decided before the last phase.`),
+            advice: 'Fight for a better middlegame trade balance; don’t “hope” in bad endings.',
+            evidence: (corpus.endgameDownLosses || []).slice(0, 3).map(g => {
+                const idx = g.gameStory?.keyMoveIndex ?? Math.max(0, (g.moves || []).length - 1);
+                return makeEvidence(g, g.moves?.[idx], idx);
+            })
+        }));
     }
 
-    return lines;
+    return rankAndCap(cards, 4);
 }
 
 function buildOpeningInsights(profile, corpus) {
-    const lines = [];
+    const cards = [];
     const bucket = corpus.byPhase.opening;
     const fav = favouriteOpeningLine(profile);
     const avgBookPlies = avg(corpus.bookDepths);
     const avgFullMoves = Math.round((avgBookPlies / 2) * 10) / 10;
+    const q = phaseQualitySummary(bucket);
+    const confOpen = confidenceFromRated(q?.rated || 0);
 
     if (fav) {
         const v = fav.entry.variations?.[0]?.name;
         const depthNote = avgFullMoves <= 3.5
-            ? `but you rarely steer it deeper than about ${Math.max(2, Math.round(avgFullMoves))} moves before the game leaves your comfort book`
+            ? `you rarely steer it deeper than about ${Math.max(2, Math.round(avgFullMoves))} moves before leaving comfort book`
             : avgFullMoves <= 6
-                ? `and you typically stay in known waters for around ${avgFullMoves} moves`
-                : `and you’re happy to go deep — averaging about ${avgFullMoves} moves of book/theory`;
-        lines.push(
-            `You favour the ${fav.entry.name} as ${fav.side}` +
-            (v && v !== fav.entry.name ? ` (often the ${v} flavour)` : '') +
-            `, ${depthNote}.`
-        );
-        if (fav.entry.count >= 3) {
-            lines.push(
-                `In that family you’re ${fav.entry.wins}-${fav.entry.losses}-${fav.entry.draws} ` +
-                `(${fav.entry.winRate}% wins across ${fav.entry.count} games).`
-            );
+                ? `you typically stay in known waters for around ${avgFullMoves} moves`
+                : `you’re happy to go deep — averaging about ${avgFullMoves} moves of book/theory`;
+        const sideKey = fav.side === 'White' ? 'white' : 'black';
+        const fam = corpus.openingFamilies[sideKey]?.[fav.entry.name];
+        const evidence = [];
+        if (fam?.sampleGame?.gameKey) {
+            const g = fam.sampleGame;
+            evidence.push(makeEvidence(g, g.moves?.[Math.min(10, (g.moves || []).length - 1)], Math.min(10, (g.moves || []).length - 1)));
         }
-    } else {
-        lines.push('Your openings are still mixed — no single family dominates yet.');
+        cards.push(makeInsightCard({
+            id: 'fav_opening',
+            priority: 40 + Math.min(20, fav.entry.count * 2),
+            confidence: fav.entry.count >= 5 ? 'high' : fav.entry.count >= 3 ? 'medium' : 'low',
+            title: `Favourite · ${fav.entry.name}`,
+            body: softBody(confOpen,
+                `You favour the ${fav.entry.name} as ${fav.side}` +
+                (v && v !== fav.entry.name ? ` (often the ${v} flavour)` : '') +
+                `, and ${depthNote}.` +
+                (fav.entry.count >= 3
+                    ? ` Record ${fav.entry.wins}–${fav.entry.losses}–${fav.entry.draws} (${fav.entry.winRate}% wins).`
+                    : '')),
+            advice: 'Pick one model game in Learn and compare your branch points.',
+            evidence,
+            links: [{ kind: 'learn-opening', name: fav.entry.name }]
+        }));
     }
+
+    const worst = worstOpeningFamilyCard(corpus);
+    if (worst) cards.push(worst);
 
     const brokeTotal = corpus.oppBrokeFirst + corpus.youBrokeFirst;
     if (brokeTotal >= 4) {
         const oppPct = Math.round((corpus.oppBrokeFirst / brokeTotal) * 100);
-        if (oppPct >= 58) {
-            lines.push(
-                `Opponents leave book/theory before you do in about ${oppPct}% of games — they break the pattern first, and you’re often reacting rather than steering.`
-            );
-        } else if (oppPct <= 42) {
-            lines.push(
-                `You’re usually the one to leave the book first (${100 - oppPct}% of the time), so middlegame plans start on your terms more often than not.`
-            );
-        } else {
-            lines.push('You and your opponents leave theoretical lines at a fairly even rate.');
+        const conf = confidenceFromRated(brokeTotal * 2);
+        if (oppPct >= 58 || oppPct <= 42) {
+            cards.push(makeInsightCard({
+                id: 'book_break',
+                priority: 35 * confidenceFactor(conf),
+                confidence: conf,
+                title: oppPct >= 58 ? 'Opponents break book first' : 'You leave book first',
+                body: softBody(conf, oppPct >= 58
+                    ? `Opponents leave book/theory before you in about ${oppPct}% of games — you’re often reacting.`
+                    : `You’re usually the one to leave book first (${100 - oppPct}% of the time), so middlegame plans start on your terms.`),
+                advice: oppPct >= 58
+                    ? 'Prepare a sharp “what if they deviate?” plan in your main lines.'
+                    : 'Make sure your early deviations are intentional plans, not impatience.'
+            }));
         }
     }
 
     if (corpus.earlyBishopSacs.length >= 2) {
         const n = corpus.earlyBishopSacs.length;
         const badNet = corpus.earlyBishopSacs.filter(x => (x.ev.net || 0) <= 0 || x.ev.kind === 'hang').length;
-        lines.push(
-            `When you develop a bishop early (around move 2–4), it turns into a sacrifice or hang in ${n} spot${n === 1 ? '' : 's'}` +
-            (badNet >= Math.ceil(n * 0.5)
-                ? ' — often for not much concrete material back.'
-                : '.')
-        );
+        const conf = confidenceFromRated(n * 3);
+        cards.push(makeInsightCard({
+            id: 'early_bishop',
+            themeKey: 'great_sacrifice',
+            priority: Math.min(100, 30 + n * 10) * confidenceFactor(conf),
+            confidence: conf,
+            title: 'Early bishop adventures',
+            body: softBody(conf,
+                `When you develop a bishop early (moves 2–4), it turns into a sacrifice or hang in ${n} spot${n === 1 ? '' : 's'}` +
+                (badNet >= Math.ceil(n * 0.5) ? ' — often without clear material back.' : '.')
+            ),
+            advice: 'Only sac the bishop when you can name the concrete follow-up before you play it.',
+            evidence: evidenceFromHits(corpus.earlyBishopSacs.slice(0, 3))
+        }));
     }
 
-    const q = phaseQualitySummary(bucket);
-    if (q && q.rated >= 8) {
-        if (q.blunderRate >= 0.08) {
-            lines.push(`Opening blunders are showing up on ${(q.blunderRate * 100).toFixed(0)}% of your opening moves — those early slips are hard to recover from.`);
-        } else if (q.bestRate >= 0.45) {
-            lines.push('Your opening move quality is actually a relative strength: lots of Best/Good choices while still in the early phase.');
-        }
-    }
+    const acc = phaseAccuracyCard('opening', corpus);
+    if (acc) cards.push(acc);
 
-    if (!lines.length) {
-        lines.push('Not enough opening samples yet for a first read — keep analysing games.');
+    if (!cards.length) {
+        cards.push(makeInsightCard({
+            id: 'open_empty',
+            priority: 10,
+            confidence: 'low',
+            title: 'Opening read forming',
+            body: 'Not enough opening samples yet for a first read — keep analysing games.',
+            advice: 'A few more games in your main lines will unlock family-specific notes.'
+        }));
     }
-    return lines;
+    return rankAndCap(cards, 4);
 }
 
 function buildMiddlegameInsights(profile, corpus, heatData) {
-    const lines = [];
+    const cards = [];
     const bucket = corpus.byPhase.middlegame;
-    const q = phaseQualitySummary(bucket);
-
     if (!bucket.moves.length) {
-        return ['Many of your games skim past a clear middlegame (short miniatures or early endgames). Analyse longer games to flesh this out.'];
+        return [makeInsightCard({
+            id: 'mid_empty',
+            priority: 15,
+            confidence: 'low',
+            title: 'Thin middlegame sample',
+            body: 'Many of your games skim past a clear middlegame (short miniatures or early endgames).',
+            advice: 'Analyse longer games to flesh this phase out.'
+        })];
     }
 
-    const develop = bucket.themes.developed_piece || 0;
+    const acc = phaseAccuracyCard('middlegame', corpus);
+    if (acc) cards.push(acc);
+
+    const hung = bucket.themes.hung_piece || 0;
+    if (hung >= 3) {
+        const row = corpus.themeStore.hung_piece;
+        const conf = confidenceFromRated(hung * 2);
+        cards.push(makeInsightCard({
+            id: 'mid_hang',
+            themeKey: 'hung_piece',
+            priority: Math.min(100, 45 + hung * 5) * confidenceFactor(conf),
+            confidence: conf,
+            title: 'Loose pieces in the middlegame',
+            body: softBody(conf, `Hung-piece moments showed up ${hung}× — unprotected units are a recurring theme.`),
+            advice: 'Before every commit, ask: is anything unprotected?',
+            evidence: evidenceFromHits(row?.examples || [])
+        }));
+    }
+
+    const forks = bucket.themes.fork_victim || 0;
+    if (forks >= 3) {
+        const row = corpus.themeStore.fork_victim;
+        const conf = confidenceFromRated(forks * 2);
+        cards.push(makeInsightCard({
+            id: 'mid_fork',
+            themeKey: 'fork_victim',
+            priority: Math.min(100, 40 + forks * 5) * confidenceFactor(conf),
+            confidence: conf,
+            title: 'Walking into forks',
+            body: softBody(conf, `You’re walking into forks ${forks}× in this sample.`),
+            advice: 'Watch knight checks and double attacks when the position opens.',
+            evidence: evidenceFromHits(row?.examples || [])
+        }));
+    }
+
+    const missed = bucket.themes.missed_hanging || 0;
+    const won = bucket.themes.won_material || 0;
+    if (missed >= 3 && missed > won) {
+        const row = corpus.themeStore.missed_hanging;
+        const conf = confidenceFromRated(missed * 2);
+        cards.push(makeInsightCard({
+            id: 'mid_missed',
+            themeKey: 'missed_hanging',
+            priority: Math.min(100, 42 + missed * 4) * confidenceFactor(conf),
+            confidence: conf,
+            title: 'Missing hanging material',
+            body: softBody(conf, `You miss hanging enemy material (${missed}×) more often than you cash in wins (${won}×).`),
+            advice: 'Train a “free piece?” scan each turn before looking for fancy ideas.',
+            evidence: evidenceFromHits(row?.examples || [])
+        }));
+    } else if (won >= 3) {
+        const row = corpus.themeStore.won_material;
+        cards.push(makeInsightCard({
+            id: 'mid_won',
+            themeKey: 'won_material',
+            priority: 32,
+            confidence: confidenceFromRated(won * 2),
+            title: 'You convert tactics',
+            body: `When tactics land, you convert material (${won}× won-material themes).`,
+            advice: 'Keep forcing those concrete wins — it’s a real strength.',
+            evidence: evidenceFromHits(row?.examples || [])
+        }));
+    }
+
     const knightN = corpus.knightDevelops.length;
     const knightX = corpus.knightExchanges.length;
     if (knightN >= 6) {
         const tradePct = Math.round((knightX / knightN) * 100);
+        const conf = confidenceFromRated(knightN);
         if (tradePct >= 35) {
-            lines.push(
-                `You develop knights actively in the middlegame, but they often look “one and done” — about ${tradePct}% of those knight moves are tied to an immediate exchange or capture sequence, so the piece doesn’t stay to dominate a square.`
-            );
-        } else {
-            lines.push(
-                `Your knights are showing up as useful middlegame workers — only about ${tradePct}% of knight moves are immediate trades, so they often keep a longer post.`
-            );
-        }
-    } else if (develop >= 4) {
-        lines.push('Development themes keep appearing in your middlegames — you’re still trying to complete the army even after the opening label ends.');
-    }
-
-    const hung = bucket.themes.hung_piece || 0;
-    const forks = bucket.themes.fork_victim || 0;
-    const missed = bucket.themes.missed_hanging || 0;
-    const won = bucket.themes.won_material || 0;
-    if (hung >= 3) {
-        lines.push(`Loose pieces are a middlegame theme: hung-piece moments showed up ${hung} times — worth a slow check for unprotected units before you commit.`);
-    }
-    if (forks >= 3) {
-        lines.push(`You’re walking into forks (${forks}× in this sample) more than you’d like — watch knight checks and double attacks when the position opens.`);
-    }
-    if (missed >= 3 && missed > won) {
-        lines.push(`You miss hanging enemy material (${missed}×) more often than you cash in wins of material — train a “free piece?” scan each turn.`);
-    } else if (won >= 3) {
-        lines.push(`When tactics land, you do convert material (${won}× won-material themes) — keep forcing those concrete wins.`);
-    }
-
-    if (q && q.rated >= 10) {
-        const blPct = Math.round(q.blunderRate * 100);
-        const bestPct = Math.round(q.bestRate * 100);
-        if (blPct >= 10) {
-            lines.push(`Middlegame is where accuracy dips hardest right now: ~${blPct}% of moves are Blunders, with Best moves only around ${bestPct}% of rated tries.`);
-        } else if (bestPct >= 40) {
-            lines.push(`Middlegame calculation looks healthier: about ${bestPct}% Best among rated moves and a blunder rate near ${blPct}%.`);
-        } else {
-            lines.push(`Middlegame play is mixed — roughly ${bestPct}% Best moves and ${blPct}% Blunders among your rated moves in this phase.`);
+            cards.push(makeInsightCard({
+                id: 'mid_knight_trade',
+                priority: 38 * confidenceFactor(conf),
+                confidence: conf,
+                title: 'Knights are “one and done”',
+                body: softBody(conf,
+                    `You develop knights actively, but about ${tradePct}% of those moves are tied to an immediate exchange — they rarely stay to dominate a square.`),
+                advice: 'Ask whether the knight can sit on an outpost for two more moves before you trade.',
+                evidence: evidenceFromHits(corpus.knightExchanges.slice(0, 3))
+            }));
         }
     }
 
@@ -417,78 +782,128 @@ function buildMiddlegameInsights(profile, corpus, heatData) {
                 }
             }
             if (hotSq && hotN >= 4) {
-                lines.push(
-                    `As ${color === 'white' ? 'White' : 'Black'}, your middlegame pieces keep landing on ${hotSq.toUpperCase()} (${hotN}×) — a habit square worth reviewing for whether it’s a strong outpost or a trade magnet.`
-                );
+                cards.push(makeInsightCard({
+                    id: `mid_heat_${color}`,
+                    priority: 28 + Math.min(20, hotN),
+                    confidence: confidenceFromRated(b.total),
+                    title: `Habit square as ${color === 'white' ? 'White' : 'Black'}`,
+                    body: `Your middlegame pieces keep landing on ${hotSq.toUpperCase()} (${hotN}×) — check whether it’s a strong outpost or a trade magnet.`,
+                    advice: `Review two games where you occupied ${hotSq.toUpperCase()} and note if the piece was stable.`
+                }));
                 break;
             }
         }
     }
 
-    if (!lines.length) {
-        lines.push('Middlegame patterns are still forming — more games will sharpen this read.');
+    if (!cards.length) {
+        cards.push(makeInsightCard({
+            id: 'mid_forming',
+            priority: 12,
+            confidence: 'low',
+            title: 'Middlegame patterns forming',
+            body: 'More games will sharpen this read.',
+            advice: 'Keep analysing; middlegame themes need volume.'
+        }));
     }
-    return lines;
+    return rankAndCap(cards, 4);
 }
 
 function buildEndgameInsights(profile, corpus) {
-    const lines = [];
+    const cards = [];
     const bucket = corpus.byPhase.endgame;
     const q = phaseQualitySummary(bucket);
 
     if (!corpus.endgameEntered) {
-        return ['Few of these games reach a true endgame (queens off / sparse material). When they do, we’ll rate how you convert or defend.'];
+        return [makeInsightCard({
+            id: 'end_none',
+            priority: 12,
+            confidence: 'low',
+            title: 'Few true endgames',
+            body: 'Few of these games reach a true endgame (queens off / sparse material).',
+            advice: 'When longer games appear, we’ll rate how you convert or defend.'
+        })];
     }
 
     const enterPct = Math.round((corpus.endgameEntered / corpus.games) * 100);
-    lines.push(
-        `You reach endgame conditions in ${corpus.endgameEntered}/${corpus.games} games (${enterPct}%).`
-    );
+    cards.push(makeInsightCard({
+        id: 'end_rate',
+        priority: 22,
+        confidence: confidenceFromRated(corpus.endgameEntered * 2),
+        title: 'Endgame frequency',
+        body: `You reach endgame conditions in ${corpus.endgameEntered}/${corpus.games} games (${enterPct}%).`,
+        advice: 'Longer technical games will teach more than miniatures here.'
+    }));
 
     if (corpus.endgameEntered >= 3) {
         const downPct = Math.round((corpus.endgameEnteredDown / corpus.endgameEntered) * 100);
+        const conf = confidenceFromRated(corpus.endgameEntered * 2);
         if (downPct >= 50) {
-            lines.push(
-                `However, you often enter the endgame already down on material (${downPct}% of those games)` +
-                (corpus.endgameLossesEnteredDown >= 2
-                    ? ' — and that deficit shows up again and again in your losses.'
-                    : '.')
-            );
+            cards.push(makeInsightCard({
+                id: 'end_down',
+                priority: Math.min(100, 48 + downPct * 0.35) * confidenceFactor(conf),
+                confidence: conf,
+                title: 'Arriving worse into endings',
+                body: softBody(conf,
+                    `You often enter the endgame already down on material (${downPct}% of those games)` +
+                    (corpus.endgameLossesEnteredDown >= 2
+                        ? ' — and that deficit shows up again in your losses.'
+                        : '.')
+                ),
+                advice: 'Defend or complicate earlier; don’t bank on swindles from −2.',
+                evidence: (corpus.endgameDownLosses || []).slice(0, 3).map(g => {
+                    const idx = g.gameStory?.keyMoveIndex ?? Math.max(0, (g.moves || []).length - 1);
+                    return makeEvidence(g, g.moves?.[idx], idx);
+                })
+            }));
         } else if (downPct <= 30) {
-            lines.push(`You usually arrive in the endgame level or ahead on material (only ${downPct}% start down) — a good platform to convert.`);
+            cards.push(makeInsightCard({
+                id: 'end_good_entry',
+                priority: 30 * confidenceFactor(conf),
+                confidence: conf,
+                title: 'Healthy endgame entries',
+                body: softBody(conf, `You usually arrive level or ahead (only ${downPct}% start down) — a good platform to convert.`),
+                advice: 'Practice clean technique so those advantages don’t evaporate.'
+            }));
         }
     }
 
-    if (q && q.total >= 8) {
-        const blPct = Math.round(q.blunderRate * 100);
-        if (blPct <= 4) {
-            lines.push(`Once you’re there, you’re relatively clean: only ~${blPct}% of endgame moves are Blunders.`);
-        } else if (blPct >= 12) {
-            lines.push(`Endgame technique is shaky in this sample — about ${blPct}% of endgame moves are Blunders, so won/drawn endings are slipping away.`);
-        } else {
-            lines.push(`Endgame move quality is middling (~${blPct}% blunders) — not a disaster, but conversion practice would pay off.`);
-        }
-    }
+    const acc = phaseAccuracyCard('endgame', corpus);
+    if (acc) cards.push(acc);
 
     if (corpus.pawnEndgameMoves >= 10) {
         const bad = corpus.pawnEndgameBlunders;
         const badPct = Math.round((bad / corpus.pawnEndgameMoves) * 100);
-        if (badPct <= 5) {
-            lines.push('With just pawns (and kings) left you’re at your best — serious errors almost disappear in those endings.');
-        } else {
-            lines.push(`Even in pawn endings you’re not fully safe yet — ${badPct}% of those moves are still Mistakes/Blunders.`);
-        }
+        const conf = confidenceFromRated(corpus.pawnEndgameMoves);
+        cards.push(makeInsightCard({
+            id: 'end_pawns',
+            priority: (badPct >= 8 ? 40 : 28) * confidenceFactor(conf),
+            confidence: conf,
+            title: 'Pawn endings',
+            body: softBody(conf, badPct <= 5
+                ? 'With just pawns (and kings) left you’re at your best — serious errors almost disappear.'
+                : `Even in pawn endings you’re not fully safe — ${badPct}% of those moves are still Mistakes/Blunders.`),
+            advice: badPct <= 5
+                ? 'Steer toward pawn endings when you’re ahead.'
+                : 'Drill king-and-pawn fundamentals (opposition, key squares).'
+        }));
     }
 
     const backRank = bucket.themes.back_rank || 0;
     if (backRank >= 2) {
-        lines.push(`Back-rank themes still bite in the ending (${backRank}×) — make luft before the heavy pieces come in.`);
+        const row = corpus.themeStore.back_rank;
+        cards.push(makeInsightCard({
+            id: 'end_backrank',
+            themeKey: 'back_rank',
+            priority: 36 + backRank * 4,
+            confidence: confidenceFromRated(backRank * 3),
+            title: 'Back-rank issues linger',
+            body: `Back-rank themes still bite in the ending (${backRank}×).`,
+            advice: 'Make luft before the heavy pieces come in.',
+            evidence: evidenceFromHits(row?.examples || [])
+        }));
     }
 
-    if (lines.length === 1) {
-        lines.push('Keep collecting longer games to say more about your technical phase.');
-    }
-    return lines;
+    return rankAndCap(cards, 4);
 }
 
 const PIECE_COACH_ORDER = [
@@ -546,11 +961,12 @@ function collectByPieceStats(profile) {
     return buckets;
 }
 
-function buildByPieceInsights(profile, survivalData) {
+function buildByPieceInsights(profile, survivalData, corpus) {
     const buckets = collectByPieceStats(profile);
     const survival = survivalData !== undefined
         ? survivalData
         : (typeof aggregatePieceSurvival === 'function' ? aggregatePieceSurvival(profile) : null);
+    const pieceEv = corpus?.pieceEvidence || {};
 
     const survivalDeathRate = (pieceType) => {
         if (!survival) return null;
@@ -566,13 +982,20 @@ function buildByPieceInsights(profile, survivalData) {
         const b = buckets[type];
         const good = [];
         const bad = [];
+        const evidence = [];
+        const evBad = pieceEv[type]?.bad;
+        const evGood = pieceEv[type]?.good;
+        if (evBad) evidence.push(makeEvidence(evBad.g, evBad.m, evBad.i));
+        else if (evGood) evidence.push(makeEvidence(evGood.g, evGood.m, evGood.i));
+
         if (b.total < 4) {
             return {
                 type,
                 label,
                 total: b.total,
                 good: ['Not enough moves with this piece yet for a clear read.'],
-                bad: []
+                bad: [],
+                evidence: []
             };
         }
 
@@ -580,7 +1003,6 @@ function buildByPieceInsights(profile, survivalData) {
         const goodN = b.labels.Good || 0;
         const blunders = b.labels.Blunder || 0;
         const mistakes = b.labels.Mistake || 0;
-        const misses = b.labels.Miss || 0;
         const rated = Math.max(b.rated, 1);
         const bestPct = Math.round(((best + goodN) / rated) * 1000) / 10;
         const badPct = Math.round(((blunders + mistakes) / rated) * 1000) / 10;
@@ -601,8 +1023,7 @@ function buildByPieceInsights(profile, survivalData) {
             good.push(`Creates pressure: ${b.checks} checks delivered with the ${label.toLowerCase()}.`);
         }
         if (b.sacs >= 2 && type !== 'p') {
-            const hangish = b.hangsOffered;
-            if (hangish < b.sacs) {
+            if (b.hangsOffered < b.sacs) {
                 good.push(`Willing to sacrifice this piece (${b.sacs}×) when you see compensation.`);
             }
         }
@@ -614,7 +1035,8 @@ function buildByPieceInsights(profile, survivalData) {
         }
 
         if (blPct >= 10) {
-            bad.push(`Blunder-prone with the ${label.toLowerCase()}: ${blPct}% of rated moves are Blunders.`);
+            bad.push(`Blunder-prone with the ${label.toLowerCase()}: ${blPct}% of rated moves are Blunders.` +
+                (evBad ? ` Example: ${formatMoveRef(evBad.m)}.` : ''));
         } else if (badPct >= 18) {
             bad.push(`Mistakes add up — ${badPct}% of rated ${label.toLowerCase()} moves are Mistake/Blunder.`);
         }
@@ -655,7 +1077,16 @@ function buildByPieceInsights(profile, survivalData) {
         if (!good.length) good.push('No standout strength yet — mostly mixed results with this piece.');
         if (!bad.length) bad.push('No loud weakness flagged for this piece in the current sample.');
 
-        return { type, label, total: b.total, bestPct, badPct, good, bad };
+        return {
+            type,
+            label,
+            total: b.total,
+            bestPct,
+            badPct,
+            good,
+            bad,
+            evidence: evidence.filter(Boolean).slice(0, 1)
+        };
     });
 }
 
@@ -667,12 +1098,24 @@ function generateProfileInsights(profile, opts = {}) {
     const heat = opts.heat !== undefined
         ? opts.heat
         : (typeof buildPhaseColorHeatmaps === 'function' ? buildPhaseColorHeatmaps(profile) : null);
-    return {
+
+    const sections = {
         overview: buildOverviewInsights(profile, corpus),
         opening: buildOpeningInsights(profile, corpus),
         middlegame: buildMiddlegameInsights(profile, corpus, heat),
-        endgame: buildEndgameInsights(profile, corpus),
-        byPiece: buildByPieceInsights(profile, survival),
+        endgame: buildEndgameInsights(profile, corpus)
+    };
+    demoteDuplicateThemes(sections);
+    const focus = pickWeeklyFocus(sections);
+
+    return {
+        version: 2,
+        focus,
+        overview: sections.overview,
+        opening: sections.opening,
+        middlegame: sections.middlegame,
+        endgame: sections.endgame,
+        byPiece: buildByPieceInsights(profile, survival, corpus),
         corpus
     };
 }
@@ -680,6 +1123,75 @@ function generateProfileInsights(profile, opts = {}) {
 function insightParagraphsHtml(lines) {
     if (!lines?.length) return '<div class="insight-empty">No notes yet.</div>';
     return lines.map(t => `<p class="coach-line">${escInsightHtml(t)}</p>`).join('');
+}
+
+function coachConfidenceChip(confidence) {
+    const c = confidence || 'low';
+    return `<span class="coach-conf coach-conf-${escInsightHtml(c)}">${escInsightHtml(c)}</span>`;
+}
+
+function coachEvidenceHtml(evidence) {
+    if (!evidence?.length) return '';
+    return `
+        <div class="coach-evidence">
+            <div class="coach-evidence-label">Evidence</div>
+            ${evidence.map(e => {
+                if (!e.gameKey) {
+                    return `<div class="coach-evidence-item is-static">${escInsightHtml(e.moveRef || e.san)} · vs ${escInsightHtml(e.opponent)}</div>`;
+                }
+                const label = e.label ? ` · ${e.label}` : '';
+                return `<button type="button" class="coach-evidence-item" onclick="openCoachEvidence(decodeURIComponent('${encodeURIComponent(e.gameKey)}'), ${Number(e.moveIndex)})">
+                    vs ${escInsightHtml(e.opponent)} · ${escInsightHtml(e.moveRef || e.san)}${escInsightHtml(label)}${e.result ? ` · ${escInsightHtml(e.result)}` : ''}
+                </button>`;
+            }).join('')}
+        </div>
+    `;
+}
+
+function coachLinksHtml(links) {
+    if (!links?.length) return '';
+    return `
+        <div class="coach-links">
+            ${links.map(l => {
+                if (l.kind === 'learn-opening' && l.name) {
+                    return `<button type="button" class="p-button p-button-text p-button-sm p-component" onclick="openLearningItem('opening', decodeURIComponent('${encodeURIComponent(l.name)}'))">
+                        <span class="p-button-icon-left pi pi-book"></span>
+                        <span class="p-button-label">Study ${escInsightHtml(l.name)} in Learn</span>
+                    </button>`;
+                }
+                return '';
+            }).join('')}
+        </div>
+    `;
+}
+
+function insightCardsHtml(cards, { focusStyle = false } = {}) {
+    if (!cards?.length) return '<div class="insight-empty">No notes yet.</div>';
+    // Backward compat: plain strings
+    if (typeof cards[0] === 'string') return insightParagraphsHtml(cards);
+    return cards.map(card => `
+        <div class="coach-card${focusStyle ? ' is-focus' : ''}">
+            <div class="coach-card-head">
+                <div class="coach-card-title">${escInsightHtml(card.title)}</div>
+                ${coachConfidenceChip(card.confidence)}
+            </div>
+            <p class="coach-card-body">${escInsightHtml(card.body)}</p>
+            ${card.advice ? `<p class="coach-card-advice"><span class="coach-advice-label">Do this:</span> ${escInsightHtml(card.advice)}</p>` : ''}
+            ${coachEvidenceHtml(card.evidence)}
+            ${coachLinksHtml(card.links)}
+        </div>
+    `).join('');
+}
+
+function openCoachEvidence(gameKey, moveIndex) {
+    if (!gameKey || typeof openReviewFromStore !== 'function') return;
+    openReviewFromStore(gameKey);
+    const idx = Number(moveIndex);
+    if (Number.isFinite(idx) && idx >= 0) {
+        setTimeout(() => {
+            if (typeof goToMove === 'function') goToMove(idx);
+        }, 0);
+    }
 }
 
 function byPieceCoachHtml(pieces) {
@@ -706,6 +1218,7 @@ function byPieceCoachHtml(pieces) {
                             </ul>
                         </div>
                     </div>
+                    ${p.evidence?.length ? coachEvidenceHtml(p.evidence) : ''}
                 </div>
             `).join('')}
         </div>
@@ -749,26 +1262,33 @@ function renderCoachInsights(profile, insightsData) {
     const root = document.getElementById('analysis-coach');
     if (!root) return;
     const insights = insightsData || generateProfileInsights(profile);
+    const focusBlock = insights.focus
+        ? `<div class="coach-block coach-focus-block">
+                <div class="coach-kicker">This week’s focus</div>
+                ${insightCardsHtml([insights.focus], { focusStyle: true })}
+           </div>`
+        : '';
     root.innerHTML = `
+        ${focusBlock}
         <div class="coach-block">
             <div class="coach-kicker">Overview</div>
-            ${insightParagraphsHtml(insights.overview)}
+            ${insightCardsHtml(insights.overview)}
         </div>
         <div class="coach-block">
             <div class="coach-kicker">Opening</div>
-            ${insightParagraphsHtml(insights.opening)}
+            ${insightCardsHtml(insights.opening)}
         </div>
         <div class="coach-block">
             <div class="coach-kicker">Middlegame</div>
-            ${insightParagraphsHtml(insights.middlegame)}
+            ${insightCardsHtml(insights.middlegame)}
         </div>
         <div class="coach-block">
             <div class="coach-kicker">Endgame</div>
-            ${insightParagraphsHtml(insights.endgame)}
+            ${insightCardsHtml(insights.endgame)}
         </div>
         <div class="coach-block">
             <div class="coach-kicker">By piece</div>
-            <div class="text-color-secondary text-sm mb-2">Pros and cons of how you handle each piece type across this sample.</div>
+            <div class="text-color-secondary text-sm mb-2">Pros and cons of how you handle each piece type — with an example move when we have one.</div>
             ${byPieceCoachHtml(insights.byPiece)}
         </div>
     `;
@@ -807,15 +1327,22 @@ function generateGameCoachNotes(analysis) {
         const themeGood = {};
         const themeBad = {};
         const materialNotes = [];
+        const badMoveRefs = [];
 
-        for (const { m } of bucket.moves) {
+        for (const { m, i } of bucket.moves) {
             const label = m.classification.label;
             if (label === 'Best') best += 1;
             else if (label === 'Good') good += 1;
-            else if (label === 'Blunder') blunders += 1;
-            else if (label === 'Mistake') mistakes += 1;
-            else if (label === 'Miss') misses += 1;
-            else if (label === 'Book' || label === 'Theory') book += 1;
+            else if (label === 'Blunder') {
+                blunders += 1;
+                badMoveRefs.push({ m, i, label });
+            } else if (label === 'Mistake') {
+                mistakes += 1;
+                badMoveRefs.push({ m, i, label });
+            } else if (label === 'Miss') {
+                misses += 1;
+                badMoveRefs.push({ m, i, label });
+            } else if (label === 'Book' || label === 'Theory') book += 1;
 
             for (const t of m.moveThemes || []) {
                 const cat = THEME_CATALOG[t];
@@ -826,15 +1353,15 @@ function generateGameCoachNotes(analysis) {
 
             const ev = m.materialEvent;
             if (ev) {
-                const ref = `${m.moveNum}${m.turn === 'w' ? '.' : '...'} ${m.san}`;
+                const ref = formatMoveRef(m);
                 if (ev.kind === 'sacrifice' && (ev.net || 0) <= 0) {
-                    materialNotes.push({ bad: true, text: `Early/loose sac on ${ref} didn’t pay back clearly.` });
+                    materialNotes.push({ bad: true, text: `Loose sac on ${ref} didn’t pay back clearly — revisit that moment.` });
                 } else if (ev.kind === 'hang') {
-                    materialNotes.push({ bad: true, text: `Hung material on ${ref}.` });
+                    materialNotes.push({ bad: true, text: `Hung material on ${ref} — check unprotected units next time.` });
                 } else if (ev.kind === 'capture' || (ev.kind === 'sacrifice' && (ev.net || 0) > 0)) {
                     materialNotes.push({ bad: false, text: `Won / forced material around ${ref}.` });
                 } else if (ev.kind === 'missed_capture') {
-                    materialNotes.push({ bad: true, text: `Missed a hanging piece near ${ref}.` });
+                    materialNotes.push({ bad: true, text: `Missed a hanging piece near ${ref} — scan for free takes.` });
                 }
             }
         }
@@ -867,10 +1394,17 @@ function generateGameCoachNotes(analysis) {
         }
 
         if (blunders) {
-            pushUnique(bucket.bad, `${blunders} blunder${blunders === 1 ? '' : 's'} in this phase — the biggest accuracy leak.`);
+            const ex = badMoveRefs.find(x => x.label === 'Blunder');
+            pushUnique(bucket.bad,
+                `${blunders} blunder${blunders === 1 ? '' : 's'} in this phase` +
+                (ex ? ` (e.g. ${formatMoveRef(ex.m)})` : '') +
+                ' — the biggest accuracy leak.');
         }
         if (mistakes) {
-            pushUnique(bucket.bad, `${mistakes} mistake${mistakes === 1 ? '' : 's'} that still hurt the evaluation.`);
+            const ex = badMoveRefs.find(x => x.label === 'Mistake');
+            pushUnique(bucket.bad,
+                `${mistakes} mistake${mistakes === 1 ? '' : 's'} that still hurt` +
+                (ex ? ` (e.g. ${formatMoveRef(ex.m)})` : '') + '.');
         }
         if (misses && !blunders) {
             pushUnique(bucket.bad, `${misses} miss${misses === 1 ? '' : 'es'} — something clearly better was available.`);
@@ -907,6 +1441,9 @@ function generateGameCoachNotes(analysis) {
             `Your rated-move accuracy this game: ${you.accuracy}%` +
             (you.gameElo != null ? ` · Game ELO guess ${you.gameElo}.` : '.')
         );
+    }
+    if (analysis.gameStory?.keyMoveRef) {
+        overview.push(`Key moment to revisit: ${analysis.gameStory.keyMoveRef}.`);
     }
     if (!overview.length) overview.push('Here’s a quick good/bad split by phase for your moves.');
 

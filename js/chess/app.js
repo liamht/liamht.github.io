@@ -603,6 +603,7 @@ window.learningGoEnd = learningGoEnd;
 window.openMatchesSortedByLabel = openMatchesSortedByLabel;
 window.clearMatchesSort = clearMatchesSort;
 window.openReviewFromStore = openReviewFromStore;
+window.openCoachEvidence = openCoachEvidence;
 window.deepenCurrentReview = deepenCurrentReview;
 window.exitReview = exitReview;
 window.goToStart = goToStart;

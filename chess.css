@@ -657,6 +657,7 @@ html, body {
     border-bottom: 1px solid var(--surface-border, #334155);
 }
 .coach-block:first-child { padding-top: 0; }
+.coach-focus-block { border-bottom: 1px solid var(--surface-border, #334155); }
 .coach-block:last-child {
     border-bottom: none;
     padding-bottom: 0;
@@ -676,6 +677,87 @@ html, body {
     color: var(--text-color);
 }
 .coach-line:last-child { margin-bottom: 0; }
+
+.coach-card {
+    border: 1px solid var(--surface-border);
+    border-radius: var(--border-radius);
+    background: var(--surface-ground);
+    padding: 0.85rem 1rem;
+    margin-bottom: 0.65rem;
+}
+.coach-card:last-child { margin-bottom: 0; }
+.coach-card.is-focus {
+    border-color: color-mix(in srgb, var(--primary-color) 45%, var(--surface-border));
+}
+.coach-card-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.4rem;
+}
+.coach-card-title {
+    font-weight: 700;
+    font-size: 0.98rem;
+    flex: 1 1 auto;
+}
+.coach-conf {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.15rem 0.45rem;
+    border-radius: 999px;
+    border: 1px solid var(--surface-border);
+    color: var(--text-color-secondary);
+}
+.coach-conf-high { color: var(--success, #34d399); }
+.coach-conf-medium { color: var(--primary-color); }
+.coach-card-body {
+    font-size: 0.9rem;
+    line-height: 1.5;
+    margin: 0 0 0.45rem;
+}
+.coach-card-advice {
+    font-size: 0.88rem;
+    line-height: 1.45;
+    margin: 0 0 0.5rem;
+}
+.coach-advice-label {
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-right: 0.25rem;
+}
+.coach-evidence { margin-top: 0.45rem; }
+.coach-evidence-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-color-secondary);
+    margin-bottom: 0.3rem;
+}
+.coach-evidence-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font-size: 0.82rem;
+    padding: 0.35rem 0.5rem;
+    margin-bottom: 0.25rem;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--border-radius);
+    background: transparent;
+    color: var(--primary-color);
+    cursor: pointer;
+    font-weight: 600;
+}
+button.coach-evidence-item:hover { text-decoration: underline; }
+.coach-evidence-item.is-static {
+    cursor: default;
+    color: var(--text-color-secondary);
+    font-weight: 500;
+}
+.coach-links { margin-top: 0.35rem; }
 
 .survival-grid {
     display: grid;
