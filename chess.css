@@ -232,12 +232,86 @@ html, body {
 .cls-book { background: var(--cls-book); color: #1e1b4b; }
 .cls-theory { background: var(--cls-theory); color: #fff; }
 
-.graph-container { padding: 1rem; height: 100%; display: flex; align-items: flex-end; gap: 2px; }
-.graph-bar {
-    flex: 1; background: var(--primary-color); min-width: 4px;
-    border-radius: 2px 2px 0 0; cursor: pointer; opacity: 0.65;
+.graph-container {
+    padding: 0.75rem 0.5rem 0.5rem;
+    height: 100%;
+    box-sizing: border-box;
 }
-.graph-bar:hover { opacity: 1; }
+.eval-line-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    overflow: visible;
+}
+.eval-line-zero { stroke: var(--surface-border, #475569); stroke-width: 1; stroke-dasharray: 3 3; }
+.eval-line-path {
+    fill: none;
+    stroke: var(--primary-color, #60a5fa);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+.eval-line-area {
+    fill: color-mix(in srgb, var(--primary-color, #60a5fa) 18%, transparent);
+    stroke: none;
+}
+.eval-line-hit { fill: transparent; cursor: pointer; }
+.eval-line-dot {
+    fill: var(--primary-color, #60a5fa);
+    stroke: var(--surface-card, #1f2937);
+    stroke-width: 1.5;
+    pointer-events: none;
+    opacity: 0;
+}
+.eval-line-dot.is-key { opacity: 1; fill: var(--warning, #fbbf24); }
+.eval-line-dot.is-active { opacity: 1; }
+
+.review-stats { padding: 0.25rem 0.15rem 0.75rem; }
+.game-elo-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+}
+.game-elo-card {
+    border: 1px solid var(--surface-border, #334155);
+    border-radius: var(--border-radius, 6px);
+    padding: 0.85rem 0.9rem;
+    background: color-mix(in srgb, var(--surface-ground, #111827) 55%, transparent);
+}
+.game-elo-kicker {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-color-secondary);
+    margin-bottom: 0.25rem;
+}
+.game-elo-value {
+    font-size: 1.6rem;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+}
+.game-elo-meta {
+    margin-top: 0.35rem;
+    font-size: 0.78rem;
+    color: var(--text-color-secondary);
+    line-height: 1.35;
+}
+.review-stats-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin-bottom: 0.65rem;
+}
+.review-stats-note {
+    margin-top: 0.85rem;
+    font-size: 0.75rem;
+    color: var(--text-color-secondary);
+    line-height: 1.4;
+}
+@media (max-width: 480px) {
+    .game-elo-row { grid-template-columns: 1fr; }
+}
 
 .opening-tag {
     display: inline-block; font-size: 0.8rem; font-weight: 700;
@@ -315,8 +389,87 @@ html, body {
 .opening-rank-item:last-child { border-bottom: none; }
 .opening-rank-num { font-size: 0.8rem; font-weight: 700; color: var(--text-color-secondary); }
 .opening-rank-name { font-size: 0.9rem; font-weight: 700; color: var(--primary-color); }
-.opening-rank-meta { margin-top: 0.15rem; font-size: 0.75rem; color: var(--text-color-secondary); }
+.opening-rank-meta { margin-top: 0.15rem; font-size: 0.75rem; color: var(--text-color-secondary); line-height: 1.35; }
 .opening-rank-pct { font-size: 0.8rem; font-weight: 700; color: var(--primary-color); }
+.opening-rank-vars {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    margin-top: 0.35rem;
+}
+.opening-rank-vars span {
+    font-size: 0.72rem;
+    color: var(--text-color-secondary);
+    line-height: 1.3;
+}
+.tendency-subcard {
+    border: 1px solid var(--surface-border, #334155);
+    border-radius: var(--border-radius, 6px);
+    padding: 0.75rem 0.85rem;
+    height: 100%;
+    background: color-mix(in srgb, var(--surface-ground, #111827) 45%, transparent);
+}
+.move-heatmap-wrap { max-width: 280px; }
+.move-heatmap {
+    width: 100%;
+    aspect-ratio: 1;
+}
+.heatmap-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(8, 1fr);
+    width: 100%;
+    aspect-ratio: 1;
+    border: 1px solid var(--surface-border, #334155);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.heatmap-sq {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.58rem;
+    font-weight: 700;
+    line-height: 1;
+}
+.heatmap-sq.light { background: #c8a57a; }
+.heatmap-sq.dark { background: #8b5a2b; }
+.heatmap-sq::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(37, 99, 235, calc(var(--heat, 0) * 0.92));
+    pointer-events: none;
+}
+.heatmap-sq .heatmap-count {
+    position: relative;
+    z-index: 1;
+    color: rgba(255, 255, 255, 0.92);
+    text-shadow: 0 1px 2px rgba(0,0,0,.7);
+}
+.heatmap-files {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    margin-top: 0.25rem;
+    font-size: 0.65rem;
+    color: var(--text-color-secondary);
+    text-align: center;
+    text-transform: lowercase;
+}
+.heatmap-legend {
+    margin-top: 0.5rem;
+    font-size: 0.78rem;
+    color: var(--text-color-secondary);
+    line-height: 1.35;
+}
+.heatmap-note {
+    margin-top: 0.45rem;
+    font-size: 0.75rem;
+    color: var(--text-color-secondary);
+    line-height: 1.35;
+    max-width: 280px;
+}
 
 .insight-empty { font-size: 0.9rem; color: var(--text-color-secondary); padding: 0.5rem 0; }
 

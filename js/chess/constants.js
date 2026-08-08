@@ -4,7 +4,7 @@
 
 const STOCKFISH_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
 const STOCKFISH_LOCAL = 'stockfish.js?v=20260803';
-const APP_BUILD = '2026-08-08h';
+const APP_BUILD = '2026-08-08j';
 const CACHE_VERSION = 7;
 // Relative to the page URL so this works on a server and when opened locally
 const EXTERNAL_BOOK_URL = 'openings.json';

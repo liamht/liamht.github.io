@@ -222,10 +222,15 @@ function createProfileState(username) {
     };
 }
 
-function trackOpeningBucket(bucket, openingName) {
+function trackOpeningBucket(bucket, openingName, result) {
     const family = openingFamily(openingName);
-    if (!bucket[family]) bucket[family] = { count: 0, variations: {} };
+    if (!bucket[family]) {
+        bucket[family] = { count: 0, wins: 0, losses: 0, draws: 0, variations: {} };
+    }
     bucket[family].count++;
+    if (result === 'WIN') bucket[family].wins++;
+    else if (result === 'LOSS') bucket[family].losses++;
+    else bucket[family].draws++;
     const full = openingName || 'Custom Game';
     bucket[family].variations[full] = (bucket[family].variations[full] || 0) + 1;
 }
@@ -250,11 +255,11 @@ function rebuildProfileAggregates(profile) {
     for (const a of profile.analyzedGames) {
         if (a.isWhite) {
             profile.whiteGames++;
-            trackOpeningBucket(profile.openingsWhite, a.openingName);
+            trackOpeningBucket(profile.openingsWhite, a.openingName, a.result);
             if (a.result === 'WIN') profile.whiteWins++;
         } else {
             profile.blackGames++;
-            trackOpeningBucket(profile.openingsBlack, a.openingName);
+            trackOpeningBucket(profile.openingsBlack, a.openingName, a.result);
             if (a.result === 'WIN') profile.blackWins++;
         }
         if (a.result === 'WIN') profile.wins++;
@@ -299,6 +304,54 @@ function gameQualityScore(analysis) {
     let sum = 0;
     for (const m of moves) sum += weights[m.classification.label] ?? 2;
     return sum / moves.length;
+}
+
+/** Per-move accuracy 0–100 from eval loss / classification (Chess.com-ish). */
+function moveAccuracyScore(move) {
+    const label = move?.classification?.label;
+    if (!label) return null;
+    if (label === 'Book' || label === 'Theory') return 100;
+    if (move.evalDeltaCp != null && Number.isFinite(move.evalDeltaCp)) {
+        const pawns = Math.max(0, move.evalDeltaCp) / 100;
+        // Smooth decay: 0cp→100, 0.5→~90, 1→~80, 2→~65, 4→~45, 8→~20
+        return Math.max(0, Math.min(100, 100 * Math.exp(-0.22 * pawns)));
+    }
+    const byLabel = {
+        Best: 100, Good: 90, Okay: 75, Miss: 45, Mistake: 25, Blunder: 0
+    };
+    return byLabel[label] ?? 60;
+}
+
+function sideMoveStats(analysis, forPlayer) {
+    const moves = (analysis.moves || []).filter(m =>
+        m.classification?.label && (forPlayer ? isPlayerMove(analysis, m) : !isPlayerMove(analysis, m))
+    );
+    const counts = {};
+    for (const q of MOVE_QUALITY_ORDER) counts[q.label] = 0;
+    let accSum = 0;
+    let accN = 0;
+    let ratedN = 0;
+    for (const m of moves) {
+        const label = m.classification.label;
+        if (counts[label] != null) counts[label] += 1;
+        else counts[label] = (counts[label] || 0) + 1;
+        const score = moveAccuracyScore(m);
+        if (score == null) continue;
+        // Book/Theory pad accuracy; exclude from "rated" count used in Game ELO note
+        accSum += score;
+        accN += 1;
+        if (label !== 'Book' && label !== 'Theory') ratedN += 1;
+    }
+    const accuracy = accN ? Math.round((accSum / accN) * 10) / 10 : null;
+    return { moves, counts, total: moves.length, ratedN, accuracy, gameElo: accuracyToGameElo(accuracy) };
+}
+
+/** Rough performance rating from a single-game accuracy %. */
+function accuracyToGameElo(accuracy) {
+    if (accuracy == null || !Number.isFinite(accuracy)) return null;
+    const a = Math.max(0, Math.min(100, accuracy)) / 100;
+    // ~70%→1200, 80%→1550, 90%→2000, 95%→2300
+    return Math.round(200 + 2400 * Math.pow(a, 2.8));
 }
 
 function pct(n, d) {
@@ -392,7 +445,7 @@ function switchDashTab(name, el) {
     if (panel) panel.classList.add('active');
     if (name === 'faq') renderFaqTab();
     if (name === 'learning') renderLearningBrowse();
-    if (name === 'advanced') renderAdvancedTab(profileState);
+    if (name === 'analysis') renderAnalysisTab(profileState);
     if (name === 'matches') renderMatchesTab();
     if (name === 'overview') renderOverviewTab(profileState);
 }
@@ -655,38 +708,41 @@ function lossReasonKey(analysis) {
 }
 
 
-function renderAdvancedTab(profile) {
+function renderAnalysisTab(profile) {
     if (!hasAnalyzedGames(profile)) {
-        showTabEmpty('advanced', profile
+        showTabEmpty('analysis', profile
             ? {
                 icon: 'pi-hourglass',
                 title: 'Nothing to dig into yet',
-                body: "Once a few games are analyzed, you'll see opening trends, expanded move stats, loss reasons, and notable tactics."
+                body: "Once a few games are analyzed, you'll see player tendencies, move stats, loss reasons, and notable tactics."
             }
             : {
-                icon: 'pi-sliders-h',
-                title: 'Advanced insights need a profile',
-                body: "Opening ranks, deeper move stats, loss reasons, and tactics show up after you've analyzed some Chess.com games."
+                icon: 'pi-chart-line',
+                title: 'Analysis needs a profile',
+                body: "Player tendencies, opening trends, deeper move stats, loss reasons, and tactics show up after you've analyzed some Chess.com games."
             });
         return;
     }
-    showTabContent('advanced');
+    showTabContent('analysis');
 
     renderOpeningRankList(
         'profile-white-openings',
-        topOpeningEntries(profile.openingsWhite, profile.whiteGames, 5),
-        profile.whiteGames ? 'No white openings yet.' : 'Gathering white games…'
+        topOpeningEntries(profile.openingsWhite, profile.whiteGames, 8),
+        profile.whiteGames ? 'No white openings yet.' : 'Gathering white games…',
+        true
     );
     renderOpeningRankList(
         'profile-black-defences',
-        topOpeningEntries(profile.openingsBlack, profile.blackGames, 5),
-        profile.blackGames ? 'No black defences yet.' : 'Gathering black games…'
+        topOpeningEntries(profile.openingsBlack, profile.blackGames, 8),
+        profile.blackGames ? 'No black defences yet.' : 'Gathering black games…',
+        true
     );
+    renderPlayerMoveHeatmap(profile);
 
-    document.getElementById('advanced-move-stats').innerHTML = qualityRowsHtml(profile);
+    document.getElementById('analysis-move-stats').innerHTML = qualityRowsHtml(profile);
 
     const total = profile.playerMoves || 0;
-    const tacticsEl = document.getElementById('advanced-tactics');
+    const tacticsEl = document.getElementById('analysis-tactics');
     const tacticLines = Object.entries(profile.themeHits || {})
         .filter(([, hits]) => hits > 0)
         .map(([id, hits]) => {
@@ -712,7 +768,7 @@ function renderAdvancedTab(profile) {
         if (!groups[key]) groups[key] = [];
         groups[key].push(g);
     }
-    const lossEl = document.getElementById('advanced-loss-reasons');
+    const lossEl = document.getElementById('analysis-loss-reasons');
     const entries = Object.entries(groups).sort((a, b) => b[1].length - a[1].length);
     if (!entries.length) {
         lossEl.innerHTML = '<div class="insight-empty">No losses in this sample yet.</div>';
@@ -735,6 +791,76 @@ function renderAdvancedTab(profile) {
             `;
         }).join('');
     }
+}
+
+/** Map a board square into the player's view (their first rank at the bottom). */
+function orientSquareToPlayer(sq, isWhite) {
+    if (!sq || isWhite) return sq;
+    const file = sq.charCodeAt(0) - 97;
+    const rank = Number(sq[1]);
+    if (file < 0 || file > 7 || rank < 1 || rank > 8) return sq;
+    return String.fromCharCode(97 + (7 - file)) + (9 - rank);
+}
+
+function buildPlayerSquareHeatmap(profile) {
+    const counts = {};
+    let max = 0;
+    let total = 0;
+    for (const a of profile.analyzedGames || []) {
+        for (const m of a.moves || []) {
+            if (!isPlayerMove(a, m) || !m.to) continue;
+            const sq = orientSquareToPlayer(m.to, !!a.isWhite);
+            counts[sq] = (counts[sq] || 0) + 1;
+            total += 1;
+            if (counts[sq] > max) max = counts[sq];
+        }
+    }
+    return { counts, max, total };
+}
+
+function renderPlayerMoveHeatmap(profile) {
+    const el = document.getElementById('player-move-heatmap');
+    if (!el) return;
+    const { counts, max, total } = buildPlayerSquareHeatmap(profile);
+    if (!total) {
+        el.innerHTML = '<div class="insight-empty">Heatmap will appear once moves are analyzed.</div>';
+        return;
+    }
+
+    let hotSq = null;
+    let hotCount = 0;
+    for (const [sq, n] of Object.entries(counts)) {
+        if (n > hotCount) {
+            hotCount = n;
+            hotSq = sq;
+        }
+    }
+
+    let cells = '';
+    for (let r = 0; r < 8; r++) {
+        const rankLabel = 8 - r; // player's rank labels (8 at top)
+        for (let c = 0; c < 8; c++) {
+            const file = String.fromCharCode(97 + c);
+            const sq = file + rankLabel;
+            const n = counts[sq] || 0;
+            const intensity = max ? n / max : 0;
+            const light = (r + c) % 2 === 0;
+            cells += `<div class="heatmap-sq ${light ? 'light' : 'dark'}" style="--heat:${intensity.toFixed(3)}" title="${sq.toUpperCase()}: ${n} move${n === 1 ? '' : 's'}">${n ? `<span class="heatmap-count">${n}</span>` : ''}</div>`;
+        }
+    }
+
+    const files = 'abcdefgh'.split('').map(f => `<span>${f}</span>`).join('');
+    el.innerHTML = `
+        <div class="move-heatmap" aria-label="Player move destination heatmap">
+            <div class="heatmap-grid">${cells}</div>
+            <div class="heatmap-files">${files}</div>
+        </div>
+        <div class="heatmap-legend">
+            Hotspot <strong>${hotSq ? hotSq.toUpperCase() : '—'}</strong>
+            · ${hotCount} landing${hotCount === 1 ? '' : 's'}
+            · ${total.toLocaleString()} moves total
+        </div>
+    `;
 }
 
 function renderFaqTab() {
@@ -794,7 +920,7 @@ function refreshDashboard() {
     const active = document.querySelector('#dash-tabs .p-tabview-nav > li.p-highlight .p-tabview-nav-link')?.dataset?.tab || 'overview';
     renderOverviewTab(profileState);
     if (active === 'matches') renderMatchesTab();
-    if (active === 'advanced') renderAdvancedTab(profileState);
+    if (active === 'analysis') renderAnalysisTab(profileState);
     if (active === 'learning') renderLearningBrowse();
 }
 
@@ -803,32 +929,56 @@ function topOpeningEntries(bucket, totalForColor, limit = 3) {
         .sort((a, b) => b[1].count - a[1].count)
         .slice(0, limit)
         .map(([name, data]) => {
-            const topVar = Object.entries(data.variations).sort((a, b) => b[1] - a[1])[0];
+            const vars = Object.entries(data.variations || {})
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 3)
+                .map(([vName, vCount]) => ({ name: vName, count: vCount }));
+            const topVar = vars[0];
+            const winRate = data.count ? Math.round((data.wins || 0) / data.count * 1000) / 10 : 0;
             return {
                 name,
                 count: data.count,
+                wins: data.wins || 0,
+                losses: data.losses || 0,
+                draws: data.draws || 0,
+                winRate,
                 pct: totalForColor ? Math.round((data.count / totalForColor) * 100) : 0,
-                variation: topVar && topVar[0] !== name ? topVar[0] : null
+                variation: topVar && topVar.name !== name ? topVar.name : null,
+                variations: vars
             };
         });
 }
 
-function renderOpeningRankList(elId, entries, emptyText) {
+function renderOpeningRankList(elId, entries, emptyText, expanded = false) {
     const el = document.getElementById(elId);
     if (!entries.length) {
         el.innerHTML = `<div class="insight-empty">${emptyText}</div>`;
         return;
     }
-    el.innerHTML = entries.map((entry, idx) => `
-        <div class="opening-rank-item">
-            <div class="opening-rank-num">${idx + 1}.</div>
-            <div>
-                <div class="opening-rank-name">${entry.name}</div>
-                <div class="opening-rank-meta">${entry.count} game${entry.count === 1 ? '' : 's'}${entry.variation ? ` · Often: ${entry.variation}` : ''}</div>
+    el.innerHTML = entries.map((entry, idx) => {
+        const wld = `${entry.wins}-${entry.losses}-${entry.draws}`;
+        const varLine = expanded && entry.variations?.length
+            ? `<div class="opening-rank-vars">${entry.variations.map(v =>
+                `<span>${v.name}${v.count > 1 ? ` ×${v.count}` : ''}</span>`
+            ).join('')}</div>`
+            : (entry.variation ? `<div class="opening-rank-meta">Often: ${entry.variation}</div>` : '');
+        return `
+            <div class="opening-rank-item${expanded ? ' expanded' : ''}">
+                <div class="opening-rank-num">${idx + 1}.</div>
+                <div>
+                    <div class="opening-rank-name">${entry.name}</div>
+                    <div class="opening-rank-meta">
+                        ${entry.count} game${entry.count === 1 ? '' : 's'}
+                        · ${entry.pct}% of colour
+                        · W/L/D ${wld}
+                        · ${entry.winRate}% win
+                    </div>
+                    ${varLine}
+                </div>
+                <div class="opening-rank-pct">${entry.pct}%</div>
             </div>
-            <div class="opening-rank-pct">${entry.pct}%</div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 
@@ -873,8 +1023,7 @@ function openReview(analysis) {
     document.getElementById('dashboard').style.display = 'none';
     document.getElementById('review-view').style.display = 'grid';
     const listUi = document.getElementById('moves-tab');
-    const graphUi = document.getElementById('eval-graph');
-    listUi.innerHTML = ''; graphUi.innerHTML = '';
+    listUi.innerHTML = '';
 
     const evalBar = document.getElementById('eval-bar');
     evalBar.classList.toggle('player-white', !!analysis.isWhite);
@@ -923,16 +1072,143 @@ function openReview(analysis) {
         const turnMark = m.turn === 'w' ? '.' : '...';
         row.innerHTML = `<span style="color:#666; width:36px">${m.moveNum}${turnMark}</span><b style="width:50px">${m.san}</b>${isKey ? '<span style="color:var(--primary);font-size:10px;margin-right:6px;">KEY</span>' : ''}${label}`;
         listUi.appendChild(row);
-
-        const bar = document.createElement('div');
-        bar.className = 'graph-bar';
-        const v = playerEvalAt(currentReviewGame, m);
-        bar.style.height = `${Math.min(100, Math.max(5, 50 + (v / 20)))}%`;
-        if (isKey) bar.style.opacity = '1';
-        bar.onclick = () => goToMove(idx);
-        graphUi.appendChild(bar);
     });
+
+    renderEvalLineGraph(analysis);
+    renderReviewStats(analysis);
+
+    // Reset review tabs to Moves
+    const reviewNav = document.querySelector('#review-view .p-tabview-nav');
+    if (reviewNav) {
+        reviewNav.querySelectorAll('li').forEach((li, i) => li.classList.toggle('p-highlight', i === 0));
+    }
+    document.getElementById('moves-tab').style.display = 'block';
+    document.getElementById('graph-tab').style.display = 'none';
+    document.getElementById('stats-tab').style.display = 'none';
+
     goToMove(0);
+}
+
+function renderEvalLineGraph(analysis) {
+    const graphUi = document.getElementById('eval-graph');
+    graphUi.innerHTML = '';
+    const moves = analysis.moves || [];
+    if (!moves.length) {
+        graphUi.innerHTML = '<div class="insight-empty">No eval data for this game.</div>';
+        return;
+    }
+
+    const W = 320;
+    const H = 220;
+    const pad = { t: 14, b: 18, l: 10, r: 10 };
+    const plotW = W - pad.l - pad.r;
+    const plotH = H - pad.t - pad.b;
+    const CAP = 1000; // ±10 pawns on the scale
+    const keyIdx = analysis.gameStory?.keyMoveIndex;
+
+    const vals = moves.map(m => {
+        const v = playerEvalAt(analysis, m);
+        return Math.max(-CAP, Math.min(CAP, v));
+    });
+
+    const xAt = (i) => pad.l + (moves.length === 1 ? plotW / 2 : (i / (moves.length - 1)) * plotW);
+    const yAt = (v) => pad.t + (1 - (v + CAP) / (2 * CAP)) * plotH;
+
+    const linePts = vals.map((v, i) => `${xAt(i).toFixed(2)},${yAt(v).toFixed(2)}`).join(' ');
+    const areaPts = [
+        `${xAt(0).toFixed(2)},${yAt(0).toFixed(2)}`,
+        ...vals.map((v, i) => `${xAt(i).toFixed(2)},${yAt(v).toFixed(2)}`),
+        `${xAt(moves.length - 1).toFixed(2)},${yAt(0).toFixed(2)}`
+    ].join(' ');
+
+    const zeroY = yAt(0);
+    const side = analysis.isWhite ? 'White' : 'Black';
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.classList.add('eval-line-svg');
+    svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', `Evaluation graph from ${side}'s perspective`);
+
+    svg.innerHTML = `
+        <line class="eval-line-zero" x1="${pad.l}" y1="${zeroY}" x2="${W - pad.r}" y2="${zeroY}"></line>
+        <polygon class="eval-line-area" points="${areaPts}"></polygon>
+        <polyline class="eval-line-path" points="${linePts}"></polyline>
+    `;
+
+    vals.forEach((v, idx) => {
+        const cx = xAt(idx);
+        const cy = yAt(v);
+        const hit = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        hit.setAttribute('cx', cx);
+        hit.setAttribute('cy', cy);
+        hit.setAttribute('r', Math.max(6, plotW / Math.max(moves.length, 1) / 2));
+        hit.classList.add('eval-line-hit');
+        hit.addEventListener('click', () => goToMove(idx));
+        svg.appendChild(hit);
+
+        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        dot.setAttribute('cx', cx);
+        dot.setAttribute('cy', cy);
+        dot.setAttribute('r', 3.5);
+        dot.classList.add('eval-line-dot');
+        if (keyIdx === idx) dot.classList.add('is-key');
+        dot.dataset.moveIdx = String(idx);
+        svg.appendChild(dot);
+    });
+
+    graphUi.appendChild(svg);
+    graphUi.title = `${side} perspective · + is better for ${side.toLowerCase()} · click a point to jump`;
+}
+
+function renderReviewStats(analysis) {
+    const el = document.getElementById('stats-tab');
+    if (!el) return;
+
+    const you = sideMoveStats(analysis, true);
+    const opp = sideMoveStats(analysis, false);
+    const youName = analysis.isWhite ? 'You (White)' : 'You (Black)';
+    const oppName = `Opponent (${analysis.isWhite ? 'Black' : 'White'})`;
+
+    const groupRows = MOVE_QUALITY_ORDER.map(q => {
+        const count = you.counts[q.label] || 0;
+        if (!count) return '';
+        const p = you.total ? Math.round((count / you.total) * 1000) / 10 : 0;
+        return `
+            <div class="quality-row" title="${q.label}: ${count}">
+                <div class="quality-label" style="color:${q.color}">${q.label}</div>
+                <div class="quality-track"><div class="quality-fill" style="width:${Math.max(p, 2)}%;background:${q.color}"></div></div>
+                <div class="quality-pct">${count} · ${p}%</div>
+            </div>
+        `;
+    }).join('');
+
+    const eloCard = (label, stats) => `
+        <div class="game-elo-card">
+            <div class="game-elo-kicker">${label}</div>
+            <div class="game-elo-value">${stats.gameElo != null ? stats.gameElo : '—'}</div>
+            <div class="game-elo-meta">
+                ${stats.accuracy != null ? `${stats.accuracy}% accuracy` : 'No rated moves'}
+                · ${stats.total} move${stats.total === 1 ? '' : 's'}
+            </div>
+        </div>
+    `;
+
+    el.innerHTML = `
+        <div class="review-stats">
+            <div class="review-stats-title">Game ELO</div>
+            <div class="game-elo-row">
+                ${eloCard(youName, you)}
+                ${eloCard(oppName, opp)}
+            </div>
+            <div class="review-stats-title">Your moves by group</div>
+            ${you.total
+                ? `<div class="quality-meta">${you.total} of your moves this game</div>${groupRows}`
+                : '<div class="insight-empty">No classified moves for you in this game.</div>'}
+            <div class="review-stats-note">Game ELO is a rough performance guess from move accuracy in this game only — not your Chess.com rating.</div>
+        </div>
+    `;
 }
 
 function goToMove(idx) {
@@ -942,6 +1218,12 @@ function goToMove(idx) {
     updateMoveCard(m);
     document.querySelectorAll('.move-row').forEach(r => r.classList.remove('active'));
     document.getElementById(`move-${idx}`)?.classList.add('active');
+    document.querySelectorAll('.eval-line-dot').forEach(dot => {
+        const isActive = Number(dot.dataset.moveIdx) === idx;
+        const isKey = currentReviewGame.gameStory?.keyMoveIndex === Number(dot.dataset.moveIdx);
+        dot.classList.toggle('is-active', isActive);
+        if (!isKey) dot.setAttribute('r', isActive ? 4.5 : 3.5);
+    });
 }
 
 function updateMoveCard(m) {
@@ -1073,6 +1355,7 @@ function switchTab(t, el) {
     el?.closest('li')?.classList.add('p-highlight');
     document.getElementById('moves-tab').style.display = t === 'moves' ? 'block' : 'none';
     document.getElementById('graph-tab').style.display = t === 'graph' ? 'block' : 'none';
+    document.getElementById('stats-tab').style.display = t === 'stats' ? 'block' : 'none';
 }
 
 function exitReview() {
