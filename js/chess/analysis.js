@@ -101,46 +101,89 @@ function computeEvalDelta(bestBefore, actualAfter) {
     return { rawCpl, evalDeltaCp, evalDelta: evalDeltaCp / 100 };
 }
 
-function getEngineAnalysis(engine, fen) {
+function getEngineAnalysis(engine, fen, opts = {}) {
+    const depth = opts.depth ?? ENGINE_DEPTH;
+    const multiPv = Math.max(1, opts.multiPv ?? 1);
+    const timeoutMs = opts.timeoutMs ?? (depth > ENGINE_DEPTH ? REVIEW_ENGINE_TIMEOUT_MS : 2500);
+
     return new Promise((resolve) => {
         if (!enginesReady || !engine) {
-            return resolve({ score: 0, isMate: false, bestMove: '', reliable: false });
+            return resolve({ score: 0, isMate: false, bestMove: '', reliable: false, altMoves: [] });
         }
         let score = 0, isMate = false, bestMove = '';
+        const pvLines = new Map(); // multipv index -> { move, scoreCp, isMate }
         let settled = false;
-        
+
         const finish = (reliable) => {
             if (settled) return;
             settled = true;
             engine.removeEventListener('message', handler);
             clearTimeout(timeout);
-            resolve({ score, isMate, bestMove, reliable });
+            if (multiPv > 1) {
+                try { engine.postMessage('setoption name MultiPV value 1'); } catch (_) {}
+            }
+            const altMoves = [];
+            for (let i = 2; i <= multiPv; i++) {
+                const line = pvLines.get(i);
+                if (line?.move) altMoves.push(line);
+            }
+            // Prefer multipv 1 for score/best if we got it
+            const top = pvLines.get(1);
+            if (top) {
+                score = top.scoreCp;
+                isMate = !!top.isMate;
+                if (top.move) bestMove = top.move;
+            }
+            resolve({ score, isMate, bestMove, reliable, altMoves });
         };
 
         const timeout = setTimeout(() => {
             try { engine.postMessage('stop'); } catch (_) {}
-            // Timed out without a clean bestmove → unreliable for harsh labels
-            finish(!!bestMove);
-        }, 2500);
+            finish(!!bestMove || pvLines.has(1));
+        }, timeoutMs);
 
         const handler = (e) => {
             if (typeof e.data !== 'string') return;
-            if (e.data.includes('score cp')) {
-                const m = e.data.match(/score cp (-?\d+)/);
-                if (m) { score = parseInt(m[1]); isMate = false; }
-            } else if (e.data.includes('score mate')) {
-                const m = e.data.match(/score mate (-?\d+)/);
-                if (m) { score = parseInt(m[1]); isMate = true; }
+            const msg = e.data;
+            if (msg.includes(' score ')) {
+                const pvIdx = Number((msg.match(/\bmultipv (\d+)/) || [])[1] || 1);
+                let lineScore = null;
+                let lineMate = false;
+                const cp = msg.match(/score cp (-?\d+)/);
+                const mate = msg.match(/score mate (-?\d+)/);
+                if (cp) {
+                    lineScore = parseInt(cp[1], 10);
+                    lineMate = false;
+                } else if (mate) {
+                    lineScore = parseInt(mate[1], 10);
+                    lineMate = true;
+                }
+                const pvMove = (msg.match(/\bpv\s+(\S+)/) || [])[1];
+                if (lineScore != null) {
+                    const prev = pvLines.get(pvIdx) || {};
+                    pvLines.set(pvIdx, {
+                        move: pvMove || prev.move || '',
+                        scoreCp: lineScore,
+                        isMate: lineMate
+                    });
+                    if (pvIdx === 1) {
+                        score = lineScore;
+                        isMate = lineMate;
+                    }
+                }
             }
-            if (e.data.startsWith('bestmove')) {
-                const m = e.data.match(/bestmove\s+(\S+)/);
+            if (msg.startsWith('bestmove')) {
+                const m = msg.match(/bestmove\s+(\S+)/);
                 bestMove = m && m[1] !== '(none)' ? m[1] : '';
-                finish(!!bestMove);
+                finish(!!bestMove || pvLines.has(1));
             }
         };
         engine.addEventListener('message', handler);
+        if (multiPv > 1) {
+            try { engine.postMessage(`setoption name MultiPV value ${multiPv}`); } catch (_) {}
+        }
         engine.postMessage(`position fen ${fen}`);
-        engine.postMessage(`go depth ${ENGINE_DEPTH}`);
+        engine.postMessage(`go depth ${depth}`);
     });
 }
 
@@ -245,7 +288,15 @@ function whiteCentricEval(analysisAfterMove, sideToMoveAfter) {
 }
 
 
-async function analyzeGame(game, user, engine, onMove) {
+function analysisStillRunning() {
+    return !!(isScanning || isDeepening);
+}
+
+async function analyzeGame(game, user, engine, onMove, opts = {}) {
+    const depth = opts.depth ?? ENGINE_DEPTH;
+    const multiPv = opts.multiPv ?? 1;
+    const timeoutMs = opts.timeoutMs ?? (depth > ENGINE_DEPTH ? REVIEW_ENGINE_TIMEOUT_MS : 2500);
+
     const chess = new Chess();
     chess.load_pgn(game.pgn);
     const history = chess.history({verbose: true});
@@ -268,10 +319,10 @@ async function analyzeGame(game, user, engine, onMove) {
     const moveThemes = [];
     const moveThemeCounts = {};
     const tempChess = new Chess();
-    let lastEval = { score: 0, isMate: false, bestMove: '', reliable: false };
+    let lastEval = { score: 0, isMate: false, bestMove: '', reliable: false, altMoves: [] };
 
     for (let i = 0; i < history.length; i++) {
-        if (!isScanning) return null;
+        if (!analysisStillRunning()) return null;
         onMove(i + 1, history.length);
 
         const isUserTurn = (isWhite && i % 2 === 0) || (!isWhite && i % 2 !== 0);
@@ -283,8 +334,8 @@ async function analyzeGame(game, user, engine, onMove) {
         tempChess.move(history[i]);
         const fenAfter = tempChess.fen();
 
-        let best = { score: 0, isMate: false, bestMove: '', reliable: false };
-        let actual = { ...lastEval, reliable: lastEval.reliable || false };
+        let best = { score: 0, isMate: false, bestMove: '', reliable: false, altMoves: [] };
+        let actual = { ...lastEval, reliable: lastEval.reliable || false, altMoves: [] };
         let evalDelta = 0;
         let evalDeltaCp = 0;
         let playedBest = false;
@@ -292,8 +343,8 @@ async function analyzeGame(game, user, engine, onMove) {
 
         // Classify both sides after leaving book/theory (same quality labels)
         if (!isBook && !isTheory) {
-            best = await getEngineAnalysis(engine, fenBefore);
-            actual = await getEngineAnalysis(engine, fenAfter);
+            best = await getEngineAnalysis(engine, fenBefore, { depth, multiPv, timeoutMs });
+            actual = await getEngineAnalysis(engine, fenAfter, { depth, multiPv: 1, timeoutMs });
             const delta = computeEvalDelta(best, actual);
             evalDeltaCp = delta.evalDeltaCp;
             evalDelta = delta.evalDelta;
@@ -356,6 +407,11 @@ async function analyzeGame(game, user, engine, onMove) {
             moveNum: Math.floor(i/2) + 1, turn: i % 2 === 0 ? 'w' : 'b',
             isPlayerMove: isUserTurn,
             bestEngineMove: best.bestMove,
+            altEngineMoves: (best.altMoves || []).map(a => ({
+                move: a.move,
+                scoreCp: a.scoreCp,
+                isMate: !!a.isMate
+            })),
             moveThemes: themes,
             materialEvent,
             evalDelta: !isBook && !isTheory ? evalDelta : null,
@@ -376,7 +432,9 @@ async function analyzeGame(game, user, engine, onMove) {
         blunders: counters.blunders, greatMoves: counters.great, bookCount: counters.book,
         openingName: theoryMatch.name || openingMatch.name,
         moveThemes: [...new Set(moveThemes)],
-        moveThemeCounts
+        moveThemeCounts,
+        engineDepth: depth,
+        multiPv
     }, game, user));
 }
 

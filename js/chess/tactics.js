@@ -295,10 +295,20 @@ function describePlayerMove(opts) {
     const gainedValue = capturedPiece ? (PIECE_VAL[capturedPiece] || 0) : 0;
 
     const looksLikeOffer = !!(primaryHang || movedPieceTaken || (capturedPiece && gainedValue < (PIECE_VAL[move.piece] || 0) && isHanging(after, move.to, userColor)));
-    const compensated = sequenceNet >= -0.5 || (lookahead.net >= offeredValue - 1 && offeredValue > 0);
+    const regainedValue = lookahead.takes.filter(t => t.byUser).reduce((s, t) => s + (PIECE_VAL[t.piece] || 0), 0);
+    const compensated = sequenceNet >= 0 || (offeredValue > 0 && regainedValue >= offeredValue);
     const evalSupportsSac = isPositive || evalDelta <= 1.2;
 
-    if (looksLikeOffer && (compensated || evalSupportsSac) && !isNegative && offeredPiece) {
+    // Sacrifice: only meaningful pieces (N+), and only when the sequence is compensated.
+    // evalSupportsSac is a secondary gate once compensation already looks real.
+    if (
+        looksLikeOffer &&
+        offeredPiece &&
+        offeredValue >= 3 &&
+        compensated &&
+        evalSupportsSac &&
+        !isNegative
+    ) {
         themes.push('great_sacrifice');
         const regain = lookahead.takes.filter(t => t.byUser).map(t => pieceLabel(t.piece));
         materialEvent = {
@@ -313,7 +323,9 @@ function describePlayerMove(opts) {
                 ? `Sacrificed the ${pieceLabel(offeredPiece)} to win ${regain.join('/')}`
                 : `Sacrificed the ${pieceLabel(offeredPiece)} for a better outcome`
         );
-    } else if (primaryHang && (hangTaken || isNegative || (!compensated && offeredValue >= 1))) {
+    } else if (primaryHang && (hangTaken || (isNegative && offeredValue >= 3))) {
+        // Hang: require the piece was taken in the continuation, or a real piece hung on a bad move.
+        // Skip uncompensated hanging pawns with no take — too many false positives.
         themes.push('hung_piece');
         materialEvent = {
             kind: 'hang',

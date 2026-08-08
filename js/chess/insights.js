@@ -1,4 +1,4 @@
-/* chess/insights.js — narrative coach notes for the Analysis tab */
+/* chess/insights.js — narrative coach notes for the Insights tab */
 
 function sideMaterialFromFen(fen) {
     const board = String(fen || '').split(' ')[0] || '';
@@ -712,7 +712,7 @@ function byPieceCoachHtml(pieces) {
     `;
 }
 
-/** Build Analysis-tab aggregates once (during scan / idle), not on every tab paint. */
+/** Build Insights-tab aggregates once (during scan / idle), not on every tab paint. */
 function rebuildAnalysisSnapshot(profile) {
     if (!profile || !(profile.analyzedGames || []).length) {
         if (profile) {
@@ -739,8 +739,7 @@ function rebuildAnalysisSnapshot(profile) {
         insights,
         survival,
         mates,
-        heat,
-        moveStatsHtml: typeof qualityRowsHtml === 'function' ? qualityRowsHtml(profile) : ''
+        heat
     };
     profile.analysisSnapshotDirty = false;
     return profile.analysisSnapshot;

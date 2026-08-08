@@ -36,6 +36,7 @@ async function initApp() {
         if(bookRes.ok) {
             const data = await bookRes.json();
             setOpeningBook(data);
+            openingBookSource = 'external';
             log(`Opening book loaded (${ACTIVE_OPENING_BOOK.length} openings).`);
         } else {
             throw new Error("Source returned error " + bookRes.status);
@@ -43,6 +44,7 @@ async function initApp() {
     } catch (e) {
         log(`Opening book failed (${e.message}). Using internal fallback.`, true);
         setOpeningBook(INTERNAL_BOOK);
+        openingBookSource = 'internal';
     }
 
     log("Fetching famous games...");
@@ -51,17 +53,19 @@ async function initApp() {
         if (!famRes.ok) throw new Error("Source returned error " + famRes.status);
         const famData = await famRes.json();
         setFamousGames(famData);
+        famousGamesSource = 'external';
         log(`Famous games loaded (${ACTIVE_FAMOUS_GAMES.length} theory lines).`);
     } catch (e) {
         log(`Famous games failed (${e.message}). Using internal fallback.`, true);
         setFamousGames(INTERNAL_FAMOUS_GAMES);
+        famousGamesSource = 'internal';
     }
 
     // Learning + empty tab states are usable before a profile is loaded
     document.getElementById('dashboard').style.display = 'block';
     document.getElementById('profile-display-name').innerText = 'Analyze Chess';
     document.getElementById('profile-header-sub').innerText =
-        "Load your chess.com profile or game to get a customised engine, with all processing done client side within the browser! Shows match analysis over the last 100 games played, as well as theory and opening analysis and deeper learning. Read the FAQ's for more info.";
+        "Load your Chess.com profile or game for a customised, fully client-side engine review. Insights across recent games, openings, and learnable theory — see About for how labels work.";
     refreshDashboard();
 
     log(`Initializing up to ${PARALLEL_GAMES} engines (depth ${ENGINE_DEPTH})...`);
@@ -466,6 +470,14 @@ async function startAnalysis() {
 
 function stopAnalysis() {
     isScanning = false;
+    if (isDeepening) {
+        isDeepening = false;
+        const btn = document.getElementById('btn-deepen');
+        const status = document.getElementById('review-deepen-status');
+        if (btn) btn.disabled = false;
+        if (status) status.textContent = 'Deepen cancelled.';
+        if (currentReviewGame) updateReviewDepthBadge(currentReviewGame);
+    }
     for (const engine of engines) {
         try { engine.postMessage('stop'); } catch (_) {}
     }
@@ -476,6 +488,98 @@ function stopAnalysis() {
     setScanButtonsBusy(false);
     if (enginesReady) setScanButtonsReady();
     document.getElementById('progress-box').style.display = 'none';
+}
+
+function gameStubFromAnalysis(analysis) {
+    const you = analysis.username || profileState?.username || 'player';
+    const opp = analysis.opponent || 'opponent';
+    const whiteName = analysis.whiteUsername || (analysis.isWhite ? you : opp);
+    const blackName = analysis.blackUsername || (analysis.isWhite ? opp : you);
+    return {
+        pgn: analysis.pgn || '',
+        end_time: analysis.endTime || 0,
+        white: {
+            username: whiteName,
+            result: analysis.isWhite ? (analysis.resultDetail || '') : (analysis.oppResultDetail || ''),
+            rating: analysis.whiteRating
+        },
+        black: {
+            username: blackName,
+            result: analysis.isWhite ? (analysis.oppResultDetail || '') : (analysis.resultDetail || ''),
+            rating: analysis.blackRating
+        }
+    };
+}
+
+async function deepenCurrentReview() {
+    if (!currentReviewGame || !enginesReady || !engines.length) return;
+    if (isScanning || isDeepening) return;
+    if ((currentReviewGame.engineDepth || ENGINE_DEPTH) >= REVIEW_ENGINE_DEPTH) {
+        updateReviewDepthBadge(currentReviewGame);
+        return;
+    }
+
+    const prevIdx = currentMoveIndex;
+    const btn = document.getElementById('btn-deepen');
+    const status = document.getElementById('review-deepen-status');
+    isDeepening = true;
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="p-button-icon-left pi pi-spin pi-spinner"></span><span class="p-button-label">Deepening…</span>';
+    }
+    if (status) status.textContent = `Depth ${REVIEW_ENGINE_DEPTH} · starting…`;
+    log(`Deepening review to depth ${REVIEW_ENGINE_DEPTH} (MultiPV ${REVIEW_MULTIPV})…`);
+
+    try {
+        const user = currentReviewGame.username || profileState?.username;
+        if (!user) throw new Error('No username on this game');
+        const stub = gameStubFromAnalysis(currentReviewGame);
+        const gameKey = currentReviewGame.gameKey || null;
+        const analysis = await analyzeGame(stub, user, engines[0], (curr, total) => {
+            if (status) status.textContent = `Depth ${REVIEW_ENGINE_DEPTH} · ${curr}/${total}`;
+        }, {
+            depth: REVIEW_ENGINE_DEPTH,
+            multiPv: REVIEW_MULTIPV,
+            timeoutMs: REVIEW_ENGINE_TIMEOUT_MS
+        });
+
+        if (!analysis) {
+            if (status) status.textContent = 'Deepen cancelled.';
+            return;
+        }
+
+        // Preserve identity / ratings from the shallow pass
+        analysis.gameKey = gameKey;
+        analysis.whiteUsername = analysis.whiteUsername || currentReviewGame.whiteUsername;
+        analysis.blackUsername = analysis.blackUsername || currentReviewGame.blackUsername;
+        analysis.whiteRating = analysis.whiteRating ?? currentReviewGame.whiteRating;
+        analysis.blackRating = analysis.blackRating ?? currentReviewGame.blackRating;
+        analysis.qualityScore = gameQualityScore(analysis);
+        enrichAnalysisMeta(analysis);
+
+        if (profileState && gameKey) {
+            ingestAnalysis(profileState, analysis, gameKey);
+            const prevDepth = currentReviewGame.engineDepth || ENGINE_DEPTH;
+            if ((analysis.engineDepth || 0) > prevDepth) {
+                saveCachedAnalysis(user, gameKey, analysis);
+            }
+            scheduleAnalysisSnapshot(profileState, { immediate: true });
+        }
+
+        openReview(analysis);
+        if (prevIdx >= 0 && analysis.moves?.[prevIdx]) goToMove(prevIdx);
+        if (status) status.textContent = `Deepened to depth ${analysis.engineDepth}.`;
+        log(`Deepen complete (depth ${analysis.engineDepth}).`);
+    } catch (e) {
+        log(`Deepen failed: ${e.message}`, true);
+        if (status) status.textContent = `Deepen failed: ${e.message}`;
+    } finally {
+        isDeepening = false;
+        if (btn) {
+            btn.innerHTML = '<span class="p-button-icon-left pi pi-bolt"></span><span class="p-button-label">Deepen analysis</span>';
+        }
+        if (currentReviewGame) updateReviewDepthBadge(currentReviewGame);
+    }
 }
 
 // HTML onclick / onload bridge
@@ -499,6 +603,7 @@ window.learningGoEnd = learningGoEnd;
 window.openMatchesSortedByLabel = openMatchesSortedByLabel;
 window.clearMatchesSort = clearMatchesSort;
 window.openReviewFromStore = openReviewFromStore;
+window.deepenCurrentReview = deepenCurrentReview;
 window.exitReview = exitReview;
 window.goToStart = goToStart;
 window.goToEnd = goToEnd;

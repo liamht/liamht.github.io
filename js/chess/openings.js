@@ -16,34 +16,60 @@ function cleanMove(move) {
     return move.toString().replace(/^\d+\.+/, '').replace(/[+#?]/g, '').trim();
 }
 
+function openingSpecificityScore(name) {
+    if (!name || name === 'Custom Game') return 0;
+    let score = String(name).length;
+    if (String(name).includes(':')) score += 40;
+    return score;
+}
+
+function pickBetterOpeningMatch(a, b) {
+    if ((b.count || 0) > (a.count || 0)) return b;
+    if ((a.count || 0) > (b.count || 0)) return a;
+    return openingSpecificityScore(b.name) > openingSpecificityScore(a.name) ? b : a;
+}
+
+function identifyOpeningByMoves(historySans) {
+    let bestMatch = { name: 'Custom Game', count: 0 };
+    const cleanHistory = historySans.map(m => cleanMove(m));
+    // Prefer move-list entries from the active book, and always include INTERNAL_BOOK
+    // so FEN-only catalogs still get SAN fallback for common lines.
+    const catalogs = [];
+    if (Array.isArray(ACTIVE_OPENING_BOOK)) catalogs.push(ACTIVE_OPENING_BOOK);
+    if (Array.isArray(INTERNAL_BOOK)) catalogs.push(INTERNAL_BOOK);
+    const seen = new Set();
+    for (const catalog of catalogs) {
+        for (const op of catalog) {
+            if (!op?.moves?.length || !op.name || seen.has(op.name)) continue;
+            seen.add(op.name);
+            const opMovesClean = op.moves.map(m => cleanMove(m));
+            let matchCount = 0;
+            for (let i = 0; i < opMovesClean.length; i++) {
+                if (i >= cleanHistory.length || cleanHistory[i] !== opMovesClean[i]) break;
+                matchCount++;
+            }
+            if (matchCount > 0) {
+                bestMatch = pickBetterOpeningMatch(bestMatch, { name: op.name, count: matchCount });
+            }
+        }
+    }
+    return bestMatch;
+}
+
 function identifyOpening(historySans, fensAfterMoves) {
     // Continuous prefix from the start only — leaving book ends the match
-    if (OPENING_FEN_MAP) {
-        let bestMatch = { name: "Custom Game", count: 0 };
+    let fenMatch = { name: 'Custom Game', count: 0 };
+    if (OPENING_FEN_MAP && Array.isArray(fensAfterMoves)) {
         for (let i = 0; i < fensAfterMoves.length; i++) {
             const board = fensAfterMoves[i].split(' ')[0];
             const name = OPENING_FEN_MAP.get(board);
             if (!name) break;
-            bestMatch = { name, count: i + 1 };
+            fenMatch = { name, count: i + 1 };
         }
-        return bestMatch;
     }
 
-    let bestMatch = { name: "Custom Game", count: 0 };
-    const cleanHistory = historySans.map(m => cleanMove(m));
-    for (const op of ACTIVE_OPENING_BOOK) {
-        if (!op.moves) continue;
-        const opMovesClean = op.moves.map(m => cleanMove(m));
-        let matchCount = 0;
-        for (let i = 0; i < opMovesClean.length; i++) {
-            if (i >= cleanHistory.length || cleanHistory[i] !== opMovesClean[i]) break;
-            matchCount++;
-        }
-        if (matchCount > bestMatch.count) {
-            bestMatch = { name: op.name, count: matchCount };
-        }
-    }
-    return bestMatch;
+    const movesMatch = identifyOpeningByMoves(historySans);
+    return pickBetterOpeningMatch(fenMatch, movesMatch);
 }
 
 // Famous / well-known games for "Theory" tags (fallback if famous-games.json fails)

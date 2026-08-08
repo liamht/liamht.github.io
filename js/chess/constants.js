@@ -4,13 +4,17 @@
 
 const STOCKFISH_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
 const STOCKFISH_LOCAL = 'stockfish.js?v=20260803';
-const APP_BUILD = '2026-08-08w';
-const CACHE_VERSION = 7;
+const APP_BUILD = '2026-08-08y';
+const CACHE_VERSION = 8;
 // Relative to the page URL so this works on a server and when opened locally
 const EXTERNAL_BOOK_URL = 'openings.json';
 const FAMOUS_GAMES_URL = 'famous-games.json';
 const ENGINE_DEPTH = 5;
 const EVAL_NOISE_FLOOR_CP = 100; // ignore first 1.0 pawn of depth-5 wobble
+/** Opt-in deeper analysis when reviewing a single game. */
+const REVIEW_ENGINE_DEPTH = 12;
+const REVIEW_MULTIPV = 2;
+const REVIEW_ENGINE_TIMEOUT_MS = 8000;
 /** Max NEW (uncached) games to analyze in one scan. Cached games accumulate beyond this. */
 const SCAN_NEW_LIMIT = 100;
 /** Newest-first archive walk stops after this many consecutive already-cached games. */
@@ -21,20 +25,41 @@ const PARALLEL_GAMES = Math.min(4, navigator.hardwareConcurrency || 4);
 
 const INTERNAL_BOOK = [
     { name: "Ruy Lopez", moves: ["e4", "e5", "Nf3", "Nc6", "Bb5"] },
-    { name: "Sicilian Defense", moves: ["e4", "c5"] },
-    { name: "French Defense", moves: ["e4", "e6"] },
-    { name: "Caro-Kann Defense", moves: ["e4", "c6"] },
+    { name: "Ruy Lopez: Morphy Defense", moves: ["e4", "e5", "Nf3", "Nc6", "Bb5", "a6"] },
     { name: "Italian Game", moves: ["e4", "e5", "Nf3", "Nc6", "Bc4"] },
-    { name: "Queen's Gambit", moves: ["d4", "d5", "c4"] }
+    { name: "Italian Game: Giuoco Piano", moves: ["e4", "e5", "Nf3", "Nc6", "Bc4", "Bc5"] },
+    { name: "Scotch Game", moves: ["e4", "e5", "Nf3", "Nc6", "d4"] },
+    { name: "Four Knights Game", moves: ["e4", "e5", "Nf3", "Nc6", "Nc3", "Nf6"] },
+    { name: "Sicilian Defense", moves: ["e4", "c5"] },
+    { name: "Sicilian Defense: Najdorf Variation", moves: ["e4", "c5", "Nf3", "d6", "d4", "cxd4", "Nxd4", "Nf6", "Nc3", "a6"] },
+    { name: "Sicilian Defense: Dragon Variation", moves: ["e4", "c5", "Nf3", "d6", "d4", "cxd4", "Nxd4", "Nf6", "Nc3", "g6"] },
+    { name: "French Defense", moves: ["e4", "e6"] },
+    { name: "French Defense: Advance Variation", moves: ["e4", "e6", "d4", "d5", "e5"] },
+    { name: "Caro-Kann Defense", moves: ["e4", "c6"] },
+    { name: "Caro-Kann Defense: Classical Variation", moves: ["e4", "c6", "d4", "d5", "Nc3", "dxe4", "Nxe4", "Bf5"] },
+    { name: "Pirc Defense", moves: ["e4", "d6", "d4", "Nf6", "Nc3", "g6"] },
+    { name: "Modern Defense", moves: ["e4", "g6"] },
+    { name: "Queen's Gambit", moves: ["d4", "d5", "c4"] },
+    { name: "Queen's Gambit Declined", moves: ["d4", "d5", "c4", "e6"] },
+    { name: "Queen's Gambit Accepted", moves: ["d4", "d5", "c4", "dxc4"] },
+    { name: "Indian Defense", moves: ["d4", "Nf6"] },
+    { name: "King's Indian Defense", moves: ["d4", "Nf6", "c4", "g6"] },
+    { name: "Nimzo-Indian Defense", moves: ["d4", "Nf6", "c4", "e6", "Nc3", "Bb4"] },
+    { name: "English Opening", moves: ["c4"] },
+    { name: "Reti Opening", moves: ["Nf3", "d5"] },
+    { name: "London System", moves: ["d4", "d5", "Nf3", "Nf6", "Bf4"] }
 ];
 
 const ChessApp = {
     openingBook: INTERNAL_BOOK,
     openingFenMap: null,
+    openingBookSource: 'internal',
     famousGames: [],
+    famousGamesSource: 'internal',
     engines: [],
     enginesReady: false,
     isScanning: false,
+    isDeepening: false,
     currentReviewGame: null,
     currentMoveIndex: -1,
     profileState: null,
@@ -73,6 +98,18 @@ Object.defineProperties(window, {
     isScanning: {
         get() { return ChessApp.isScanning; },
         set(v) { ChessApp.isScanning = v; }
+    },
+    isDeepening: {
+        get() { return ChessApp.isDeepening; },
+        set(v) { ChessApp.isDeepening = v; }
+    },
+    openingBookSource: {
+        get() { return ChessApp.openingBookSource; },
+        set(v) { ChessApp.openingBookSource = v; }
+    },
+    famousGamesSource: {
+        get() { return ChessApp.famousGamesSource; },
+        set(v) { ChessApp.famousGamesSource = v; }
     },
     currentReviewGame: {
         get() { return ChessApp.currentReviewGame; },

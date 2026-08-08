@@ -452,7 +452,7 @@ function tabEmptyHtml({ icon, title, body }) {
             </button>
             <button type="button" class="p-button p-component p-button-outlined" onclick="switchDashTab('learning')">
                 <span class="p-button-icon-left pi pi-book"></span>
-                <span class="p-button-label">Browse Learning</span>
+                <span class="p-button-label">Browse Learn</span>
             </button>
         </div>
     `;
@@ -480,6 +480,8 @@ function hasAnalyzedGames(profile = profileState) {
 }
 
 function switchDashTab(name, el) {
+    // Legacy aliases from FAQ / Console tabs
+    if (name === 'faq' || name === 'console') name = 'about';
     document.querySelectorAll('#dash-tabs .p-tabview-nav > li').forEach(li => li.classList.remove('p-highlight'));
     document.querySelectorAll('.dash-panel').forEach(p => p.classList.remove('active'));
     const link = el?.classList?.contains('p-tabview-nav-link')
@@ -488,7 +490,7 @@ function switchDashTab(name, el) {
     if (link) link.closest('li')?.classList.add('p-highlight');
     const panel = document.getElementById('tab-' + name);
     if (panel) panel.classList.add('active');
-    if (name === 'faq') renderFaqTab();
+    if (name === 'about') renderFaqTab();
     if (name === 'learning') renderLearningBrowse();
     if (name === 'analysis') renderAnalysisTab(profileState);
     if (name === 'matches') renderMatchesTab();
@@ -757,7 +759,7 @@ function renderOverviewTab(profile) {
             : {
                 icon: 'pi-chart-bar',
                 title: 'No profile loaded',
-                body: 'Enter a Chess.com username above and hit Review Profile to see your stats, or review a single game. You can browse Learning anytime.'
+                body: 'Enter a Chess.com username above and hit Review Profile to see your stats, or review a single game. You can browse Learn anytime.'
             });
         return;
     }
@@ -919,7 +921,6 @@ function paintAnalysisTab(profile) {
         if (surv) surv.innerHTML = '<div class="insight-empty">Building piece survival…</div>';
         const mates = document.getElementById('analysis-checkmates');
         if (mates) mates.innerHTML = '<div class="insight-empty">Building checkmate stats…</div>';
-        document.getElementById('analysis-move-stats').innerHTML = qualityRowsHtml(profile);
         return;
     }
 
@@ -927,7 +928,6 @@ function paintAnalysisTab(profile) {
     renderCoachInsights(profile, snap.insights);
     renderPieceSurvivalPanel(profile, snap.survival);
     renderCheckmateWithPanel(profile, snap.mates);
-    document.getElementById('analysis-move-stats').innerHTML = snap.moveStatsHtml || qualityRowsHtml(profile);
 }
 
 function renderAnalysisTab(profile) {
@@ -936,12 +936,12 @@ function renderAnalysisTab(profile) {
             ? {
                 icon: 'pi-hourglass',
                 title: 'Nothing to dig into yet',
-                body: "Once a few games are analyzed, you'll see player tendencies, coach notes by phase, and move stats."
+                body: "Once a few games are analyzed, you'll see player tendencies, coach notes by phase, and piece patterns."
             }
             : {
                 icon: 'pi-chart-line',
-                title: 'Analysis needs a profile',
-                body: "Player tendencies, coach notes, opening trends, and deeper move stats show up after you've analyzed some Chess.com games."
+                title: 'Insights need a profile',
+                body: "Player tendencies, coach notes, opening trends, and piece patterns show up after you've analyzed some Chess.com games."
             });
         return;
     }
@@ -1091,13 +1091,24 @@ function renderPlayerMoveHeatmap(profile, heatData) {
 
 function renderFaqTab() {
     const el = document.getElementById('faq-content');
-    if (el.dataset.ready === '1') return;
+    if (!el) return;
+    const openingCount = (ACTIVE_OPENING_BOOK || []).length;
+    const famousCount = (ACTIVE_FAMOUS_GAMES || []).length || (INTERNAL_FAMOUS_GAMES || []).length;
+    const bookSrc = openingBookSource === 'external' ? 'openings.json' : 'internal fallback';
+    const famSrc = famousGamesSource === 'external' ? 'famous-games.json' : 'internal fallback';
     el.innerHTML = `
+        <h2 class="about-title" style="margin:0 0 4px">About Analyze Chess</h2>
+        <p class="faq-def" style="margin-bottom:12px">Everything runs in your browser — Stockfish, cache, and Insights. Below is how move labels and material events are decided.</p>
+        <div class="about-coverage mb-3">
+            <div class="about-coverage-line"><strong>${openingCount.toLocaleString()}</strong> openings loaded (${bookSrc})</div>
+            <div class="about-coverage-line"><strong>${famousCount.toLocaleString()}</strong> famous games loaded (${famSrc})</div>
+            <div class="about-coverage-note">Book = continuous prefix from move one in our catalog (FEN and/or move-list). Leaving the line ends Book even if a later position exists elsewhere. Theory is a separate famous-game match (≥12 plies), not the same as Book.</div>
+        </div>
         <h3 style="margin:0 0 8px">How we classify your moves</h3>
-        <p class="faq-def" style="margin-bottom:12px">Labels use Stockfish at depth ${ENGINE_DEPTH}. Centipawn loss is measured from your side, then we ignore the first ${EVAL_NOISE_FLOOR_CP}cp of noise before banding.</p>
+        <p class="faq-def" style="margin-bottom:12px">Profile scans use Stockfish at depth ${ENGINE_DEPTH}. Open a game and use <strong>Deepen analysis</strong> for depth ${REVIEW_ENGINE_DEPTH} with MultiPV ${REVIEW_MULTIPV}. Centipawn loss is measured from your side, then we ignore the first ${EVAL_NOISE_FLOOR_CP}cp of noise before banding.</p>
         ${[
-            ['Theory', 'Your move matches a famous game line from famous-games.json (at least 12 plies of SAN continuity from move one).'],
-            ['Book', 'Still inside our opening book (FEN / move-list), and not already tagged Theory.'],
+            ['Theory', 'Your move matches a famous game line (at least 12 plies of SAN continuity from move one).'],
+            ['Book', 'Still inside our opening book (continuous FEN / move-list prefix), and not already tagged Theory.'],
             ['Best', 'You played the engine top move, OR post-noise eval loss ≤ 0.50 pawns.'],
             ['Good', 'Post-noise eval loss ≤ 1.20 pawns (slight pull, still healthy).'],
             ['Okay', 'Post-noise eval loss ≤ 2.00 pawns. Also the cap when the engine sample is marked unreliable (never Mistake/Blunder then).'],
@@ -1111,6 +1122,7 @@ function renderFaqTab() {
             </div>
         `).join('')}
         <h3 style="margin:18px 0 8px">Material events (from our code)</h3>
+        <p class="faq-def" style="margin-bottom:12px"><strong>Limits:</strong> material events use a 6-ply continuation from the actual game (not a full engine search). Hang/sac can miss quiet compensation. Labels refresh on new analysis or when you deepen a review.</p>
         <div class="faq-item">
             <div class="faq-term">Take / capture</div>
             <div class="faq-def">You captured a piece and, after a short lookahead of the next few moves, the material balance is still in your favour (sequence net &gt; 0). We may phrase it as “Took the …” or “Won the …”.</div>
@@ -1123,21 +1135,20 @@ function renderFaqTab() {
         </div>
         <div class="faq-item">
             <div class="faq-term">Hang</div>
-            <div class="faq-def">After your move, one of your pieces (usually the highest-value newly hanging piece) is en prise and was not hanging before. We treat it as a hang if the opponent takes it in the lookahead, or the move is already Miss/Mistake/Blunder, or the offer is not compensated.</div>
-            <div class="faq-code">primaryHang && (hangTaken || isNegative || !compensated) → kind: 'hang'</div>
+            <div class="faq-def">A newly hanging piece (knight or heavier, or any piece the opponent actually takes in the lookahead) after your move. Uncompensated hanging pawns with no take are ignored to cut false positives.</div>
+            <div class="faq-code">primaryHang && (hangTaken || (isNegative && offeredValue ≥ 3)) → kind: 'hang'</div>
         </div>
         <div class="faq-item">
             <div class="faq-term">Sacrifice</div>
-            <div class="faq-def">You appear to offer material (hanging a piece, or moving onto a square that gets taken, or capturing down in value while leaving your piece hanging), but the sequence is compensated (lookahead net recovers) or the eval still supports it, and the move is not labelled Miss/Mistake/Blunder.</div>
-            <div class="faq-code">looksLikeOffer && (compensated || evalSupportsSac) && !isNegative → kind: 'sacrifice'</div>
+            <div class="faq-def">You offer a knight-or-heavier piece and the short sequence recovers the material (or better), with a healthy/eval-supported label — not Miss/Mistake/Blunder.</div>
+            <div class="faq-code">looksLikeOffer && offeredValue ≥ 3 && compensated && evalSupportsSac && !isNegative → kind: 'sacrifice'</div>
         </div>
         <div class="faq-item">
             <div class="faq-term">Missed capture</div>
-            <div class="faq-def">The engine’s best move would take a hanging opponent piece on a different square than what you played.</div>
+            <div class="faq-def">The engine’s best move would take a hanging opponent piece on a different square than what you played (engine best ≠ your move).</div>
             <div class="faq-code">best move captures hanging opponent piece you ignored → kind: 'missed_capture'</div>
         </div>
     `;
-    el.dataset.ready = '1';
 }
 
 function refreshDashboard() {
@@ -1250,6 +1261,24 @@ function renderGameItem(game, analysis) {
     list.appendChild(card);
 }
 
+function updateReviewDepthBadge(analysis) {
+    const badge = document.getElementById('review-depth-badge');
+    const btn = document.getElementById('btn-deepen');
+    if (!badge) return;
+    const depth = analysis?.engineDepth || ENGINE_DEPTH;
+    const deepened = depth >= REVIEW_ENGINE_DEPTH;
+    badge.textContent = deepened
+        ? `Deepened to depth ${depth}`
+        : `Analyzed at depth ${depth}`;
+    badge.classList.toggle('is-deep', deepened);
+    if (btn && !isDeepening) {
+        btn.disabled = deepened || !enginesReady;
+        btn.title = deepened
+            ? `Already analyzed at depth ${depth}`
+            : `Re-analyze this game at depth ${REVIEW_ENGINE_DEPTH}`;
+    }
+}
+
 function openReview(analysis) {
     if (!analysis.gameStory) finalizeAnalysis(analysis);
     attachGamePlayers(analysis, null, analysis.username || profileState?.username);
@@ -1261,6 +1290,9 @@ function openReview(analysis) {
 
     const matchupEl = document.getElementById('review-matchup');
     if (matchupEl) matchupEl.innerText = gameMatchupTitle(analysis);
+    updateReviewDepthBadge(analysis);
+    const deepenStatus = document.getElementById('review-deepen-status');
+    if (deepenStatus && !isDeepening) deepenStatus.textContent = '';
 
     const evalBar = document.getElementById('eval-bar');
     evalBar.classList.toggle('player-white', !!analysis.isWhite);
@@ -1499,7 +1531,7 @@ function assignMovePhases(analysis) {
 }
 
 /**
- * Precompute Analysis-tab inputs (phases, heat targets, piece survival, mate piece)
+ * Precompute Insights-tab inputs (phases, heat targets, piece survival, mate piece)
  * so opening the tab does not replay PGNs or walk every game cold.
  */
 function enrichAnalysisMeta(analysis) {
@@ -1761,6 +1793,34 @@ function goToMove(idx) {
     });
 }
 
+/** Best-effort UCI → SAN using the position before the reviewed move. */
+function uciToSanNearMove(move, uci) {
+    if (!uci || uci.length < 4) return null;
+    try {
+        const afterFen = move?.fen;
+        if (!afterFen) return null;
+        // Rebuild prior FEN by undoing is awkward; probe from game PGN up to this move
+        const g = currentReviewGame;
+        if (!g?.pgn || g.moves?.indexOf(move) < 0) {
+            // Fall back: apply UCI on a board one ply earlier via reverse from afterFen isn't reliable
+            return null;
+        }
+        const idx = g.moves.indexOf(move);
+        const chess = new Chess();
+        if (!chess.load_pgn(g.pgn)) return null;
+        const hist = chess.history({ verbose: true });
+        const probe = new Chess();
+        for (let i = 0; i < idx; i++) probe.move(hist[i]);
+        const from = uci.slice(0, 2);
+        const to = uci.slice(2, 4);
+        const promotion = uci.length > 4 ? uci[4] : undefined;
+        const mv = probe.move({ from, to, promotion });
+        return mv?.san || null;
+    } catch (_) {
+        return null;
+    }
+}
+
 function updateMoveCard(m) {
     const openingEl = document.getElementById('move-opening');
     const name = m.openingName || '';
@@ -1768,8 +1828,8 @@ function updateMoveCard(m) {
         openingEl.innerText = name;
         openingEl.classList.add('clickable');
         openingEl.title = m.classification?.label === 'Theory'
-            ? 'Open this famous game in Learning'
-            : 'Open this opening in Learning';
+            ? 'Open this famous game in Learn'
+            : 'Open this opening in Learn';
         openingEl.onclick = () => openLearningFromReview(name, m.classification?.label || '');
     } else {
         openingEl.innerText = '';
@@ -1787,7 +1847,26 @@ function updateMoveCard(m) {
     document.getElementById('move-badge').innerHTML = m.classification?.label
         ? `<span class="move-label ${m.classification.class}">${m.classification.label}</span>`
         : '';
-    
+
+    const altEl = document.getElementById('move-alt');
+    if (altEl) {
+        const playedUci = (m.from && m.to) ? (m.from + m.to).toLowerCase() : '';
+        const candidate = (m.altEngineMoves || []).find(a =>
+            a?.move && a.move.toLowerCase() !== playedUci
+        );
+        if (candidate?.move) {
+            const san = uciToSanNearMove(m, candidate.move) || candidate.move;
+            const scoreTxt = candidate.isMate
+                ? `mate ${candidate.scoreCp}`
+                : `${candidate.scoreCp >= 0 ? '+' : ''}${(candidate.scoreCp / 100).toFixed(1)}`;
+            altEl.style.display = '';
+            altEl.textContent = `Engine also liked ${san} (${scoreTxt} STM)`;
+        } else {
+            altEl.style.display = 'none';
+            altEl.textContent = '';
+        }
+    }
+
     // Fixed reviewed-player perspective for the whole game (left = that colour)
     const playerRelativeEval = playerEvalAt(currentReviewGame, m);
     const fillPercent = Math.min(100, Math.max(0, 50 + (playerRelativeEval / 20)));
@@ -1894,6 +1973,12 @@ function switchTab(t, el) {
 }
 
 function exitReview() {
+    if (isDeepening) {
+        isDeepening = false;
+        for (const engine of engines) {
+            try { engine.postMessage('stop'); } catch (_) {}
+        }
+    }
     document.getElementById('review-view').style.display = 'none';
     document.getElementById('dashboard').style.display = 'block';
     refreshDashboard();
