@@ -41,9 +41,13 @@ function compactAnalysisForCache(analysis) {
 function hydrateCachedAnalysis(analysis, pgn) {
     if (!analysis?.moves?.length) return analysis;
     const srcPgn = pgn || analysis.pgn;
+    if (srcPgn && !analysis.pgn) analysis.pgn = srcPgn;
+    // Backfill usernames / Chess.com ELOs for older cache entries
+    if (typeof attachGamePlayers === 'function') {
+        attachGamePlayers(analysis, null, analysis.username);
+    }
     const needsFen = analysis.moves.some(m => !m.fen);
-    if (!needsFen) return analysis;
-    if (!srcPgn) return analysis;
+    if (!needsFen || !srcPgn) return analysis;
     try {
         const chess = new Chess();
         if (!chess.load_pgn(srcPgn)) return analysis;
@@ -174,6 +178,7 @@ function loadAllCachedAnalyses(username) {
         if (!analysis) continue;
         seen.add(gameKey);
         if (!analysis.endTime && entry.endTime) analysis.endTime = entry.endTime;
+        if (!analysis.username) analysis.username = username;
         hydrateCachedAnalysis(analysis, analysis.pgn);
         analysis.qualityScore = analysis.qualityScore ?? gameQualityScore(analysis);
         loaded.push(analysis);

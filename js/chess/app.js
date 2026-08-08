@@ -108,6 +108,9 @@ function applyAnalysisToUi(game, analysis, gameKey, stats, opts = {}) {
         analysis.pgn = game.pgn || analysis.pgn || '';
         analysis.resultDetail = (analysis.isWhite ? game.white.result : game.black.result) || analysis.resultDetail || '';
         analysis.oppResultDetail = (analysis.isWhite ? game.black.result : game.white.result) || analysis.oppResultDetail || '';
+        attachGamePlayers(analysis, game, profileState?.username);
+    } else {
+        attachGamePlayers(analysis, null, analysis.username || profileState?.username);
     }
     analysis.qualityScore = gameQualityScore(analysis);
     hydrateCachedAnalysis(analysis, analysis.pgn);
@@ -167,6 +170,10 @@ async function openSingleGamePicker() {
                 isWhite,
                 result: normalizeResult(game, isWhite),
                 opponent: isWhite ? game.black.username : game.white.username,
+                whiteUsername: game.white.username,
+                blackUsername: game.black.username,
+                whiteRating: game.white.rating ?? null,
+                blackRating: game.black.rating ?? null,
                 endTime: game.end_time || 0
             };
         });
@@ -179,11 +186,12 @@ async function openSingleGamePicker() {
                 })
                 : '';
             const cached = hasCachedAnalysis(user, item.gameKey);
+            const title = gameMatchupTitle(item);
             return `
                 <button type="button" class="single-game-row" onclick="selectSingleGame(${i})">
                     <span class="single-game-result" style="color:${resultColor(item.result)}">${item.result}</span>
                     <span>
-                        <span class="single-game-opp">vs ${item.opponent}</span>
+                        <span class="single-game-opp">${title}</span>
                         <div class="single-game-meta">${when}${cached ? ' · cached' : ''}</div>
                     </span>
                     <span class="single-game-color">${item.isWhite ? 'White' : 'Black'}</span>
@@ -233,6 +241,7 @@ async function selectSingleGame(index) {
             analysis.pgn = item.game.pgn || analysis.pgn || '';
             analysis.resultDetail = (analysis.isWhite ? item.game.white.result : item.game.black.result) || analysis.resultDetail || '';
             analysis.oppResultDetail = (analysis.isWhite ? item.game.black.result : item.game.white.result) || analysis.oppResultDetail || '';
+            attachGamePlayers(analysis, item.game, user);
             analysis.qualityScore = analysis.qualityScore ?? gameQualityScore(analysis);
         } else {
             isScanning = true;

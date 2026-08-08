@@ -306,20 +306,19 @@ function gameQualityScore(analysis) {
     return sum / moves.length;
 }
 
-/** Per-move accuracy 0–100 from eval loss / classification (Chess.com-ish). */
+/** Per-move accuracy 0–100 from eval loss / classification. Book/Theory excluded upstream. */
 function moveAccuracyScore(move) {
     const label = move?.classification?.label;
-    if (!label) return null;
-    if (label === 'Book' || label === 'Theory') return 100;
+    if (!label || label === 'Book' || label === 'Theory') return null;
     if (move.evalDeltaCp != null && Number.isFinite(move.evalDeltaCp)) {
         const pawns = Math.max(0, move.evalDeltaCp) / 100;
-        // Smooth decay: 0cp→100, 0.5→~90, 1→~80, 2→~65, 4→~45, 8→~20
-        return Math.max(0, Math.min(100, 100 * Math.exp(-0.22 * pawns)));
+        // Harsh decay: 0→100, 0.5→~76, 1→~58, 2→~33, 4→~11
+        return Math.max(0, Math.min(100, 100 * Math.exp(-0.55 * pawns)));
     }
     const byLabel = {
-        Best: 100, Good: 90, Okay: 75, Miss: 45, Mistake: 25, Blunder: 0
+        Best: 100, Good: 78, Okay: 52, Miss: 22, Mistake: 8, Blunder: 0
     };
-    return byLabel[label] ?? 60;
+    return byLabel[label] ?? 45;
 }
 
 function sideMoveStats(analysis, forPlayer) {
@@ -329,7 +328,6 @@ function sideMoveStats(analysis, forPlayer) {
     const counts = {};
     for (const q of MOVE_QUALITY_ORDER) counts[q.label] = 0;
     let accSum = 0;
-    let accN = 0;
     let ratedN = 0;
     for (const m of moves) {
         const label = m.classification.label;
@@ -337,21 +335,43 @@ function sideMoveStats(analysis, forPlayer) {
         else counts[label] = (counts[label] || 0) + 1;
         const score = moveAccuracyScore(m);
         if (score == null) continue;
-        // Book/Theory pad accuracy; exclude from "rated" count used in Game ELO note
         accSum += score;
-        accN += 1;
-        if (label !== 'Book' && label !== 'Theory') ratedN += 1;
+        ratedN += 1;
     }
-    const accuracy = accN ? Math.round((accSum / accN) * 10) / 10 : null;
-    return { moves, counts, total: moves.length, ratedN, accuracy, gameElo: accuracyToGameElo(accuracy) };
+    const accuracy = ratedN ? Math.round((accSum / ratedN) * 10) / 10 : null;
+    return {
+        moves,
+        counts,
+        total: moves.length,
+        ratedN,
+        accuracy,
+        gameElo: estimateGameElo(accuracy, counts, ratedN)
+    };
 }
 
-/** Rough performance rating from a single-game accuracy %. */
-function accuracyToGameElo(accuracy) {
-    if (accuracy == null || !Number.isFinite(accuracy)) return null;
+/**
+ * Rough single-game performance rating.
+ * Tuned so ~82% accuracy with blunders lands near club-novice, not mid-1500s.
+ */
+function estimateGameElo(accuracy, counts, ratedN) {
+    if (accuracy == null || !Number.isFinite(accuracy) || !ratedN) return null;
     const a = Math.max(0, Math.min(100, accuracy)) / 100;
-    // ~70%→1200, 80%→1550, 90%→2000, 95%→2300
-    return Math.round(200 + 2400 * Math.pow(a, 2.8));
+    // ~70%→~550, 80%→~920, 85%→~1150, 90%→~1450, 95%→~1900, 98%→~2250
+    let elo = 80 + 2150 * Math.pow(a, 4.5);
+
+    const best = counts.Best || 0;
+    const blunders = counts.Blunder || 0;
+    const mistakes = counts.Mistake || 0;
+    const misses = counts.Miss || 0;
+    const bestRate = best / ratedN;
+    const badWeight = (blunders * 1.6 + mistakes + misses * 0.45) / ratedN;
+
+    elo += (bestRate - 0.55) * 280;
+    elo -= badWeight * 850;
+    // Extra hit when multiple blunders appear in a short game
+    if (blunders >= 2) elo -= 60 + (blunders - 2) * 35;
+
+    return Math.round(Math.max(200, Math.min(2700, elo)));
 }
 
 function pct(n, d) {
@@ -386,6 +406,28 @@ function outcomeReason(analysis) {
     if (analysis.gameStory?.headline) return analysis.gameStory.headline;
     if (analysis.resultDetail) return chessComResultLabel(analysis.resultDetail);
     return analysis.result || '—';
+}
+
+function formatPlayerWithElo(name, rating) {
+    const n = name || '?';
+    return rating != null && rating !== '' && !Number.isNaN(Number(rating))
+        ? `${n} (${Number(rating)})`
+        : n;
+}
+
+/** Always white first: "liamht (1946) vs Opp (2000)". */
+function gameMatchupTitle(analysis) {
+    if (!analysis) return 'Unknown game';
+    if (typeof attachGamePlayers === 'function') {
+        attachGamePlayers(analysis, analysis.game || null, analysis.username || profileState?.username);
+    }
+    const white = analysis.whiteUsername
+        || (analysis.isWhite ? (analysis.username || profileState?.username) : analysis.opponent)
+        || 'White';
+    const black = analysis.blackUsername
+        || (!analysis.isWhite ? (analysis.username || profileState?.username) : analysis.opponent)
+        || 'Black';
+    return `${formatPlayerWithElo(white, analysis.whiteRating)} vs ${formatPlayerWithElo(black, analysis.blackRating)}`;
 }
 
 function focusUsernameInput() {
@@ -603,7 +645,7 @@ function renderOverviewTab(profile) {
                     <div class="mini-result" style="color:${resultColor(g.result)}">${g.result}</div>
                     <div class="mini-color">${g.isWhite ? 'White' : 'Black'}</div>
                     <div class="mini-body">
-                        <div class="mini-opp">vs ${g.opponent}</div>
+                        <div class="mini-opp">${gameMatchupTitle(g)}</div>
                         <div class="mini-reason">${outcomeReason(g)}${g.resultDetail ? ' · ' + chessComResultLabel(g.resultDetail) : ''}</div>
                     </div>
                 </div>
@@ -623,14 +665,14 @@ function renderOverviewTab(profile) {
         <div class="p-card p-component bw-card best" onclick="openReviewFromStore('${escAttr(best.g.gameKey)}')">
             <div class="p-card-body">
                 <div class="bw-kicker">Best game · score ${best.score.toFixed(2)}</div>
-                <div class="bw-title">vs ${best.g.opponent} · ${best.g.result}</div>
+                <div class="bw-title">${gameMatchupTitle(best.g)} · ${best.g.result}</div>
                 <div class="bw-meta">${best.g.isWhite ? 'White' : 'Black'} · ${best.g.openingName || 'Unknown opening'}<br>${outcomeReason(best.g)}</div>
             </div>
         </div>
         <div class="p-card p-component bw-card worst" onclick="openReviewFromStore('${escAttr(worst.g.gameKey)}')">
             <div class="p-card-body">
                 <div class="bw-kicker">Worst game · score ${worst.score.toFixed(2)}</div>
-                <div class="bw-title">vs ${worst.g.opponent} · ${worst.g.result}</div>
+                <div class="bw-title">${gameMatchupTitle(worst.g)} · ${worst.g.result}</div>
                 <div class="bw-meta">${worst.g.isWhite ? 'White' : 'Black'} · ${worst.g.openingName || 'Unknown opening'}<br>${outcomeReason(worst.g)}</div>
             </div>
         </div>
@@ -777,7 +819,7 @@ function renderAnalysisTab(profile) {
             const title = LOSS_REASON_LABELS[key] || key.replace(/_/g, ' ');
             const examples = games.slice(0, 4).map(g => `
                 <div class="loss-example" onclick="openReviewFromStore('${escAttr(g.gameKey)}')">
-                    vs ${g.opponent} (${g.isWhite ? 'White' : 'Black'}) — ${outcomeReason(g)}
+                    ${gameMatchupTitle(g)} — ${outcomeReason(g)}
                 </div>
             `).join('');
             return `
@@ -1004,7 +1046,7 @@ function renderGameItem(game, analysis) {
     }
     card.innerHTML = `
         <div class="p-card-body" style="text-align:left">
-            <div class="font-bold text-lg">vs ${analysis.opponent}</div>
+            <div class="font-bold text-lg game-matchup-title">${gameMatchupTitle(analysis)}</div>
             <div class="text-primary text-sm mb-2">${analysis.openingName || ''}</div>
             <div class="flex justify-content-between align-items-center">
                 <span class="text-color-secondary text-sm">${analysis.isWhite ? 'White' : 'Black'} · ${analysis.moves.length} moves</span>
@@ -1019,11 +1061,15 @@ function renderGameItem(game, analysis) {
 
 function openReview(analysis) {
     if (!analysis.gameStory) finalizeAnalysis(analysis);
+    attachGamePlayers(analysis, null, analysis.username || profileState?.username);
     currentReviewGame = analysis;
     document.getElementById('dashboard').style.display = 'none';
     document.getElementById('review-view').style.display = 'grid';
     const listUi = document.getElementById('moves-tab');
     listUi.innerHTML = '';
+
+    const matchupEl = document.getElementById('review-matchup');
+    if (matchupEl) matchupEl.innerText = gameMatchupTitle(analysis);
 
     const evalBar = document.getElementById('eval-bar');
     evalBar.classList.toggle('player-white', !!analysis.isWhite);
@@ -1162,6 +1208,23 @@ function renderEvalLineGraph(analysis) {
     graphUi.title = `${side} perspective · + is better for ${side.toLowerCase()} · click a point to jump`;
 }
 
+function moveGroupRowsHtml(stats) {
+    if (!stats.total) return '<div class="insight-empty">No classified moves.</div>';
+    const rows = MOVE_QUALITY_ORDER.map(q => {
+        const count = stats.counts[q.label] || 0;
+        if (!count) return '';
+        const p = Math.round((count / stats.total) * 1000) / 10;
+        return `
+            <div class="quality-row compact" title="${q.label}: ${count}">
+                <div class="quality-label" style="color:${q.color}">${q.label}</div>
+                <div class="quality-track"><div class="quality-fill" style="width:${Math.max(p, 2)}%;background:${q.color}"></div></div>
+                <div class="quality-pct">${count}<span class="quality-pct-sub">${p}%</span></div>
+            </div>
+        `;
+    }).join('');
+    return rows || '<div class="insight-empty">No classified moves.</div>';
+}
+
 function renderReviewStats(analysis) {
     const el = document.getElementById('stats-tab');
     if (!el) return;
@@ -1171,42 +1234,33 @@ function renderReviewStats(analysis) {
     const youName = analysis.isWhite ? 'You (White)' : 'You (Black)';
     const oppName = `Opponent (${analysis.isWhite ? 'Black' : 'White'})`;
 
-    const groupRows = MOVE_QUALITY_ORDER.map(q => {
-        const count = you.counts[q.label] || 0;
-        if (!count) return '';
-        const p = you.total ? Math.round((count / you.total) * 1000) / 10 : 0;
-        return `
-            <div class="quality-row" title="${q.label}: ${count}">
-                <div class="quality-label" style="color:${q.color}">${q.label}</div>
-                <div class="quality-track"><div class="quality-fill" style="width:${Math.max(p, 2)}%;background:${q.color}"></div></div>
-                <div class="quality-pct">${count} · ${p}%</div>
-            </div>
-        `;
-    }).join('');
+    const chessComYou = analysis.isWhite ? analysis.whiteRating : analysis.blackRating;
+    const chessComOpp = analysis.isWhite ? analysis.blackRating : analysis.whiteRating;
 
-    const eloCard = (label, stats) => `
+    const eloCard = (label, stats, chessComElo) => `
         <div class="game-elo-card">
             <div class="game-elo-kicker">${label}</div>
             <div class="game-elo-value">${stats.gameElo != null ? stats.gameElo : '—'}</div>
             <div class="game-elo-meta">
+                ${chessComElo != null ? `Chess.com ${chessComElo} · ` : ''}
                 ${stats.accuracy != null ? `${stats.accuracy}% accuracy` : 'No rated moves'}
-                · ${stats.total} move${stats.total === 1 ? '' : 's'}
+                · ${stats.ratedN}/${stats.total} rated moves
+            </div>
+            <div class="game-elo-groups">
+                <div class="game-elo-groups-title">Moves by group</div>
+                ${moveGroupRowsHtml(stats)}
             </div>
         </div>
     `;
 
     el.innerHTML = `
         <div class="review-stats">
-            <div class="review-stats-title">Game ELO</div>
+            <div class="review-stats-title">Game ELO &amp; move breakdown</div>
             <div class="game-elo-row">
-                ${eloCard(youName, you)}
-                ${eloCard(oppName, opp)}
+                ${eloCard(youName, you, chessComYou)}
+                ${eloCard(oppName, opp, chessComOpp)}
             </div>
-            <div class="review-stats-title">Your moves by group</div>
-            ${you.total
-                ? `<div class="quality-meta">${you.total} of your moves this game</div>${groupRows}`
-                : '<div class="insight-empty">No classified moves for you in this game.</div>'}
-            <div class="review-stats-note">Game ELO is a rough performance guess from move accuracy in this game only — not your Chess.com rating.</div>
+            <div class="review-stats-note">Game ELO is a rough performance guess from rated (non-book) moves this game — not your Chess.com rating. Blunders and low best-move rate pull it down hard.</div>
         </div>
     `;
 }

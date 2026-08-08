@@ -5,11 +5,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Analyze Chess</title>
     <meta name="description" content="Load your chess.com profile or game to get a customised engine, with all processing done client side within the browser! Shows match analysis over the last 100 games played, as well as theory and opening analysis and deeper learning. Read the FAQ's for more info.">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeng@17.18.15/resources/themes/lara-dark-blue/theme.css">
+    <meta name="color-scheme" content="light dark">
+    <script>
+    (function () {
+        var base = 'https://cdn.jsdelivr.net/npm/primeng@17.18.15/resources/themes/';
+        var light = base + 'md-light-indigo/theme.css';
+        var dark = base + 'md-dark-indigo/theme.css';
+        var link = document.createElement('link');
+        link.id = 'pf-theme';
+        link.rel = 'stylesheet';
+        var mq = window.matchMedia('(prefers-color-scheme: dark)');
+        function apply(isDark) {
+            link.href = isDark ? dark : light;
+            document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
+            document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
+        }
+        apply(mq.matches);
+        document.head.appendChild(link);
+        if (mq.addEventListener) mq.addEventListener('change', function (e) { apply(e.matches); });
+        else if (mq.addListener) mq.addListener(function (e) { apply(e.matches); });
+    })();
+    </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeng@17.18.15/resources/primeng.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeicons@7.0.0/primeicons.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeflex@3.3.1/primeflex.min.css">
-    <link rel="stylesheet" href="chess.css?v=20260808j">
+    <link rel="stylesheet" href="chess.css?v=20260808m">
 </head>
 <body>
 <div class="app-shell">
@@ -267,6 +287,8 @@
                 <span class="p-button-label">Back to profile</span>
             </button>
 
+            <div id="review-matchup" class="review-matchup mb-3"></div>
+
             <div id="game-story-box" class="p-card game-story mb-3" style="display:none">
                 <div class="p-card-body">
                     <div class="game-story-kicker" id="game-story-kicker">Why you won</div>
@@ -360,13 +382,13 @@
     </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
-<script src="js/chess/constants.js?v=20260808j"></script>
-<script src="js/chess/tactics.js?v=20260808j"></script>
-<script src="js/chess/openings.js?v=20260808j"></script>
-<script src="js/chess/learning.js?v=20260808j"></script>
-<script src="js/chess/cache.js?v=20260808j"></script>
-<script src="js/chess/analysis.js?v=20260808j"></script>
-<script src="js/chess/ui.js?v=20260808j"></script>
-<script src="js/chess/app.js?v=20260808j"></script>
+<script src="js/chess/constants.js?v=20260808m"></script>
+<script src="js/chess/tactics.js?v=20260808m"></script>
+<script src="js/chess/openings.js?v=20260808m"></script>
+<script src="js/chess/learning.js?v=20260808m"></script>
+<script src="js/chess/cache.js?v=20260808m"></script>
+<script src="js/chess/analysis.js?v=20260808m"></script>
+<script src="js/chess/ui.js?v=20260808m"></script>
+<script src="js/chess/app.js?v=20260808m"></script>
 </body>
 </html>

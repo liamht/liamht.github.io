@@ -122,10 +122,11 @@
 html, body {
     margin: 0;
     min-height: 100%;
-    background: var(--surface-ground, #0b1220);
-    color: var(--text-color, #e2e8f0);
+    background: var(--surface-ground);
+    color: var(--text-color);
     font-family: var(--font-family);
     overflow-x: hidden;
+    color-scheme: light dark;
 }
 
 .app-shell {
@@ -271,13 +272,17 @@ html, body {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0.75rem;
-    margin-bottom: 1.25rem;
+    margin-bottom: 0.5rem;
+    align-items: stretch;
 }
 .game-elo-card {
     border: 1px solid var(--surface-border, #334155);
     border-radius: var(--border-radius, 6px);
     padding: 0.85rem 0.9rem;
     background: color-mix(in srgb, var(--surface-ground, #111827) 55%, transparent);
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
 }
 .game-elo-kicker {
     font-size: 0.7rem;
@@ -294,9 +299,41 @@ html, body {
 }
 .game-elo-meta {
     margin-top: 0.35rem;
-    font-size: 0.78rem;
+    font-size: 0.75rem;
     color: var(--text-color-secondary);
     line-height: 1.35;
+}
+.game-elo-groups {
+    margin-top: 0.85rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--surface-border, #334155);
+    flex: 1;
+}
+.game-elo-groups-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-color-secondary);
+    margin-bottom: 0.45rem;
+}
+.quality-row.compact {
+    grid-template-columns: 52px 1fr 42px;
+    gap: 0.35rem;
+    padding: 0.2rem 0;
+}
+.quality-row.compact .quality-label { font-size: 0.65rem; }
+.quality-row.compact .quality-pct {
+    font-size: 0.68rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1.15;
+}
+.quality-pct-sub {
+    font-weight: 600;
+    color: var(--text-color-secondary);
+    font-size: 0.6rem;
 }
 .review-stats-title {
     font-size: 0.85rem;
@@ -309,7 +346,7 @@ html, body {
     color: var(--text-color-secondary);
     line-height: 1.4;
 }
-@media (max-width: 480px) {
+@media (max-width: 640px) {
     .game-elo-row { grid-template-columns: 1fr; }
 }
 
@@ -321,6 +358,16 @@ html, body {
     cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
 }
 
+.review-matchup {
+    font-size: 1.15rem;
+    font-weight: 800;
+    line-height: 1.35;
+    letter-spacing: -0.01em;
+}
+.game-matchup-title {
+    line-height: 1.35;
+    word-break: break-word;
+}
 .game-story { border-left: 3px solid var(--primary-color); }
 .game-story.win { border-left-color: var(--success); }
 .game-story.loss { border-left-color: var(--accent); }

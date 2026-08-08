@@ -363,8 +363,11 @@ async function analyzeGame(game, user, engine, onMove) {
         });
     }
 
-    return finalizeAnalysis({ 
-        moves: moveData, isWhite, opponent: isWhite ? game.black.username : game.white.username, 
+    return finalizeAnalysis(attachGamePlayers({
+        moves: moveData,
+        isWhite,
+        username: user,
+        opponent: isWhite ? game.black.username : game.white.username,
         result: normalizeResult(game, isWhite),
         resultDetail: isWhite ? game.white.result : game.black.result,
         oppResultDetail: isWhite ? game.black.result : game.white.result,
@@ -374,7 +377,57 @@ async function analyzeGame(game, user, engine, onMove) {
         openingName: theoryMatch.name || openingMatch.name,
         moveThemes: [...new Set(moveThemes)],
         moveThemeCounts
-    });
+    }, game, user));
+}
+
+function pgnHeaderTag(pgn, tag) {
+    if (!pgn) return null;
+    const re = new RegExp('\\[' + tag + '\\s+"([^"]*)"\\]', 'i');
+    const m = String(pgn).match(re);
+    return m ? m[1] : null;
+}
+
+/** Attach Chess.com white/black usernames + ratings (API first, PGN headers as fallback). */
+function attachGamePlayers(analysis, game, user) {
+    if (!analysis) return analysis;
+    if (user) analysis.username = user;
+    if (game?.white) {
+        if (game.white.username) analysis.whiteUsername = game.white.username;
+        if (game.white.rating != null && game.white.rating !== '') {
+            analysis.whiteRating = Number(game.white.rating);
+        }
+    }
+    if (game?.black) {
+        if (game.black.username) analysis.blackUsername = game.black.username;
+        if (game.black.rating != null && game.black.rating !== '') {
+            analysis.blackRating = Number(game.black.rating);
+        }
+    }
+    const pgn = game?.pgn || analysis.pgn || '';
+    if (!analysis.whiteUsername) analysis.whiteUsername = pgnHeaderTag(pgn, 'White');
+    if (!analysis.blackUsername) analysis.blackUsername = pgnHeaderTag(pgn, 'Black');
+    if (analysis.whiteRating == null || Number.isNaN(analysis.whiteRating)) {
+        const elo = pgnHeaderTag(pgn, 'WhiteElo');
+        if (elo && !Number.isNaN(Number(elo))) analysis.whiteRating = Number(elo);
+    }
+    if (analysis.blackRating == null || Number.isNaN(analysis.blackRating)) {
+        const elo = pgnHeaderTag(pgn, 'BlackElo');
+        if (elo && !Number.isNaN(Number(elo))) analysis.blackRating = Number(elo);
+    }
+
+    const you = analysis.username || user || null;
+    if (you && analysis.opponent) {
+        if (analysis.isWhite) {
+            analysis.whiteUsername = analysis.whiteUsername || you;
+            analysis.blackUsername = analysis.blackUsername || analysis.opponent;
+        } else {
+            analysis.blackUsername = analysis.blackUsername || you;
+            analysis.whiteUsername = analysis.whiteUsername || analysis.opponent;
+        }
+    }
+    if (Number.isNaN(analysis.whiteRating)) analysis.whiteRating = null;
+    if (Number.isNaN(analysis.blackRating)) analysis.blackRating = null;
+    return analysis;
 }
 
 function normalizeResult(game, isWhite) {
