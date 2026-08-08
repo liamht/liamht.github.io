@@ -221,21 +221,39 @@ async function selectSingleGame(index) {
     singleGameBusy = true;
     const status = document.getElementById('single-game-status');
     const list = document.getElementById('single-game-list');
-    status.innerText = 'Analysing game…';
+    const progressText = document.getElementById('progress-text');
+    const matchup = gameMatchupTitle({
+        whiteUsername: item.whiteUsername,
+        blackUsername: item.blackUsername,
+        whiteRating: item.whiteRating,
+        blackRating: item.blackRating,
+        isWhite: item.isWhite,
+        opponent: item.opponent,
+        username: user
+    });
+    const setSingleProgress = (pct, curr, total) => {
+        const safePct = Math.max(0, Math.min(100, Math.round(pct)));
+        const moveBit = total ? ` · ${curr}/${total} moves` : '';
+        status.innerText = `Analysing game… ${safePct}%${moveBit}`;
+        progressText.innerText = `Analysing ${matchup}… ${safePct}%${moveBit}`;
+        document.getElementById('prog-val-moves').innerText = total ? `${curr} / ${total}` : '0 / 0';
+        document.getElementById('progress-fill').style.width = `${safePct}%`;
+    };
+    status.innerText = 'Analysing game… 0%';
     list.querySelectorAll('.single-game-row').forEach(btn => { btn.disabled = true; });
 
     document.getElementById('progress-box').style.display = 'block';
-    document.getElementById('progress-text').innerText = `Analysing vs ${item.opponent}…`;
     document.getElementById('prog-val-games').innerText = '1 / 1';
-    document.getElementById('prog-val-moves').innerText = '0 / 0';
-    document.getElementById('progress-fill').style.width = '0%';
+    setSingleProgress(0, 0, 0);
     setScanButtonsBusy(true);
 
     try {
         let analysis = loadCachedAnalysis(user, item.gameKey);
         if (analysis) {
             log(`Single game loaded from cache: vs ${item.opponent}`);
-            document.getElementById('progress-fill').style.width = '100%';
+            setSingleProgress(100, 0, 0);
+            status.innerText = 'Loaded from cache… 100%';
+            progressText.innerText = `Loaded ${matchup} from cache… 100%`;
             hydrateCachedAnalysis(analysis, item.game.pgn || analysis.pgn);
             analysis.endTime = item.endTime || analysis.endTime || 0;
             analysis.pgn = item.game.pgn || analysis.pgn || '';
@@ -247,11 +265,12 @@ async function selectSingleGame(index) {
             isScanning = true;
             const engine = engines[0];
             analysis = await analyzeGame(item.game, user, engine, (curr, total) => {
-                document.getElementById('prog-val-moves').innerText = `${curr}/${total}`;
-                document.getElementById('progress-fill').style.width = `${Math.round((curr / Math.max(total, 1)) * 100)}%`;
+                const pct = (curr / Math.max(total, 1)) * 100;
+                setSingleProgress(pct, curr, total);
             });
             isScanning = false;
             if (!analysis) throw new Error('Analysis stopped or failed');
+            setSingleProgress(100, analysis.moves?.length || 0, analysis.moves?.length || 0);
             saveCachedAnalysis(user, item.gameKey, analysis);
             log(`Single game analysed: vs ${item.opponent}`);
         }

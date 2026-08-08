@@ -756,12 +756,12 @@ function renderAnalysisTab(profile) {
             ? {
                 icon: 'pi-hourglass',
                 title: 'Nothing to dig into yet',
-                body: "Once a few games are analyzed, you'll see player tendencies, move stats, loss reasons, and notable tactics."
+                body: "Once a few games are analyzed, you'll see player tendencies, coach notes by phase, and move stats."
             }
             : {
                 icon: 'pi-chart-line',
                 title: 'Analysis needs a profile',
-                body: "Player tendencies, opening trends, deeper move stats, loss reasons, and tactics show up after you've analyzed some Chess.com games."
+                body: "Player tendencies, coach notes, opening trends, and deeper move stats show up after you've analyzed some Chess.com games."
             });
         return;
     }
@@ -780,59 +780,8 @@ function renderAnalysisTab(profile) {
         true
     );
     renderPlayerMoveHeatmap(profile);
-
+    renderCoachInsights(profile);
     document.getElementById('analysis-move-stats').innerHTML = qualityRowsHtml(profile);
-
-    const total = profile.playerMoves || 0;
-    const tacticsEl = document.getElementById('analysis-tactics');
-    const tacticLines = Object.entries(profile.themeHits || {})
-        .filter(([, hits]) => hits > 0)
-        .map(([id, hits]) => {
-            const p = total ? Math.round((hits / total) * 1000) / 10 : 0;
-            return { id, hits, pct: p, polarity: THEME_CATALOG[id]?.polarity || 'bad', label: id.replace(/_/g, ' ') };
-        })
-        .sort((a, b) => b.pct - a.pct);
-    if (!tacticLines.length) {
-        tacticsEl.innerHTML = '<div class="insight-empty">Notable tactics will appear after more games.</div>';
-    } else {
-        tacticsEl.innerHTML = tacticLines.map(t => `
-            <div class="quality-tactic-line">
-                ${t.label} — <strong>${t.pct}%</strong> of your moves
-                <span>(${t.hits}× · ${t.polarity === 'good' ? 'strength' : 'leak'})</span>
-            </div>
-        `).join('');
-    }
-
-    const losses = profile.analyzedGames.filter(g => g.result === 'LOSS');
-    const groups = {};
-    for (const g of losses) {
-        const key = lossReasonKey(g) || 'unclassified';
-        if (!groups[key]) groups[key] = [];
-        groups[key].push(g);
-    }
-    const lossEl = document.getElementById('analysis-loss-reasons');
-    const entries = Object.entries(groups).sort((a, b) => b[1].length - a[1].length);
-    if (!entries.length) {
-        lossEl.innerHTML = '<div class="insight-empty">No losses in this sample yet.</div>';
-    } else {
-        lossEl.innerHTML = entries.map(([key, games]) => {
-            const title = LOSS_REASON_LABELS[key] || key.replace(/_/g, ' ');
-            const examples = games.slice(0, 4).map(g => `
-                <div class="loss-example" onclick="openReviewFromStore('${escAttr(g.gameKey)}')">
-                    ${gameMatchupTitle(g)} — ${outcomeReason(g)}
-                </div>
-            `).join('');
-            return `
-                <div class="p-card p-component loss-group mb-2">
-                    <div class="p-card-body">
-                        <div class="loss-group-title">${title}</div>
-                        <div class="loss-group-meta">${games.length} loss${games.length === 1 ? '' : 'es'} · ${pct(games.length, losses.length)}% of losses</div>
-                        ${examples}
-                    </div>
-                </div>
-            `;
-        }).join('');
-    }
 }
 
 /** Map a board square into the player's view (their first rank at the bottom). */
@@ -844,29 +793,47 @@ function orientSquareToPlayer(sq, isWhite) {
     return String.fromCharCode(97 + (7 - file)) + (9 - rank);
 }
 
-function buildPlayerSquareHeatmap(profile) {
-    const counts = {};
-    let max = 0;
-    let total = 0;
-    for (const a of profile.analyzedGames || []) {
-        for (const m of a.moves || []) {
-            if (!isPlayerMove(a, m) || !m.to) continue;
-            const sq = orientSquareToPlayer(m.to, !!a.isWhite);
-            counts[sq] = (counts[sq] || 0) + 1;
-            total += 1;
-            if (counts[sq] > max) max = counts[sq];
-        }
-    }
-    return { counts, max, total };
+function emptyHeatBucket() {
+    return { counts: {}, max: 0, total: 0 };
 }
 
-function renderPlayerMoveHeatmap(profile) {
-    const el = document.getElementById('player-move-heatmap');
-    if (!el) return;
-    const { counts, max, total } = buildPlayerSquareHeatmap(profile);
+/** Build 2×3 heatmaps: white/black × opening/middlegame/endgame. */
+function buildPhaseColorHeatmaps(profile) {
+    const phases = ['opening', 'middlegame', 'endgame'];
+    const buckets = {
+        white: { opening: emptyHeatBucket(), middlegame: emptyHeatBucket(), endgame: emptyHeatBucket() },
+        black: { opening: emptyHeatBucket(), middlegame: emptyHeatBucket(), endgame: emptyHeatBucket() }
+    };
+    let grandTotal = 0;
+
+    for (const a of profile.analyzedGames || []) {
+        const colorKey = a.isWhite ? 'white' : 'black';
+        const { phases: movePhases } = assignMovePhases(a);
+        for (let i = 0; i < (a.moves || []).length; i++) {
+            const m = a.moves[i];
+            if (!isPlayerMove(a, m) || !m.to) continue;
+            const phase = movePhases[i] || 'middlegame';
+            if (!phases.includes(phase)) continue;
+            const bucket = buckets[colorKey][phase];
+            const sq = orientSquareToPlayer(m.to, !!a.isWhite);
+            bucket.counts[sq] = (bucket.counts[sq] || 0) + 1;
+            bucket.total += 1;
+            grandTotal += 1;
+            if (bucket.counts[sq] > bucket.max) bucket.max = bucket.counts[sq];
+        }
+    }
+    return { buckets, grandTotal };
+}
+
+function heatmapBoardHtml(bucket, ariaLabel) {
+    const { counts, max, total } = bucket;
     if (!total) {
-        el.innerHTML = '<div class="insight-empty">Heatmap will appear once moves are analyzed.</div>';
-        return;
+        return `
+            <div class="move-heatmap is-empty" aria-label="${ariaLabel}">
+                <div class="heatmap-grid heatmap-grid-empty"></div>
+                <div class="heatmap-mini-meta">No moves</div>
+            </div>
+        `;
     }
 
     let hotSq = null;
@@ -880,7 +847,7 @@ function renderPlayerMoveHeatmap(profile) {
 
     let cells = '';
     for (let r = 0; r < 8; r++) {
-        const rankLabel = 8 - r; // player's rank labels (8 at top)
+        const rankLabel = 8 - r;
         for (let c = 0; c < 8; c++) {
             const file = String.fromCharCode(97 + c);
             const sq = file + rankLabel;
@@ -891,17 +858,52 @@ function renderPlayerMoveHeatmap(profile) {
         }
     }
 
-    const files = 'abcdefgh'.split('').map(f => `<span>${f}</span>`).join('');
-    el.innerHTML = `
-        <div class="move-heatmap" aria-label="Player move destination heatmap">
+    return `
+        <div class="move-heatmap" aria-label="${ariaLabel}">
             <div class="heatmap-grid">${cells}</div>
-            <div class="heatmap-files">${files}</div>
+            <div class="heatmap-mini-meta">
+                ${total.toLocaleString()} · hot ${hotSq ? hotSq.toUpperCase() : '—'}
+            </div>
         </div>
-        <div class="heatmap-legend">
-            Hotspot <strong>${hotSq ? hotSq.toUpperCase() : '—'}</strong>
-            · ${hotCount} landing${hotCount === 1 ? '' : 's'}
-            · ${total.toLocaleString()} moves total
+    `;
+}
+
+function renderPlayerMoveHeatmap(profile) {
+    const el = document.getElementById('player-move-heatmap');
+    if (!el) return;
+    const { buckets, grandTotal } = buildPhaseColorHeatmaps(profile);
+    if (!grandTotal) {
+        el.innerHTML = '<div class="insight-empty">Heatmaps will appear once moves are analyzed.</div>';
+        return;
+    }
+
+    const phaseLabels = [
+        ['opening', 'Opening'],
+        ['middlegame', 'Middlegame'],
+        ['endgame', 'Endgame']
+    ];
+
+    const header = `
+        <div class="heatmap-matrix-corner"></div>
+        ${phaseLabels.map(([, label]) => `<div class="heatmap-matrix-colhead">${label}</div>`).join('')}
+    `;
+
+    const row = (colorKey, label) => `
+        <div class="heatmap-matrix-rowhead">${label}</div>
+        ${phaseLabels.map(([phase, phaseLabel]) => `
+            <div class="heatmap-matrix-cell">
+                ${heatmapBoardHtml(buckets[colorKey][phase], `${label} ${phaseLabel} move heatmap`)}
+            </div>
+        `).join('')}
+    `;
+
+    el.innerHTML = `
+        <div class="heatmap-matrix" role="group" aria-label="Move heatmaps by colour and phase">
+            ${header}
+            ${row('white', 'As White')}
+            ${row('black', 'As Black')}
         </div>
+        <div class="heatmap-legend">${grandTotal.toLocaleString()} of your destination squares across all games</div>
     `;
 }
 
@@ -1121,16 +1123,16 @@ function openReview(analysis) {
     });
 
     renderEvalLineGraph(analysis);
-    renderReviewStats(analysis);
+    renderReviewOverview(analysis);
 
-    // Reset review tabs to Moves
+    // Default to Overview tab
     const reviewNav = document.querySelector('#review-view .p-tabview-nav');
     if (reviewNav) {
         reviewNav.querySelectorAll('li').forEach((li, i) => li.classList.toggle('p-highlight', i === 0));
     }
-    document.getElementById('moves-tab').style.display = 'block';
+    document.getElementById('overview-tab').style.display = 'block';
+    document.getElementById('moves-tab').style.display = 'none';
     document.getElementById('graph-tab').style.display = 'none';
-    document.getElementById('stats-tab').style.display = 'none';
 
     goToMove(0);
 }
@@ -1225,8 +1227,185 @@ function moveGroupRowsHtml(stats) {
     return rows || '<div class="insight-empty">No classified moves.</div>';
 }
 
-function renderReviewStats(analysis) {
-    const el = document.getElementById('stats-tab');
+function fenPhaseSignals(fen) {
+    const board = String(fen || '').split(' ')[0] || '';
+    let queens = 0;
+    let nonPawnPieces = 0;
+    let material = 0;
+    const values = { q: 9, r: 5, b: 3, n: 3 };
+    for (const ch of board) {
+        const t = ch.toLowerCase();
+        if (!values[t] && t !== 'q') continue;
+        if (t === 'q') {
+            queens += 1;
+            nonPawnPieces += 1;
+            material += 9;
+        } else if (values[t]) {
+            nonPawnPieces += 1;
+            material += values[t];
+        }
+    }
+    return { queens, nonPawnPieces, material };
+}
+
+function isEndgamePosition(signals) {
+    // Queens off, or sparse remaining pieces / low non-pawn material
+    return signals.queens === 0 || signals.nonPawnPieces <= 6 || signals.material <= 13;
+}
+
+/** Tag each ply as opening | middlegame | endgame. Endgame may never appear. */
+function assignMovePhases(analysis) {
+    const moves = analysis.moves || [];
+    const phases = new Array(moves.length).fill('middlegame');
+    if (!moves.length) return { phases, openingEnd: -1, endgameStart: null };
+
+    let bookEnd = -1;
+    for (let i = 0; i < moves.length; i++) {
+        const label = moves[i].classification?.label;
+        if (label === 'Book' || label === 'Theory') bookEnd = i;
+        else break;
+    }
+    // Prefer book/theory span; otherwise treat first ~10 moves as opening
+    let openingEnd = bookEnd >= 3 ? bookEnd : Math.min(moves.length - 1, 19);
+
+    let endgameStart = null;
+    for (let i = 0; i < moves.length; i++) {
+        if (!moves[i].fen) continue;
+        if (!isEndgamePosition(fenPhaseSignals(moves[i].fen))) continue;
+        // Don't call it endgame during the early opening scramble
+        if (i > Math.min(openingEnd, 15) || i >= 24) {
+            endgameStart = i;
+            break;
+        }
+    }
+    if (endgameStart != null && openingEnd >= endgameStart) {
+        openingEnd = endgameStart - 1;
+    }
+
+    for (let i = 0; i < moves.length; i++) {
+        if (endgameStart != null && i >= endgameStart) phases[i] = 'endgame';
+        else if (i <= openingEnd) phases[i] = 'opening';
+        else phases[i] = 'middlegame';
+    }
+    return { phases, openingEnd, endgameStart };
+}
+
+function phaseMoveAccuracyScore(move, phase) {
+    const label = move?.classification?.label;
+    if (!label) return null;
+    // In the opening, book/theory count as solid play for the star rating
+    if (label === 'Book' || label === 'Theory') {
+        return phase === 'opening' ? 92 : null;
+    }
+    return moveAccuracyScore(move);
+}
+
+function starsFromPhaseQuality(accuracy, ratedN, blunders) {
+    if (!ratedN || accuracy == null) return null;
+    let stars;
+    if (accuracy >= 94) stars = 5;
+    else if (accuracy >= 87) stars = 4;
+    else if (accuracy >= 78) stars = 3;
+    else if (accuracy >= 65) stars = 2;
+    else stars = 1;
+    if (blunders >= 3) stars = Math.min(stars, 1);
+    else if (blunders >= 2) stars = Math.min(stars, 2);
+    else if (blunders >= 1) stars = Math.min(stars, 4);
+    return stars;
+}
+
+function sidePhaseBreakdown(analysis, forPlayer) {
+    const { phases, endgameStart } = assignMovePhases(analysis);
+    const keys = ['opening', 'middlegame', 'endgame'];
+    const out = {};
+    for (const key of keys) {
+        const idxs = [];
+        for (let i = 0; i < phases.length; i++) {
+            if (phases[i] !== key) continue;
+            const m = analysis.moves[i];
+            if (!m?.classification?.label) continue;
+            if (forPlayer ? !isPlayerMove(analysis, m) : isPlayerMove(analysis, m)) continue;
+            idxs.push(i);
+        }
+        const moves = idxs.map(i => analysis.moves[i]);
+        const counts = {};
+        for (const q of MOVE_QUALITY_ORDER) counts[q.label] = 0;
+        let accSum = 0;
+        let ratedN = 0;
+        let blunders = 0;
+        for (const m of moves) {
+            const label = m.classification.label;
+            counts[label] = (counts[label] || 0) + 1;
+            if (label === 'Blunder') blunders += 1;
+            const score = phaseMoveAccuracyScore(m, key);
+            if (score == null) continue;
+            accSum += score;
+            ratedN += 1;
+        }
+        const accuracy = ratedN ? Math.round((accSum / ratedN) * 10) / 10 : null;
+        const reached = key === 'endgame'
+            ? endgameStart != null
+            : moves.length > 0;
+        out[key] = {
+            key,
+            reached,
+            moves,
+            total: moves.length,
+            ratedN,
+            counts,
+            blunders,
+            accuracy,
+            stars: reached ? starsFromPhaseQuality(accuracy, ratedN, blunders) : null
+        };
+    }
+    // Opening with only book and no rated scores still gets stars from book accuracy
+    if (out.opening.reached && out.opening.stars == null && out.opening.total) {
+        out.opening.stars = starsFromPhaseQuality(out.opening.accuracy, out.opening.ratedN || out.opening.total, out.opening.blunders);
+    }
+    return { phases, endgameStart, segments: out };
+}
+
+function starsHtml(stars) {
+    if (stars == null) {
+        return `<span class="phase-stars na" title="Not applicable">N/A</span>`;
+    }
+    const full = Math.max(0, Math.min(5, stars));
+    let html = '<span class="phase-stars" aria-label="' + full + ' out of 5 stars">';
+    for (let i = 1; i <= 5; i++) {
+        html += `<i class="pi ${i <= full ? 'pi-star-fill' : 'pi-star'}"></i>`;
+    }
+    html += `<span class="phase-stars-num">${full}/5</span></span>`;
+    return html;
+}
+
+function phaseRowsHtml(breakdown) {
+    const labels = {
+        opening: 'Opening',
+        middlegame: 'Middlegame',
+        endgame: 'Endgame'
+    };
+    return ['opening', 'middlegame', 'endgame'].map(key => {
+        const seg = breakdown.segments[key];
+        let meta;
+        if (!seg.reached) {
+            meta = key === 'endgame' ? 'Did not reach an endgame' : 'No moves in this phase';
+        } else if (!seg.total) {
+            meta = 'Phase reached · no moves for this side';
+        } else {
+            meta = `${seg.total} move${seg.total === 1 ? '' : 's'}${seg.accuracy != null ? ` · ${seg.accuracy}%` : ''}${seg.blunders ? ` · ${seg.blunders} blunder${seg.blunders === 1 ? '' : 's'}` : ''}`;
+        }
+        return `
+            <div class="phase-row${!seg.reached ? ' is-na' : ''}">
+                <div class="phase-row-label">${labels[key]}</div>
+                <div class="phase-row-stars">${starsHtml(seg.reached ? seg.stars : null)}</div>
+                <div class="phase-row-meta">${meta}</div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderReviewOverview(analysis) {
+    const el = document.getElementById('overview-tab');
     if (!el) return;
 
     const you = sideMoveStats(analysis, true);
@@ -1237,7 +1416,10 @@ function renderReviewStats(analysis) {
     const chessComYou = analysis.isWhite ? analysis.whiteRating : analysis.blackRating;
     const chessComOpp = analysis.isWhite ? analysis.blackRating : analysis.whiteRating;
 
-    const eloCard = (label, stats, chessComElo) => `
+    const youPhases = sidePhaseBreakdown(analysis, true);
+    const oppPhases = sidePhaseBreakdown(analysis, false);
+
+    const eloCard = (label, stats, chessComElo, phaseBreakdown) => `
         <div class="game-elo-card">
             <div class="game-elo-kicker">${label}</div>
             <div class="game-elo-value">${stats.gameElo != null ? stats.gameElo : '—'}</div>
@@ -1245,6 +1427,10 @@ function renderReviewStats(analysis) {
                 ${chessComElo != null ? `Chess.com ${chessComElo} · ` : ''}
                 ${stats.accuracy != null ? `${stats.accuracy}% accuracy` : 'No rated moves'}
                 · ${stats.ratedN}/${stats.total} rated moves
+            </div>
+            <div class="game-elo-groups">
+                <div class="game-elo-groups-title">Phase ratings</div>
+                <div class="phase-list">${phaseRowsHtml(phaseBreakdown)}</div>
             </div>
             <div class="game-elo-groups">
                 <div class="game-elo-groups-title">Moves by group</div>
@@ -1255,12 +1441,12 @@ function renderReviewStats(analysis) {
 
     el.innerHTML = `
         <div class="review-stats">
-            <div class="review-stats-title">Game ELO &amp; move breakdown</div>
+            <div class="review-stats-title">Game overview</div>
             <div class="game-elo-row">
-                ${eloCard(youName, you, chessComYou)}
-                ${eloCard(oppName, opp, chessComOpp)}
+                ${eloCard(youName, you, chessComYou, youPhases)}
+                ${eloCard(oppName, opp, chessComOpp, oppPhases)}
             </div>
-            <div class="review-stats-note">Game ELO is a rough performance guess from rated (non-book) moves this game — not your Chess.com rating. Blunders and low best-move rate pull it down hard.</div>
+            <div class="review-stats-note">Phase stars rate your play in opening, middlegame, and endgame (N/A if that phase never happened). Game ELO is a rough guess from rated non-book moves — not your Chess.com rating.</div>
         </div>
     `;
 }
@@ -1407,9 +1593,9 @@ function switchTab(t, el) {
     const nav = el?.closest('.p-tabview-nav');
     if (nav) nav.querySelectorAll('li').forEach(li => li.classList.remove('p-highlight'));
     el?.closest('li')?.classList.add('p-highlight');
+    document.getElementById('overview-tab').style.display = t === 'overview' ? 'block' : 'none';
     document.getElementById('moves-tab').style.display = t === 'moves' ? 'block' : 'none';
     document.getElementById('graph-tab').style.display = t === 'graph' ? 'block' : 'none';
-    document.getElementById('stats-tab').style.display = t === 'stats' ? 'block' : 'none';
 }
 
 function exitReview() {

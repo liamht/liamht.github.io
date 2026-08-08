@@ -29,7 +29,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeng@17.18.15/resources/primeng.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeicons@7.0.0/primeicons.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeflex@3.3.1/primeflex.min.css">
-    <link rel="stylesheet" href="chess.css?v=20260808m">
+    <link rel="stylesheet" href="chess.css?v=20260808r">
 </head>
 <body>
 <div class="app-shell">
@@ -219,50 +219,39 @@
                     <div id="analysis-content">
                         <div class="p-card mb-3">
                             <div class="p-card-body">
+                                <div class="p-card-title mb-1">Coach notes</div>
+                                <div class="text-color-secondary text-sm mb-3">Overview plus opening / middlegame / endgame reads — built from openings, phases, tactics, material events, and move quality.</div>
+                                <div id="analysis-coach"></div>
+                            </div>
+                        </div>
+                        <div class="p-card mb-3">
+                            <div class="p-card-body">
                                 <div class="p-card-title mb-1">Player tendencies</div>
                                 <div class="text-color-secondary text-sm mb-3">Favourite openings and where your pieces land most often.</div>
-                                <div class="grid">
-                                    <div class="col-12 lg:col-7">
-                                        <div class="profile-kicker mb-2">Favourite openings</div>
-                                        <div class="grid">
-                                            <div class="col-12 md:col-6">
-                                                <div class="tendency-subcard">
-                                                    <div class="profile-kicker">As White</div>
-                                                    <div class="opening-rank-list" id="profile-white-openings"></div>
-                                                </div>
-                                            </div>
-                                            <div class="col-12 md:col-6">
-                                                <div class="tendency-subcard">
-                                                    <div class="profile-kicker">As Black</div>
-                                                    <div class="opening-rank-list" id="profile-black-defences"></div>
-                                                </div>
-                                            </div>
+                                <div class="profile-kicker mb-2">Favourite openings</div>
+                                <div class="grid mb-3">
+                                    <div class="col-12 md:col-6">
+                                        <div class="tendency-subcard">
+                                            <div class="profile-kicker">As White</div>
+                                            <div class="opening-rank-list" id="profile-white-openings"></div>
                                         </div>
                                     </div>
-                                    <div class="col-12 lg:col-5">
-                                        <div class="profile-kicker mb-2">Move heatmap</div>
-                                        <div id="player-move-heatmap" class="move-heatmap-wrap"></div>
-                                        <div class="heatmap-note">Destination squares of your moves, shown from your side of the board.</div>
+                                    <div class="col-12 md:col-6">
+                                        <div class="tendency-subcard">
+                                            <div class="profile-kicker">As Black</div>
+                                            <div class="opening-rank-list" id="profile-black-defences"></div>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-                        <div class="p-card mb-3">
-                            <div class="p-card-body">
-                                <div class="p-card-title mb-3">Expanded move stats</div>
-                                <div id="analysis-move-stats"></div>
-                            </div>
-                        </div>
-                        <div class="p-card mb-3">
-                            <div class="p-card-body">
-                                <div class="p-card-title mb-3">Why you lose</div>
-                                <div id="analysis-loss-reasons"></div>
+                                <div class="profile-kicker mb-2">Move heatmaps</div>
+                                <div class="heatmap-note mb-2">Your destination squares as White and Black, split by opening / middlegame / endgame. Boards are shown from your side.</div>
+                                <div id="player-move-heatmap" class="heatmap-matrix-wrap"></div>
                             </div>
                         </div>
                         <div class="p-card">
                             <div class="p-card-body">
-                                <div class="p-card-title mb-3">Notable tactics</div>
-                                <div id="analysis-tactics"></div>
+                                <div class="p-card-title mb-3">Expanded move stats</div>
+                                <div id="analysis-move-stats"></div>
                             </div>
                         </div>
                     </div>
@@ -359,36 +348,37 @@
                     <div class="p-tabview-nav-content">
                         <ul class="p-tabview-nav" role="tablist">
                             <li class="p-highlight" role="presentation">
+                                <a href="#" class="p-tabview-nav-link" onclick="switchTab('overview', this); return false;" role="tab"><span class="p-tabview-title">Overview</span></a>
+                            </li>
+                            <li role="presentation">
                                 <a href="#" class="p-tabview-nav-link" onclick="switchTab('moves', this); return false;" role="tab"><span class="p-tabview-title">Moves</span></a>
                             </li>
                             <li role="presentation">
                                 <a href="#" class="p-tabview-nav-link" onclick="switchTab('graph', this); return false;" role="tab"><span class="p-tabview-title">Graph</span></a>
                             </li>
-                            <li role="presentation">
-                                <a href="#" class="p-tabview-nav-link" onclick="switchTab('stats', this); return false;" role="tab"><span class="p-tabview-title">Stats</span></a>
-                            </li>
                         </ul>
                     </div>
                 </div>
                 <div class="p-tabview-panels">
-                    <div id="moves-tab" class="p-tabview-panel" style="max-height:400px;overflow:auto"></div>
+                    <div id="overview-tab" class="p-tabview-panel" style="max-height:400px;overflow:auto"></div>
+                    <div id="moves-tab" class="p-tabview-panel" style="display:none;max-height:400px;overflow:auto"></div>
                     <div id="graph-tab" class="p-tabview-panel" style="display:none;height:400px">
                         <div id="eval-graph" class="graph-container"></div>
                     </div>
-                    <div id="stats-tab" class="p-tabview-panel" style="display:none;max-height:400px;overflow:auto"></div>
                 </div>
             </div>
         </div>
     </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
-<script src="js/chess/constants.js?v=20260808m"></script>
-<script src="js/chess/tactics.js?v=20260808m"></script>
-<script src="js/chess/openings.js?v=20260808m"></script>
-<script src="js/chess/learning.js?v=20260808m"></script>
-<script src="js/chess/cache.js?v=20260808m"></script>
-<script src="js/chess/analysis.js?v=20260808m"></script>
-<script src="js/chess/ui.js?v=20260808m"></script>
-<script src="js/chess/app.js?v=20260808m"></script>
+<script src="js/chess/constants.js?v=20260808r"></script>
+<script src="js/chess/tactics.js?v=20260808r"></script>
+<script src="js/chess/openings.js?v=20260808r"></script>
+<script src="js/chess/learning.js?v=20260808r"></script>
+<script src="js/chess/cache.js?v=20260808r"></script>
+<script src="js/chess/analysis.js?v=20260808r"></script>
+<script src="js/chess/ui.js?v=20260808r"></script>
+<script src="js/chess/insights.js?v=20260808r"></script>
+<script src="js/chess/app.js?v=20260808r"></script>
 </body>
 </html>
