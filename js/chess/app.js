@@ -114,7 +114,9 @@ function applyAnalysisToUi(game, analysis, gameKey, stats, opts = {}) {
     }
     analysis.qualityScore = gameQualityScore(analysis);
     hydrateCachedAnalysis(analysis, analysis.pgn);
+    enrichAnalysisMeta(analysis);
     ingestAnalysis(profileState, analysis, gameKey);
+    scheduleAnalysisSnapshot(profileState, { delay: opts.snapshotDelay ?? 280 });
     if (!opts.deferRefresh) refreshDashboard();
 }
 
@@ -242,6 +244,9 @@ async function selectSingleGame(index) {
     status.innerText = 'Analysing game… 0%';
     list.querySelectorAll('.single-game-row').forEach(btn => { btn.disabled = true; });
 
+    document.getElementById('dashboard').style.display = 'block';
+    document.getElementById('review-view').style.display = 'none';
+    switchDashTab('overview');
     document.getElementById('progress-box').style.display = 'block';
     document.getElementById('prog-val-games').innerText = '1 / 1';
     setSingleProgress(0, 0, 0);
@@ -271,6 +276,8 @@ async function selectSingleGame(index) {
             isScanning = false;
             if (!analysis) throw new Error('Analysis stopped or failed');
             setSingleProgress(100, analysis.moves?.length || 0, analysis.moves?.length || 0);
+            hydrateCachedAnalysis(analysis, item.game.pgn || analysis.pgn);
+            enrichAnalysisMeta(analysis);
             saveCachedAnalysis(user, item.gameKey, analysis);
             log(`Single game analysed: vs ${item.opponent}`);
         }
@@ -278,7 +285,9 @@ async function selectSingleGame(index) {
         if (!profileState || profileState.username?.toLowerCase() !== user.toLowerCase()) {
             profileState = createProfileState(user);
         }
+        enrichAnalysisMeta(analysis);
         ingestAnalysis(profileState, analysis, item.gameKey);
+        rebuildAnalysisSnapshot(profileState);
         refreshDashboard();
 
         singleGameBusy = false;
@@ -376,6 +385,12 @@ async function startAnalysis() {
         rebuildProfileAggregates(profileState);
         refreshDashboard();
         log(`Restored ${cachedAnalyses.length} cached game${cachedAnalyses.length === 1 ? '' : 's'} (v${CACHE_VERSION}).`);
+        // Precompute Analysis-tab meta off the paint path (yield so UI stays responsive)
+        log('Preparing analysis insights…');
+        await enrichAllAnalysesYielding(profileState);
+        rebuildAnalysisSnapshot(profileState);
+        refreshDashboard();
+        log('Analysis insights ready.');
 
         const { newGames, scanned, skippedCached } = await fetchNewGamesToAnalyze(user, cachedKeys, SCAN_NEW_LIMIT);
         const pending = newGames.map((item, i) => ({ ...item, index: i }));
@@ -426,6 +441,8 @@ async function startAnalysis() {
                 document.getElementById('progress-fill').style.width = ((completed / totalNew) * 100) + '%';
 
                 if (analysis) {
+                    hydrateCachedAnalysis(analysis, game.pgn || analysis.pgn);
+                    enrichAnalysisMeta(analysis);
                     if (saveCachedAnalysis(user, gameKey, analysis)) cacheSaves++;
                     applyAnalysisToUi(game, analysis, gameKey, stats);
                 }
@@ -436,7 +453,9 @@ async function startAnalysis() {
         if (profileState) {
             profileState.finished = true;
             sortAnalyzedGames(profileState);
+            rebuildAnalysisSnapshot(profileState);
             renderProfileOverview(profileState);
+            refreshDashboard();
         }
         log(isScanning
             ? `Done. Analyzed ${completed} new game${completed === 1 ? '' : 's'} · ${cacheSaves} saved · profile now ${profileState.games} total.`

@@ -267,6 +267,59 @@ html, body {
 .eval-line-dot.is-key { opacity: 1; fill: var(--warning, #fbbf24); }
 .eval-line-dot.is-active { opacity: 1; }
 
+.overview-elo-chart {
+    width: 100%;
+    min-height: 12rem;
+}
+.elo-line-svg {
+    width: 100%;
+    height: 12.5rem;
+    display: block;
+}
+.elo-grid-line {
+    stroke: var(--surface-border, #475569);
+    stroke-width: 1;
+    stroke-dasharray: 3 4;
+    opacity: 0.7;
+}
+.elo-axis-label {
+    fill: var(--text-color-secondary);
+    font-size: 10px;
+}
+.elo-line-path {
+    fill: none;
+    stroke: var(--primary-color, #6366f1);
+    stroke-width: 2.25;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+.elo-line-area {
+    fill: color-mix(in srgb, var(--primary-color, #6366f1) 16%, transparent);
+    stroke: none;
+}
+.elo-line-hit { fill: transparent; cursor: pointer; }
+.elo-line-dot {
+    fill: var(--primary-color, #6366f1);
+    stroke: var(--surface-card, #1f2937);
+    stroke-width: 1.5;
+    pointer-events: none;
+}
+.elo-line-dot.is-latest { fill: var(--success, #34d399); }
+.elo-chart-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1.25rem;
+    font-size: 0.8rem;
+    color: var(--text-color-secondary);
+    margin-bottom: 0.5rem;
+}
+.elo-chart-summary strong {
+    color: var(--text-color);
+    font-size: 1.05rem;
+}
+.elo-up { color: var(--success, #34d399); font-weight: 700; }
+.elo-down { color: var(--accent, #f87171); font-weight: 700; }
+
 .review-stats { padding: 0.25rem 0.15rem 0.75rem; }
 .game-elo-row {
     display: grid;
@@ -623,6 +676,131 @@ html, body {
     color: var(--text-color);
 }
 .coach-line:last-child { margin-bottom: 0; }
+
+.survival-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+.survival-group-label {
+    margin: 0.65rem 0 0.35rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-color-secondary);
+}
+.survival-row {
+    display: grid;
+    grid-template-columns: 96px 1fr 42px;
+    gap: 0.4rem;
+    align-items: center;
+    padding: 0.18rem 0;
+}
+.survival-label { font-size: 0.72rem; font-weight: 600; line-height: 1.2; }
+.survival-track {
+    height: 0.4rem;
+    border-radius: 999px;
+    background: var(--surface-ground);
+    border: 1px solid var(--surface-border);
+    overflow: hidden;
+}
+.survival-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #22c55e, #eab308 55%, #ef4444);
+}
+.survival-val { font-size: 0.72rem; font-weight: 700; text-align: right; }
+.survival-sub { font-weight: 600; color: var(--text-color-secondary); font-size: 0.62rem; margin-left: 0.1rem; }
+
+.mate-meta {
+    font-size: 0.8rem;
+    color: var(--text-color-secondary);
+    margin-bottom: 0.65rem;
+}
+.mate-row {
+    display: grid;
+    grid-template-columns: 64px 1fr 48px 36px;
+    gap: 0.45rem;
+    align-items: center;
+    padding: 0.28rem 0;
+}
+.mate-label { font-size: 0.8rem; font-weight: 700; }
+.mate-track {
+    height: 0.45rem;
+    border-radius: 999px;
+    background: var(--surface-ground);
+    border: 1px solid var(--surface-border);
+    overflow: hidden;
+}
+.mate-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: var(--primary-color, #6366f1);
+}
+.mate-pct { font-size: 0.75rem; font-weight: 700; text-align: right; }
+.mate-count { font-size: 0.7rem; color: var(--text-color-secondary); text-align: right; }
+
+.game-coach { margin-bottom: 1.15rem; }
+.game-coach-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.65rem;
+}
+.piece-coach-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+}
+.piece-coach-card {
+    border: 1px solid var(--surface-border, #334155);
+    border-radius: var(--border-radius, 6px);
+    padding: 0.7rem 0.8rem;
+    background: color-mix(in srgb, var(--surface-ground, #111827) 45%, transparent);
+    min-width: 0;
+}
+.piece-coach-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+.piece-coach-name {
+    font-size: 0.95rem;
+    font-weight: 800;
+}
+.piece-coach-meta {
+    font-size: 0.68rem;
+    color: var(--text-color-secondary);
+    text-align: right;
+}
+.game-coach-side-label {
+    font-size: 0.68rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.3rem;
+}
+.game-coach-side-label.good { color: var(--success, #34d399); }
+.game-coach-side-label.bad { color: var(--accent, #f87171); }
+.game-coach-list {
+    margin: 0;
+    padding-left: 1.05rem;
+    font-size: 0.8rem;
+    line-height: 1.4;
+}
+.game-coach-list li { margin-bottom: 0.28rem; }
+.game-coach-good { color: var(--text-color); }
+.game-coach-bad { color: var(--text-color); }
+.game-coach-muted { color: var(--text-color-secondary); list-style: none; margin-left: -1.05rem; }
+
+@media (max-width: 700px) {
+    .survival-grid,
+    .game-coach-cols,
+    .piece-coach-grid { grid-template-columns: 1fr; }
+    .survival-row { grid-template-columns: 84px 1fr 40px; }
+}
 
 .tab-empty-state {
     display: none;

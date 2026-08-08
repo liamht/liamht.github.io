@@ -346,7 +346,7 @@ function buildOpeningInsights(profile, corpus) {
     return lines;
 }
 
-function buildMiddlegameInsights(profile, corpus) {
+function buildMiddlegameInsights(profile, corpus, heatData) {
     const lines = [];
     const bucket = corpus.byPhase.middlegame;
     const q = phaseQualitySummary(bucket);
@@ -401,23 +401,27 @@ function buildMiddlegameInsights(profile, corpus) {
         }
     }
 
-    const heat = buildPhaseColorHeatmaps(profile);
-    for (const color of ['white', 'black']) {
-        const b = heat.buckets[color].middlegame;
-        if (b.total < 12) continue;
-        let hotSq = null;
-        let hotN = 0;
-        for (const [sq, n] of Object.entries(b.counts)) {
-            if (n > hotN) {
-                hotN = n;
-                hotSq = sq;
+    const heat = heatData || (typeof buildPhaseColorHeatmaps === 'function'
+        ? buildPhaseColorHeatmaps(profile)
+        : null);
+    if (heat?.buckets) {
+        for (const color of ['white', 'black']) {
+            const b = heat.buckets[color].middlegame;
+            if (b.total < 12) continue;
+            let hotSq = null;
+            let hotN = 0;
+            for (const [sq, n] of Object.entries(b.counts)) {
+                if (n > hotN) {
+                    hotN = n;
+                    hotSq = sq;
+                }
             }
-        }
-        if (hotSq && hotN >= 4) {
-            lines.push(
-                `As ${color === 'white' ? 'White' : 'Black'}, your middlegame pieces keep landing on ${hotSq.toUpperCase()} (${hotN}×) — a habit square worth reviewing for whether it’s a strong outpost or a trade magnet.`
-            );
-            break;
+            if (hotSq && hotN >= 4) {
+                lines.push(
+                    `As ${color === 'white' ? 'White' : 'Black'}, your middlegame pieces keep landing on ${hotSq.toUpperCase()} (${hotN}×) — a habit square worth reviewing for whether it’s a strong outpost or a trade magnet.`
+                );
+                break;
+            }
         }
     }
 
@@ -487,13 +491,188 @@ function buildEndgameInsights(profile, corpus) {
     return lines;
 }
 
-function generateProfileInsights(profile) {
+const PIECE_COACH_ORDER = [
+    { type: 'p', label: 'Pawn' },
+    { type: 'n', label: 'Knight' },
+    { type: 'b', label: 'Bishop' },
+    { type: 'r', label: 'Rook' },
+    { type: 'q', label: 'Queen' },
+    { type: 'k', label: 'King' }
+];
+
+function emptyPieceBucket() {
+    return {
+        total: 0,
+        rated: 0,
+        labels: {},
+        themes: {},
+        captures: 0,
+        exchanges: 0,
+        hangsOffered: 0,
+        sacs: 0,
+        missedCaptures: 0,
+        castles: 0,
+        checks: 0
+    };
+}
+
+function collectByPieceStats(profile) {
+    const buckets = {};
+    for (const p of PIECE_COACH_ORDER) buckets[p.type] = emptyPieceBucket();
+
+    for (const g of profile.analyzedGames || []) {
+        for (const m of g.moves || []) {
+            if (!isPlayerMove(g, m) || !m.classification?.label) continue;
+            const type = movedPieceType(m);
+            if (!type || !buckets[type]) continue;
+            const b = buckets[type];
+            b.total += 1;
+            const label = m.classification.label;
+            b.labels[label] = (b.labels[label] || 0) + 1;
+            if (label !== 'Book' && label !== 'Theory') b.rated += 1;
+            for (const t of m.moveThemes || []) {
+                b.themes[t] = (b.themes[t] || 0) + 1;
+            }
+            const ev = m.materialEvent;
+            if (ev?.kind === 'capture') b.captures += 1;
+            if (ev?.kind === 'exchange') b.exchanges += 1;
+            if (ev?.kind === 'hang' && (ev.offered === type || !ev.offered)) b.hangsOffered += 1;
+            if (ev?.kind === 'sacrifice') b.sacs += 1;
+            if (ev?.kind === 'missed_capture') b.missedCaptures += 1;
+            if (type === 'k' && (m.san === 'O-O' || m.san === 'O-O-O')) b.castles += 1;
+            if (String(m.san || '').includes('+') || String(m.san || '').includes('#')) b.checks += 1;
+        }
+    }
+    return buckets;
+}
+
+function buildByPieceInsights(profile, survivalData) {
+    const buckets = collectByPieceStats(profile);
+    const survival = survivalData !== undefined
+        ? survivalData
+        : (typeof aggregatePieceSurvival === 'function' ? aggregatePieceSurvival(profile) : null);
+
+    const survivalDeathRate = (pieceType) => {
+        if (!survival) return null;
+        const rows = [...(survival.white || []), ...(survival.black || [])]
+            .filter(r => r.type === pieceType && r.games > 0 && r.deathRate != null);
+        if (!rows.length) return null;
+        const sum = rows.reduce((a, r) => a + r.deathRate * r.games, 0);
+        const n = rows.reduce((a, r) => a + r.games, 0);
+        return n ? Math.round((sum / n) * 10) / 10 : null;
+    };
+
+    return PIECE_COACH_ORDER.map(({ type, label }) => {
+        const b = buckets[type];
+        const good = [];
+        const bad = [];
+        if (b.total < 4) {
+            return {
+                type,
+                label,
+                total: b.total,
+                good: ['Not enough moves with this piece yet for a clear read.'],
+                bad: []
+            };
+        }
+
+        const best = b.labels.Best || 0;
+        const goodN = b.labels.Good || 0;
+        const blunders = b.labels.Blunder || 0;
+        const mistakes = b.labels.Mistake || 0;
+        const misses = b.labels.Miss || 0;
+        const rated = Math.max(b.rated, 1);
+        const bestPct = Math.round(((best + goodN) / rated) * 1000) / 10;
+        const badPct = Math.round(((blunders + mistakes) / rated) * 1000) / 10;
+        const blPct = Math.round((blunders / rated) * 1000) / 10;
+
+        if (bestPct >= 45) {
+            good.push(`Clean mover: ${bestPct}% of rated ${label.toLowerCase()} moves are Best/Good.`);
+        } else if (bestPct >= 32) {
+            good.push(`Respectable accuracy — ${bestPct}% Best/Good on rated ${label.toLowerCase()} moves.`);
+        }
+        if (b.captures >= 3) {
+            good.push(`Picks up material often with this piece (${b.captures} winning captures in the sample).`);
+        }
+        if (type === 'k' && b.castles >= 3) {
+            good.push(`Castles regularly (${b.castles}×) — king safety is part of your routine.`);
+        }
+        if (b.checks >= 4 && (type === 'q' || type === 'r' || type === 'n')) {
+            good.push(`Creates pressure: ${b.checks} checks delivered with the ${label.toLowerCase()}.`);
+        }
+        if (b.sacs >= 2 && type !== 'p') {
+            const hangish = b.hangsOffered;
+            if (hangish < b.sacs) {
+                good.push(`Willing to sacrifice this piece (${b.sacs}×) when you see compensation.`);
+            }
+        }
+        const topGood = Object.entries(b.themes)
+            .filter(([id]) => THEME_CATALOG[id]?.polarity === 'good' && !PROFILE_SKIP_THEMES.has(id))
+            .sort((a, c) => c[1] - a[1])[0];
+        if (topGood && topGood[1] >= 2) {
+            good.push(THEME_CATALOG[topGood[0]].detail);
+        }
+
+        if (blPct >= 10) {
+            bad.push(`Blunder-prone with the ${label.toLowerCase()}: ${blPct}% of rated moves are Blunders.`);
+        } else if (badPct >= 18) {
+            bad.push(`Mistakes add up — ${badPct}% of rated ${label.toLowerCase()} moves are Mistake/Blunder.`);
+        }
+        if (b.hangsOffered >= 3) {
+            bad.push(`This piece gets hung or left loose too often (${b.hangsOffered}×).`);
+        }
+        if (b.missedCaptures >= 3) {
+            bad.push(`Misses hanging enemy units while moving the ${label.toLowerCase()} (${b.missedCaptures}×).`);
+        }
+        if (b.exchanges >= 4 && (type === 'n' || type === 'b')) {
+            const tradePct = Math.round((b.exchanges / b.total) * 100);
+            if (tradePct >= 20) {
+                bad.push(`Often “one and done” — about ${tradePct}% of these moves are immediate exchanges.`);
+            }
+        }
+        if (type === 'q' && blunders >= 2) {
+            bad.push('Queen raids are risky in this sample — double-check retreat squares before committing her.');
+        }
+        if (type === 'k' && (b.themes.king_in_center || 0) >= 2) {
+            bad.push('The king gets caught in the centre more than once — castle or close the middle sooner.');
+        }
+        if (type === 'r' && (b.themes.back_rank || 0) >= 2) {
+            bad.push('Back-rank themes show up around your rook play — make luft before the heavy pieces invade.');
+        }
+        const death = survivalDeathRate(type);
+        if (death != null && death >= 70 && type !== 'p' && type !== 'k') {
+            bad.push(`Starting ${label.toLowerCase()}s leave the board in ~${death}% of games — they don’t last long.`);
+        } else if (death != null && death <= 35 && type !== 'p' && type !== 'k' && type !== 'q') {
+            good.push(`Your starting ${label.toLowerCase()}s tend to survive (${death}% capture rate across games).`);
+        }
+        const topBad = Object.entries(b.themes)
+            .filter(([id]) => THEME_CATALOG[id]?.polarity === 'bad')
+            .sort((a, c) => c[1] - a[1])[0];
+        if (topBad && topBad[1] >= 2) {
+            bad.push(THEME_CATALOG[topBad[0]].detail);
+        }
+
+        if (!good.length) good.push('No standout strength yet — mostly mixed results with this piece.');
+        if (!bad.length) bad.push('No loud weakness flagged for this piece in the current sample.');
+
+        return { type, label, total: b.total, bestPct, badPct, good, bad };
+    });
+}
+
+function generateProfileInsights(profile, opts = {}) {
     const corpus = collectInsightCorpus(profile);
+    const survival = opts.survival !== undefined
+        ? opts.survival
+        : (typeof aggregatePieceSurvival === 'function' ? aggregatePieceSurvival(profile) : null);
+    const heat = opts.heat !== undefined
+        ? opts.heat
+        : (typeof buildPhaseColorHeatmaps === 'function' ? buildPhaseColorHeatmaps(profile) : null);
     return {
         overview: buildOverviewInsights(profile, corpus),
         opening: buildOpeningInsights(profile, corpus),
-        middlegame: buildMiddlegameInsights(profile, corpus),
+        middlegame: buildMiddlegameInsights(profile, corpus, heat),
         endgame: buildEndgameInsights(profile, corpus),
+        byPiece: buildByPieceInsights(profile, survival),
         corpus
     };
 }
@@ -503,10 +682,74 @@ function insightParagraphsHtml(lines) {
     return lines.map(t => `<p class="coach-line">${escInsightHtml(t)}</p>`).join('');
 }
 
-function renderCoachInsights(profile) {
+function byPieceCoachHtml(pieces) {
+    if (!pieces?.length) return '<div class="insight-empty">No piece notes yet.</div>';
+    return `
+        <div class="piece-coach-grid">
+            ${pieces.map(p => `
+                <div class="piece-coach-card">
+                    <div class="piece-coach-head">
+                        <span class="piece-coach-name">${escInsightHtml(p.label)}</span>
+                        <span class="piece-coach-meta">${p.total} move${p.total === 1 ? '' : 's'}${p.bestPct != null ? ` · ${p.bestPct}% Best/Good` : ''}</span>
+                    </div>
+                    <div class="game-coach-cols">
+                        <div>
+                            <div class="game-coach-side-label good">Pros</div>
+                            <ul class="game-coach-list">
+                                ${(p.good || []).map(t => `<li class="game-coach-good">${escInsightHtml(t)}</li>`).join('') || '<li class="game-coach-muted">—</li>'}
+                            </ul>
+                        </div>
+                        <div>
+                            <div class="game-coach-side-label bad">Cons</div>
+                            <ul class="game-coach-list">
+                                ${(p.bad || []).map(t => `<li class="game-coach-bad">${escInsightHtml(t)}</li>`).join('') || '<li class="game-coach-muted">—</li>'}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+/** Build Analysis-tab aggregates once (during scan / idle), not on every tab paint. */
+function rebuildAnalysisSnapshot(profile) {
+    if (!profile || !(profile.analyzedGames || []).length) {
+        if (profile) {
+            profile.analysisSnapshot = null;
+            profile.analysisSnapshotDirty = false;
+        }
+        return null;
+    }
+    for (const g of profile.analyzedGames) {
+        if (typeof enrichAnalysisMeta === 'function') enrichAnalysisMeta(g);
+    }
+    const heat = typeof buildPhaseColorHeatmaps === 'function'
+        ? buildPhaseColorHeatmaps(profile)
+        : null;
+    const survival = typeof aggregatePieceSurvival === 'function'
+        ? aggregatePieceSurvival(profile)
+        : null;
+    const mates = typeof aggregateCheckmatePieces === 'function'
+        ? aggregateCheckmatePieces(profile)
+        : null;
+    const insights = generateProfileInsights(profile, { survival, heat });
+    profile.analysisSnapshot = {
+        gameCount: profile.analyzedGames.length,
+        insights,
+        survival,
+        mates,
+        heat,
+        moveStatsHtml: typeof qualityRowsHtml === 'function' ? qualityRowsHtml(profile) : ''
+    };
+    profile.analysisSnapshotDirty = false;
+    return profile.analysisSnapshot;
+}
+
+function renderCoachInsights(profile, insightsData) {
     const root = document.getElementById('analysis-coach');
     if (!root) return;
-    const insights = generateProfileInsights(profile);
+    const insights = insightsData || generateProfileInsights(profile);
     root.innerHTML = `
         <div class="coach-block">
             <div class="coach-kicker">Overview</div>
@@ -523,6 +766,241 @@ function renderCoachInsights(profile) {
         <div class="coach-block">
             <div class="coach-kicker">Endgame</div>
             ${insightParagraphsHtml(insights.endgame)}
+        </div>
+        <div class="coach-block">
+            <div class="coach-kicker">By piece</div>
+            <div class="text-color-secondary text-sm mb-2">Pros and cons of how you handle each piece type across this sample.</div>
+            ${byPieceCoachHtml(insights.byPiece)}
+        </div>
+    `;
+}
+
+/** Per-game coach notes from the reviewed player's perspective. */
+function generateGameCoachNotes(analysis) {
+    const { phases, endgameStart } = assignMovePhases(analysis);
+    const byPhase = {
+        opening: { good: [], bad: [], moves: [] },
+        middlegame: { good: [], bad: [], moves: [] },
+        endgame: { good: [], bad: [], moves: [] }
+    };
+
+    for (let i = 0; i < (analysis.moves || []).length; i++) {
+        const m = analysis.moves[i];
+        if (!isPlayerMove(analysis, m) || !m.classification?.label) continue;
+        const phase = phases[i] || 'middlegame';
+        if (!byPhase[phase]) continue;
+        byPhase[phase].moves.push({ m, i });
+    }
+
+    const pushUnique = (arr, text, limit = 3) => {
+        if (!text || arr.includes(text) || arr.length >= limit) return;
+        arr.push(text);
+    };
+
+    for (const phase of ['opening', 'middlegame', 'endgame']) {
+        const bucket = byPhase[phase];
+        let best = 0;
+        let good = 0;
+        let blunders = 0;
+        let mistakes = 0;
+        let misses = 0;
+        let book = 0;
+        const themeGood = {};
+        const themeBad = {};
+        const materialNotes = [];
+
+        for (const { m } of bucket.moves) {
+            const label = m.classification.label;
+            if (label === 'Best') best += 1;
+            else if (label === 'Good') good += 1;
+            else if (label === 'Blunder') blunders += 1;
+            else if (label === 'Mistake') mistakes += 1;
+            else if (label === 'Miss') misses += 1;
+            else if (label === 'Book' || label === 'Theory') book += 1;
+
+            for (const t of m.moveThemes || []) {
+                const cat = THEME_CATALOG[t];
+                if (!cat) continue;
+                if (cat.polarity === 'good') themeGood[t] = (themeGood[t] || 0) + 1;
+                else themeBad[t] = (themeBad[t] || 0) + 1;
+            }
+
+            const ev = m.materialEvent;
+            if (ev) {
+                const ref = `${m.moveNum}${m.turn === 'w' ? '.' : '...'} ${m.san}`;
+                if (ev.kind === 'sacrifice' && (ev.net || 0) <= 0) {
+                    materialNotes.push({ bad: true, text: `Early/loose sac on ${ref} didn’t pay back clearly.` });
+                } else if (ev.kind === 'hang') {
+                    materialNotes.push({ bad: true, text: `Hung material on ${ref}.` });
+                } else if (ev.kind === 'capture' || (ev.kind === 'sacrifice' && (ev.net || 0) > 0)) {
+                    materialNotes.push({ bad: false, text: `Won / forced material around ${ref}.` });
+                } else if (ev.kind === 'missed_capture') {
+                    materialNotes.push({ bad: true, text: `Missed a hanging piece near ${ref}.` });
+                }
+            }
+        }
+
+        const n = bucket.moves.length;
+        if (!n) {
+            if (phase === 'endgame' && endgameStart == null) {
+                pushUnique(bucket.bad, 'This game never reached a true endgame.');
+            } else {
+                pushUnique(bucket.bad, 'No moves for you in this phase.');
+            }
+            continue;
+        }
+
+        if (book >= 2 && phase === 'opening') {
+            pushUnique(bucket.good, `Stayed in book/theory for ${book} of your opening moves.`);
+        }
+        if (best + good >= 2) {
+            pushUnique(bucket.good, `${best + good} Best/Good moves out of ${n} in this phase.`);
+        } else if (best >= 1) {
+            pushUnique(bucket.good, `Found ${best} Best move${best === 1 ? '' : 's'} here.`);
+        }
+
+        const topGoodTheme = Object.entries(themeGood).sort((a, b) => b[1] - a[1])[0];
+        if (topGoodTheme && THEME_CATALOG[topGoodTheme[0]]) {
+            pushUnique(bucket.good, THEME_CATALOG[topGoodTheme[0]].detail);
+        }
+        for (const note of materialNotes.filter(x => !x.bad)) {
+            pushUnique(bucket.good, note.text, 2);
+        }
+
+        if (blunders) {
+            pushUnique(bucket.bad, `${blunders} blunder${blunders === 1 ? '' : 's'} in this phase — the biggest accuracy leak.`);
+        }
+        if (mistakes) {
+            pushUnique(bucket.bad, `${mistakes} mistake${mistakes === 1 ? '' : 's'} that still hurt the evaluation.`);
+        }
+        if (misses && !blunders) {
+            pushUnique(bucket.bad, `${misses} miss${misses === 1 ? '' : 'es'} — something clearly better was available.`);
+        }
+        const topBadTheme = Object.entries(themeBad).sort((a, b) => b[1] - a[1])[0];
+        if (topBadTheme && THEME_CATALOG[topBadTheme[0]]) {
+            pushUnique(bucket.bad, THEME_CATALOG[topBadTheme[0]].detail);
+        }
+        for (const note of materialNotes.filter(x => x.bad)) {
+            pushUnique(bucket.bad, note.text, 2);
+        }
+
+        if (phase === 'endgame' && endgameStart != null && analysis.moves[endgameStart]?.fen) {
+            const mat = sideMaterialFromFen(analysis.moves[endgameStart].fen);
+            const mine = analysis.isWhite ? mat.white : mat.black;
+            const theirs = analysis.isWhite ? mat.black : mat.white;
+            if (mine < theirs) {
+                pushUnique(bucket.bad, `You entered the endgame down on material (${mine} vs ${theirs}).`);
+            } else if (mine > theirs) {
+                pushUnique(bucket.good, `You entered the endgame ahead on material (${mine} vs ${theirs}).`);
+            }
+        }
+
+        if (!bucket.good.length) pushUnique(bucket.good, 'Nothing strongly positive stood out — mostly quiet or mixed moves.');
+        if (!bucket.bad.length) pushUnique(bucket.bad, 'No major red flags in this phase from the labels we tracked.');
+    }
+
+    const overview = [];
+    if (analysis.gameStory?.headline) overview.push(analysis.gameStory.headline);
+    if (analysis.gameStory?.detail) overview.push(analysis.gameStory.detail);
+    const you = sideMoveStats(analysis, true);
+    if (you.accuracy != null) {
+        overview.push(
+            `Your rated-move accuracy this game: ${you.accuracy}%` +
+            (you.gameElo != null ? ` · Game ELO guess ${you.gameElo}.` : '.')
+        );
+    }
+    if (!overview.length) overview.push('Here’s a quick good/bad split by phase for your moves.');
+
+    return {
+        overview,
+        opening: byPhase.opening,
+        middlegame: byPhase.middlegame,
+        endgame: byPhase.endgame
+    };
+}
+
+function gameCoachPhaseHtml(title, bucket) {
+    const good = (bucket.good || []).map(t => `<li class="game-coach-good">${escInsightHtml(t)}</li>`).join('');
+    const bad = (bucket.bad || []).map(t => `<li class="game-coach-bad">${escInsightHtml(t)}</li>`).join('');
+    return `
+        <div class="coach-block">
+            <div class="coach-kicker">${title}</div>
+            <div class="game-coach-cols">
+                <div>
+                    <div class="game-coach-side-label good">What went well</div>
+                    <ul class="game-coach-list">${good || '<li class="game-coach-muted">—</li>'}</ul>
+                </div>
+                <div>
+                    <div class="game-coach-side-label bad">What hurt</div>
+                    <ul class="game-coach-list">${bad || '<li class="game-coach-muted">—</li>'}</ul>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function buildGameByPieceNotes(analysis) {
+    const buckets = {};
+    for (const p of PIECE_COACH_ORDER) buckets[p.type] = emptyPieceBucket();
+
+    for (const m of analysis.moves || []) {
+        if (!isPlayerMove(analysis, m) || !m.classification?.label) continue;
+        const type = movedPieceType(m);
+        if (!type || !buckets[type]) continue;
+        const b = buckets[type];
+        b.total += 1;
+        const label = m.classification.label;
+        b.labels[label] = (b.labels[label] || 0) + 1;
+        if (label !== 'Book' && label !== 'Theory') b.rated += 1;
+        for (const t of m.moveThemes || []) b.themes[t] = (b.themes[t] || 0) + 1;
+        const ev = m.materialEvent;
+        if (ev?.kind === 'capture') b.captures += 1;
+        if (ev?.kind === 'hang') b.hangsOffered += 1;
+        if (ev?.kind === 'sacrifice') b.sacs += 1;
+        if (ev?.kind === 'missed_capture') b.missedCaptures += 1;
+        if (type === 'k' && (m.san === 'O-O' || m.san === 'O-O-O')) b.castles += 1;
+    }
+
+    return PIECE_COACH_ORDER.map(({ type, label }) => {
+        const b = buckets[type];
+        const good = [];
+        const bad = [];
+        if (!b.total) {
+            return { type, label, total: 0, good: ['Not used this game.'], bad: [] };
+        }
+        const best = (b.labels.Best || 0) + (b.labels.Good || 0);
+        const blunders = b.labels.Blunder || 0;
+        const mistakes = b.labels.Mistake || 0;
+        if (best) good.push(`${best} Best/Good move${best === 1 ? '' : 's'} with the ${label.toLowerCase()}.`);
+        if (b.captures) good.push(`Won material with it (${b.captures}×).`);
+        if (b.castles) good.push('Castled to safety.');
+        if (blunders) bad.push(`${blunders} blunder${blunders === 1 ? '' : 's'} with the ${label.toLowerCase()}.`);
+        if (mistakes) bad.push(`${mistakes} mistake${mistakes === 1 ? '' : 's'}.`);
+        if (b.hangsOffered) bad.push(`Left this piece loose / hanging (${b.hangsOffered}×).`);
+        if (b.missedCaptures) bad.push(`Missed a hanging piece while moving it (${b.missedCaptures}×).`);
+        if (!good.length) good.push('No standout plus with this piece.');
+        if (!bad.length) bad.push('No serious red flags with this piece.');
+        return { type, label, total: b.total, good, bad };
+    }).filter(p => p.total > 0 || p.good[0] !== 'Not used this game.');
+}
+
+function renderGameCoachNotes(analysis) {
+    const notes = generateGameCoachNotes(analysis);
+    const byPiece = buildGameByPieceNotes(analysis);
+    return `
+        <div class="game-coach">
+            <div class="review-stats-title">Coach notes</div>
+            <div class="coach-block">
+                <div class="coach-kicker">Overview</div>
+                ${insightParagraphsHtml(notes.overview)}
+            </div>
+            ${gameCoachPhaseHtml('Opening', notes.opening)}
+            ${gameCoachPhaseHtml('Middlegame', notes.middlegame)}
+            ${gameCoachPhaseHtml('Endgame', notes.endgame)}
+            <div class="coach-block">
+                <div class="coach-kicker">By piece</div>
+                ${byPieceCoachHtml(byPiece)}
+            </div>
         </div>
     `;
 }

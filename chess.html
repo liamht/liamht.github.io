@@ -29,7 +29,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeng@17.18.15/resources/primeng.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeicons@7.0.0/primeicons.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeflex@3.3.1/primeflex.min.css">
-    <link rel="stylesheet" href="chess.css?v=20260808r">
+    <link rel="stylesheet" href="chess.css?v=20260808v">
 </head>
 <body>
 <div class="app-shell">
@@ -72,29 +72,6 @@
                 </div>
                 <div id="single-game-status" class="text-color-secondary text-sm mb-3">Loading…</div>
                 <div id="single-game-list" class="single-game-list"></div>
-            </div>
-        </div>
-    </div>
-
-    <div id="progress-box" class="p-card mb-3">
-        <div class="p-card-body">
-            <div id="progress-text" class="font-bold">Preparing...</div>
-            <div class="progress-details">
-                <div class="p-card">
-                    <div class="p-card-body py-2">
-                        <div class="prog-label">Games</div>
-                        <div id="prog-val-games" class="prog-val">0 / 0</div>
-                    </div>
-                </div>
-                <div class="p-card">
-                    <div class="p-card-body py-2">
-                        <div class="prog-label">Moves (Current)</div>
-                        <div id="prog-val-moves" class="prog-val">0 / 0</div>
-                    </div>
-                </div>
-            </div>
-            <div class="p-progressbar p-component p-progressbar-determinate mt-3" style="height:0.5rem">
-                <div id="progress-fill" class="p-progressbar-value p-progressbar-value-animate" style="width:0%"></div>
             </div>
         </div>
     </div>
@@ -152,8 +129,37 @@
             </div>
             <div class="p-tabview-panels">
                 <div id="tab-overview" class="p-tabview-panel dash-panel active">
+                    <div id="progress-box" class="p-card mb-3">
+                        <div class="p-card-body">
+                            <div id="progress-text" class="font-bold">Preparing...</div>
+                            <div class="progress-details">
+                                <div class="p-card">
+                                    <div class="p-card-body py-2">
+                                        <div class="prog-label">Games</div>
+                                        <div id="prog-val-games" class="prog-val">0 / 0</div>
+                                    </div>
+                                </div>
+                                <div class="p-card">
+                                    <div class="p-card-body py-2">
+                                        <div class="prog-label">Moves (Current)</div>
+                                        <div id="prog-val-moves" class="prog-val">0 / 0</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="p-progressbar p-component p-progressbar-determinate mt-3" style="height:0.5rem">
+                                <div id="progress-fill" class="p-progressbar-value p-progressbar-value-animate" style="width:0%"></div>
+                            </div>
+                        </div>
+                    </div>
                     <div id="overview-empty" class="tab-empty-state"></div>
                     <div id="overview-content" class="overview-grid">
+                        <div class="p-card full">
+                            <div class="p-card-body">
+                                <div class="p-card-title mb-1">Chess.com ELO over time</div>
+                                <div class="text-color-secondary text-sm mb-3">Your rating after each analyzed game · click a point to open that game</div>
+                                <div id="overview-elo-chart" class="overview-elo-chart"></div>
+                            </div>
+                        </div>
                         <div class="p-card">
                             <div class="p-card-body">
                                 <div class="p-card-title mb-3">Move quality</div>
@@ -246,6 +252,20 @@
                                 <div class="profile-kicker mb-2">Move heatmaps</div>
                                 <div class="heatmap-note mb-2">Your destination squares as White and Black, split by opening / middlegame / endgame. Boards are shown from your side.</div>
                                 <div id="player-move-heatmap" class="heatmap-matrix-wrap"></div>
+                            </div>
+                        </div>
+                        <div class="p-card mb-3">
+                            <div class="p-card-body">
+                                <div class="p-card-title mb-1">How long each piece survives</div>
+                                <div class="text-color-secondary text-sm mb-3">Average life (in moves) of each starting piece as White and as Black.</div>
+                                <div id="analysis-piece-survival"></div>
+                            </div>
+                        </div>
+                        <div class="p-card mb-3">
+                            <div class="p-card-body">
+                                <div class="p-card-title mb-1">Checkmate with</div>
+                                <div class="text-color-secondary text-sm mb-3">Which piece delivered your checkmate wins, by percentage.</div>
+                                <div id="analysis-checkmates"></div>
                             </div>
                         </div>
                         <div class="p-card">
@@ -371,14 +391,15 @@
     </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
-<script src="js/chess/constants.js?v=20260808r"></script>
-<script src="js/chess/tactics.js?v=20260808r"></script>
-<script src="js/chess/openings.js?v=20260808r"></script>
-<script src="js/chess/learning.js?v=20260808r"></script>
-<script src="js/chess/cache.js?v=20260808r"></script>
-<script src="js/chess/analysis.js?v=20260808r"></script>
-<script src="js/chess/ui.js?v=20260808r"></script>
-<script src="js/chess/insights.js?v=20260808r"></script>
-<script src="js/chess/app.js?v=20260808r"></script>
+<script src="js/chess/constants.js?v=20260808w"></script>
+<script src="js/chess/tactics.js?v=20260808w"></script>
+<script src="js/chess/openings.js?v=20260808w"></script>
+<script src="js/chess/learning.js?v=20260808w"></script>
+<script src="js/chess/cache.js?v=20260808w"></script>
+<script src="js/chess/analysis.js?v=20260808w"></script>
+<script src="js/chess/pieces.js?v=20260808w"></script>
+<script src="js/chess/ui.js?v=20260808w"></script>
+<script src="js/chess/insights.js?v=20260808w"></script>
+<script src="js/chess/app.js?v=20260808w"></script>
 </body>
 </html>

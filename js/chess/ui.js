@@ -218,7 +218,9 @@ function createProfileState(username) {
         themeHits: {},
         analyzedGames: [],
         playerInfo: null,
-        finished: false
+        finished: false,
+        analysisSnapshot: null,
+        analysisSnapshotDirty: false
     };
 }
 
@@ -290,6 +292,7 @@ function ingestAnalysis(profile, analysis, gameKey) {
     else profile.analyzedGames.push(analysis);
     sortAnalyzedGames(profile);
     rebuildProfileAggregates(profile);
+    profile.analysisSnapshotDirty = true;
 }
 
 function gameQualityScore(analysis) {
@@ -614,13 +617,142 @@ function updateMatchSortChip() {
     }
 }
 
+function playerGameElo(analysis) {
+    if (!analysis) return null;
+    const elo = analysis.isWhite ? analysis.whiteRating : analysis.blackRating;
+    if (elo == null || elo === '' || Number.isNaN(Number(elo))) return null;
+    return Number(elo);
+}
+
+function renderOverviewEloChart(profile) {
+    const el = document.getElementById('overview-elo-chart');
+    if (!el) return;
+
+    const points = (profile.analyzedGames || [])
+        .map(g => {
+            attachGamePlayers(g, null, g.username || profile.username);
+            return {
+                g,
+                elo: playerGameElo(g),
+                t: g.endTime || 0
+            };
+        })
+        .filter(p => p.elo != null && p.t > 0)
+        .sort((a, b) => a.t - b.t);
+
+    if (points.length < 2) {
+        el.innerHTML = points.length === 1
+            ? `<div class="insight-empty">Only one rated game so far (${points[0].elo}). More games will draw your ELO trend.</div>`
+            : '<div class="insight-empty">ELO history needs rated games with timestamps. Keep analysing to fill this chart.</div>';
+        return;
+    }
+
+    const W = 640;
+    const H = 200;
+    const pad = { t: 18, b: 28, l: 44, r: 14 };
+    const plotW = W - pad.l - pad.r;
+    const plotH = H - pad.t - pad.b;
+    const elos = points.map(p => p.elo);
+    let minE = Math.min(...elos);
+    let maxE = Math.max(...elos);
+    if (minE === maxE) {
+        minE -= 50;
+        maxE += 50;
+    } else {
+        const padE = Math.max(20, Math.round((maxE - minE) * 0.08));
+        minE -= padE;
+        maxE += padE;
+    }
+    const t0 = points[0].t;
+    const t1 = points[points.length - 1].t;
+    const tSpan = Math.max(1, t1 - t0);
+
+    const xAt = (t) => pad.l + ((t - t0) / tSpan) * plotW;
+    const yAt = (elo) => pad.t + (1 - (elo - minE) / (maxE - minE)) * plotH;
+
+    const linePts = points.map(p => `${xAt(p.t).toFixed(2)},${yAt(p.elo).toFixed(2)}`).join(' ');
+    const areaPts = [
+        `${xAt(points[0].t).toFixed(2)},${(pad.t + plotH).toFixed(2)}`,
+        ...points.map(p => `${xAt(p.t).toFixed(2)},${yAt(p.elo).toFixed(2)}`),
+        `${xAt(points[points.length - 1].t).toFixed(2)},${(pad.t + plotH).toFixed(2)}`
+    ].join(' ');
+
+    const first = points[0].elo;
+    const last = points[points.length - 1].elo;
+    const delta = last - first;
+    const deltaLabel = (delta >= 0 ? '+' : '') + delta;
+
+    const yTicks = 4;
+    let grid = '';
+    for (let i = 0; i <= yTicks; i++) {
+        const elo = minE + ((maxE - minE) * i) / yTicks;
+        const y = yAt(elo);
+        grid += `<line class="elo-grid-line" x1="${pad.l}" y1="${y}" x2="${W - pad.r}" y2="${y}"></line>`;
+        grid += `<text class="elo-axis-label" x="${pad.l - 6}" y="${y + 3}" text-anchor="end">${Math.round(elo)}</text>`;
+    }
+
+    const fmtDate = (ts) => new Date(ts * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const xLabels = `
+        <text class="elo-axis-label" x="${pad.l}" y="${H - 8}" text-anchor="start">${fmtDate(t0)}</text>
+        <text class="elo-axis-label" x="${W - pad.r}" y="${H - 8}" text-anchor="end">${fmtDate(t1)}</text>
+    `;
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.classList.add('elo-line-svg');
+    svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', 'Chess.com ELO over time');
+    svg.innerHTML = `
+        ${grid}
+        <polygon class="elo-line-area" points="${areaPts}"></polygon>
+        <polyline class="elo-line-path" points="${linePts}"></polyline>
+        ${xLabels}
+    `;
+
+    points.forEach((p, idx) => {
+        const cx = xAt(p.t);
+        const cy = yAt(p.elo);
+        const hit = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        hit.setAttribute('cx', cx);
+        hit.setAttribute('cy', cy);
+        hit.setAttribute('r', Math.max(7, plotW / Math.max(points.length, 1) / 2));
+        hit.classList.add('elo-line-hit');
+        const when = fmtDate(p.t);
+        const tip = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        tip.textContent = `${p.elo} · ${when} · ${p.g.result || ''}`;
+        hit.appendChild(tip);
+        hit.addEventListener('click', () => {
+            if (p.g.gameKey) openReviewFromStore(p.g.gameKey);
+        });
+        svg.appendChild(hit);
+
+        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        dot.setAttribute('cx', cx);
+        dot.setAttribute('cy', cy);
+        dot.setAttribute('r', idx === points.length - 1 ? 4.5 : 3);
+        dot.classList.add('elo-line-dot');
+        if (idx === points.length - 1) dot.classList.add('is-latest');
+        svg.appendChild(dot);
+    });
+
+    el.innerHTML = `
+        <div class="elo-chart-summary">
+            <span><strong>${last}</strong> latest</span>
+            <span>${points.length} rated games</span>
+            <span class="${delta >= 0 ? 'elo-up' : 'elo-down'}">${deltaLabel} across sample</span>
+        </div>
+    `;
+    el.appendChild(svg);
+}
+
 function renderOverviewTab(profile) {
     if (!hasAnalyzedGames(profile)) {
         showTabEmpty('overview', profile
             ? {
                 icon: 'pi-hourglass',
                 title: 'Waiting for games',
-                body: 'Your overview will fill in as games finish analyzing — move quality, best and worst games, and your last five results.'
+                body: 'Your overview will fill in as games finish analyzing — ELO trend, move quality, best and worst games, and your last five results.'
             }
             : {
                 icon: 'pi-chart-bar',
@@ -631,6 +763,7 @@ function renderOverviewTab(profile) {
     }
     showTabContent('overview');
 
+    renderOverviewEloChart(profile);
     document.getElementById('overview-quality').innerHTML = qualityRowsHtml(profile);
 
     const games = gamesByRecency(profile);
@@ -750,6 +883,53 @@ function lossReasonKey(analysis) {
 }
 
 
+function analysisSnapshotIsFresh(profile) {
+    return !!(
+        profile?.analysisSnapshot &&
+        !profile.analysisSnapshotDirty &&
+        profile.analysisSnapshot.gameCount === (profile.analyzedGames || []).length
+    );
+}
+
+/** Cheap paint from a prebuilt snapshot (openings always live from profile buckets). */
+function paintAnalysisTab(profile) {
+    if (!hasAnalyzedGames(profile)) return;
+    showTabContent('analysis');
+
+    renderOpeningRankList(
+        'profile-white-openings',
+        topOpeningEntries(profile.openingsWhite, profile.whiteGames, 8),
+        profile.whiteGames ? 'No white openings yet.' : 'Gathering white games…',
+        true
+    );
+    renderOpeningRankList(
+        'profile-black-defences',
+        topOpeningEntries(profile.openingsBlack, profile.blackGames, 8),
+        profile.blackGames ? 'No black defences yet.' : 'Gathering black games…',
+        true
+    );
+
+    const snap = profile.analysisSnapshot;
+    if (!snap) {
+        const coach = document.getElementById('analysis-coach');
+        if (coach) coach.innerHTML = '<div class="insight-empty">Building coach notes…</div>';
+        const heat = document.getElementById('player-move-heatmap');
+        if (heat) heat.innerHTML = '<div class="insight-empty">Building heatmaps…</div>';
+        const surv = document.getElementById('analysis-piece-survival');
+        if (surv) surv.innerHTML = '<div class="insight-empty">Building piece survival…</div>';
+        const mates = document.getElementById('analysis-checkmates');
+        if (mates) mates.innerHTML = '<div class="insight-empty">Building checkmate stats…</div>';
+        document.getElementById('analysis-move-stats').innerHTML = qualityRowsHtml(profile);
+        return;
+    }
+
+    renderPlayerMoveHeatmap(profile, snap.heat);
+    renderCoachInsights(profile, snap.insights);
+    renderPieceSurvivalPanel(profile, snap.survival);
+    renderCheckmateWithPanel(profile, snap.mates);
+    document.getElementById('analysis-move-stats').innerHTML = snap.moveStatsHtml || qualityRowsHtml(profile);
+}
+
 function renderAnalysisTab(profile) {
     if (!hasAnalyzedGames(profile)) {
         showTabEmpty('analysis', profile
@@ -767,21 +947,12 @@ function renderAnalysisTab(profile) {
     }
     showTabContent('analysis');
 
-    renderOpeningRankList(
-        'profile-white-openings',
-        topOpeningEntries(profile.openingsWhite, profile.whiteGames, 8),
-        profile.whiteGames ? 'No white openings yet.' : 'Gathering white games…',
-        true
-    );
-    renderOpeningRankList(
-        'profile-black-defences',
-        topOpeningEntries(profile.openingsBlack, profile.blackGames, 8),
-        profile.blackGames ? 'No black defences yet.' : 'Gathering black games…',
-        true
-    );
-    renderPlayerMoveHeatmap(profile);
-    renderCoachInsights(profile);
-    document.getElementById('analysis-move-stats').innerHTML = qualityRowsHtml(profile);
+    if (!analysisSnapshotIsFresh(profile)) {
+        paintAnalysisTab(profile);
+        scheduleAnalysisSnapshot(profile, { immediate: true });
+        return;
+    }
+    paintAnalysisTab(profile);
 }
 
 /** Map a board square into the player's view (their first rank at the bottom). */
@@ -806,20 +977,31 @@ function buildPhaseColorHeatmaps(profile) {
     };
     let grandTotal = 0;
 
+    const addCount = (bucket, sq, n) => {
+        bucket.counts[sq] = (bucket.counts[sq] || 0) + n;
+        bucket.total += n;
+        grandTotal += n;
+        if (bucket.counts[sq] > bucket.max) bucket.max = bucket.counts[sq];
+    };
+
     for (const a of profile.analyzedGames || []) {
         const colorKey = a.isWhite ? 'white' : 'black';
+        if (a.heatTargets) {
+            for (const phase of phases) {
+                const counts = a.heatTargets[phase] || {};
+                const bucket = buckets[colorKey][phase];
+                for (const [sq, n] of Object.entries(counts)) addCount(bucket, sq, n);
+            }
+            continue;
+        }
         const { phases: movePhases } = assignMovePhases(a);
         for (let i = 0; i < (a.moves || []).length; i++) {
             const m = a.moves[i];
             if (!isPlayerMove(a, m) || !m.to) continue;
             const phase = movePhases[i] || 'middlegame';
             if (!phases.includes(phase)) continue;
-            const bucket = buckets[colorKey][phase];
             const sq = orientSquareToPlayer(m.to, !!a.isWhite);
-            bucket.counts[sq] = (bucket.counts[sq] || 0) + 1;
-            bucket.total += 1;
-            grandTotal += 1;
-            if (bucket.counts[sq] > bucket.max) bucket.max = bucket.counts[sq];
+            addCount(buckets[colorKey][phase], sq, 1);
         }
     }
     return { buckets, grandTotal };
@@ -868,10 +1050,10 @@ function heatmapBoardHtml(bucket, ariaLabel) {
     `;
 }
 
-function renderPlayerMoveHeatmap(profile) {
+function renderPlayerMoveHeatmap(profile, heatData) {
     const el = document.getElementById('player-move-heatmap');
     if (!el) return;
-    const { buckets, grandTotal } = buildPhaseColorHeatmaps(profile);
+    const { buckets, grandTotal } = heatData || buildPhaseColorHeatmaps(profile);
     if (!grandTotal) {
         el.innerHTML = '<div class="insight-empty">Heatmaps will appear once moves are analyzed.</div>';
         return;
@@ -964,7 +1146,14 @@ function refreshDashboard() {
     const active = document.querySelector('#dash-tabs .p-tabview-nav > li.p-highlight .p-tabview-nav-link')?.dataset?.tab || 'overview';
     renderOverviewTab(profileState);
     if (active === 'matches') renderMatchesTab();
-    if (active === 'analysis') renderAnalysisTab(profileState);
+    if (active === 'analysis') {
+        // Never rebuild heavy analysis work on every game tick — paint snapshot / schedule
+        if (analysisSnapshotIsFresh(profileState)) paintAnalysisTab(profileState);
+        else {
+            paintAnalysisTab(profileState);
+            scheduleAnalysisSnapshot(profileState);
+        }
+    }
     if (active === 'learning') renderLearningBrowse();
 }
 
@@ -1254,7 +1443,7 @@ function isEndgamePosition(signals) {
 }
 
 /** Tag each ply as opening | middlegame | endgame. Endgame may never appear. */
-function assignMovePhases(analysis) {
+function computeMovePhases(analysis) {
     const moves = analysis.moves || [];
     const phases = new Array(moves.length).fill('middlegame');
     if (!moves.length) return { phases, openingEnd: -1, endgameStart: null };
@@ -1288,6 +1477,111 @@ function assignMovePhases(analysis) {
         else phases[i] = 'middlegame';
     }
     return { phases, openingEnd, endgameStart };
+}
+
+function assignMovePhases(analysis) {
+    const moves = analysis.moves || [];
+    if (
+        analysis?.movePhases?.length === moves.length &&
+        analysis.openingEnd !== undefined
+    ) {
+        return {
+            phases: analysis.movePhases,
+            openingEnd: analysis.openingEnd,
+            endgameStart: analysis.endgameStart ?? null
+        };
+    }
+    const result = computeMovePhases(analysis);
+    analysis.movePhases = result.phases;
+    analysis.openingEnd = result.openingEnd;
+    analysis.endgameStart = result.endgameStart;
+    return result;
+}
+
+/**
+ * Precompute Analysis-tab inputs (phases, heat targets, piece survival, mate piece)
+ * so opening the tab does not replay PGNs or walk every game cold.
+ */
+function enrichAnalysisMeta(analysis) {
+    if (!analysis || analysis.metaEnriched) return analysis;
+
+    assignMovePhases(analysis);
+
+    if (!analysis.heatTargets) {
+        const phaseKeys = ['opening', 'middlegame', 'endgame'];
+        const buckets = { opening: {}, middlegame: {}, endgame: {} };
+        const movePhases = analysis.movePhases || [];
+        for (let i = 0; i < (analysis.moves || []).length; i++) {
+            const m = analysis.moves[i];
+            if (!isPlayerMove(analysis, m) || !m.to) continue;
+            const phase = movePhases[i] || 'middlegame';
+            if (!phaseKeys.includes(phase)) continue;
+            const sq = orientSquareToPlayer(m.to, !!analysis.isWhite);
+            buckets[phase][sq] = (buckets[phase][sq] || 0) + 1;
+        }
+        analysis.heatTargets = buckets;
+    }
+
+    if (!analysis.pieceSurvival && analysis.pgn && typeof trackPieceLifetimes === 'function') {
+        const life = trackPieceLifetimes(analysis.pgn);
+        analysis.pieceSurvival = analysis.isWhite ? life.white : life.black;
+    }
+
+    if (analysis.matePiece === undefined) {
+        if (!wonByCheckmate(analysis)) {
+            analysis.matePiece = null;
+        } else {
+            const last = analysis.moves?.[analysis.moves.length - 1];
+            if (last && isPlayerMove(analysis, last)) {
+                const san = String(last.san || '');
+                if (san.includes('#')) {
+                    if (san === 'O-O' || san === 'O-O-O') analysis.matePiece = 'k';
+                    else if (/^[NBRQK]/.test(san)) analysis.matePiece = san[0].toLowerCase();
+                    else analysis.matePiece = 'p';
+                } else if (typeof matingPieceFromPgn === 'function') {
+                    analysis.matePiece = matingPieceFromPgn(analysis.pgn);
+                } else {
+                    analysis.matePiece = null;
+                }
+            } else {
+                analysis.matePiece = null;
+            }
+        }
+    }
+
+    analysis.metaEnriched = true;
+    return analysis;
+}
+
+async function enrichAllAnalysesYielding(profile, yieldEvery = 6) {
+    const games = profile?.analyzedGames || [];
+    for (let i = 0; i < games.length; i++) {
+        enrichAnalysisMeta(games[i]);
+        if (yieldEvery > 0 && i % yieldEvery === yieldEvery - 1) {
+            await new Promise(r => setTimeout(r, 0));
+        }
+    }
+}
+
+let _analysisSnapshotTimer = null;
+
+function scheduleAnalysisSnapshot(profile, opts = {}) {
+    if (!profile) return;
+    profile.analysisSnapshotDirty = true;
+    const delay = opts.immediate ? 0 : (opts.delay ?? 280);
+    if (_analysisSnapshotTimer) {
+        if (!opts.immediate) return;
+        clearTimeout(_analysisSnapshotTimer);
+        _analysisSnapshotTimer = null;
+    }
+    _analysisSnapshotTimer = setTimeout(() => {
+        _analysisSnapshotTimer = null;
+        if (typeof rebuildAnalysisSnapshot === 'function') {
+            rebuildAnalysisSnapshot(profile);
+        }
+        const active = document.querySelector('#dash-tabs .p-tabview-nav > li.p-highlight .p-tabview-nav-link')?.dataset?.tab;
+        if (active === 'analysis') paintAnalysisTab(profile);
+    }, delay);
 }
 
 function phaseMoveAccuracyScore(move, phase) {
@@ -1441,7 +1735,8 @@ function renderReviewOverview(analysis) {
 
     el.innerHTML = `
         <div class="review-stats">
-            <div class="review-stats-title">Game overview</div>
+            ${typeof renderGameCoachNotes === 'function' ? renderGameCoachNotes(analysis) : ''}
+            <div class="review-stats-title">Game ELO &amp; phases</div>
             <div class="game-elo-row">
                 ${eloCard(youName, you, chessComYou, youPhases)}
                 ${eloCard(oppName, opp, chessComOpp, oppPhases)}
