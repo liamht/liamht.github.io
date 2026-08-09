@@ -4,8 +4,8 @@
 
 const STOCKFISH_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
 const STOCKFISH_LOCAL = 'stockfish.js?v=20260803';
-const APP_BUILD = '2026-08-09f';
-const CACHE_VERSION = 8;
+const APP_BUILD = '2026-08-09g';
+const CACHE_VERSION = 9;
 /** Soft ceiling for estimated Game ELO (IM territory). */
 const GAME_ELO_IM = 2400;
 /** Hard cap for estimated Game ELO (GM territory) — high accuracy asymptotes here. */
@@ -14,11 +14,14 @@ const GAME_ELO_GM = 2500;
 const EXTERNAL_BOOK_URL = 'openings.json';
 const FAMOUS_GAMES_URL = 'famous-games.json';
 const ENGINE_DEPTH = 5;
-const EVAL_NOISE_FLOOR_CP = 100; // ignore first 1.0 pawn of depth-5 wobble
+/** Extra depth for checks/captures/mate threats / large first-pass CPL. */
+const CRITICAL_ENGINE_DEPTH = 9;
+const EVAL_NOISE_FLOOR_CP = 100; // base ignore for quiet depth-5 wobble
 /** Opt-in deeper analysis when reviewing a single game. */
 const REVIEW_ENGINE_DEPTH = 12;
 const REVIEW_MULTIPV = 2;
 const REVIEW_ENGINE_TIMEOUT_MS = 8000;
+const CRITICAL_ENGINE_TIMEOUT_MS = 4500;
 /** Max NEW (uncached) games to analyze in one scan. Cached games accumulate beyond this. */
 const SCAN_NEW_LIMIT = 100;
 /** Newest-first archive walk stops after this many consecutive already-cached games. */
@@ -259,10 +262,35 @@ const THEME_CATALOG = {
         polarity: 'good',
         text: (pct) => `Quiet improving moves feature in ${pct}% of your games`,
         detail: 'Prophylaxis, better piece placement, or consolidating without forcing fireworks.'
+    },
+    fianchetto: {
+        polarity: 'good',
+        text: (pct) => `You complete a fianchetto in ${pct}% of your games`,
+        detail: 'Bishop developed to g2/b2/g7/b7, controlling the long diagonal.'
+    },
+    traded_fianchetto: {
+        polarity: 'bad',
+        text: (pct) => `You trade away a fianchetto bishop in ${pct}% of your games`,
+        detail: 'Giving up the long-diagonal bishop often weakens dark/light squares around the king.'
+    },
+    doubled_pawns: {
+        polarity: 'bad',
+        text: (pct) => `You create doubled pawns in ${pct}% of your games`,
+        detail: 'Two pawns on the same file — usually less mobile and a long-term target.'
+    },
+    isolated_pawn: {
+        polarity: 'bad',
+        text: (pct) => `You create an isolated pawn in ${pct}% of your games`,
+        detail: 'A pawn with no friendly neighbours on adjacent files — often an endgame weakness.'
+    },
+    bad_bishop: {
+        polarity: 'bad',
+        text: (pct) => `A hemmed “bad bishop” shows up in ${pct}% of your games`,
+        detail: 'Your bishop is blocked by your own fixed pawns on the same colour with little mobility.'
     }
 };
 const PROFILE_SKIP_THEMES = new Set([
-    'developed_piece', 'claimed_center', 'castled_safe', 'quiet_improve'
+    'developed_piece', 'claimed_center', 'castled_safe', 'quiet_improve', 'fianchetto'
 ]);
 const LOSS_REASON_LABELS = {
     hung_piece: 'Hung a piece',
@@ -274,7 +302,31 @@ const LOSS_REASON_LABELS = {
     back_rank: 'Back-rank issues',
     castle_pawn_push: 'King-side pawn pushes',
     king_in_center: 'King stuck in center',
+    traded_fianchetto: 'Traded fianchetto bishop',
+    doubled_pawns: 'Doubled pawns',
+    isolated_pawn: 'Isolated pawn',
+    bad_bishop: 'Bad bishop',
     unclassified: 'Other / unclear'
+};
+/** Theme → short phrase for Blunder/Mistake/Miss headlines (priority order). */
+const THEME_LABEL_PHRASES = {
+    hung_piece: 'hung a piece',
+    queen_trap: 'hung/trapped the queen',
+    missed_hanging: 'missed a hanging piece',
+    fork_victim: 'walked into a fork',
+    pin_problem: 'ignored a pin',
+    discovered_attack: 'walked into a discovered attack',
+    back_rank: 'allowed back-rank trouble',
+    castle_pawn_push: 'weakened the castled king',
+    king_in_center: 'left the king in the centre',
+    traded_fianchetto: 'traded the fianchetto bishop',
+    doubled_pawns: 'created doubled pawns',
+    isolated_pawn: 'created an isolated pawn',
+    bad_bishop: 'hemmed in a bad bishop',
+    forked_piece: 'landed a fork',
+    won_material: 'won material',
+    great_sacrifice: 'sacrificed material',
+    missed_capture: 'missed a capture'
 };
 const MOVE_QUALITY_ORDER = [
     { label: 'Best', className: 'cls-best', color: 'var(--success)' },

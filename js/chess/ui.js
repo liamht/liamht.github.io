@@ -309,13 +309,17 @@ function gameQualityScore(analysis) {
     return sum / moves.length;
 }
 
-/** Per-move accuracy 0–100 from eval loss / classification. Book/Theory excluded upstream. */
+/** Per-move accuracy 0–100 from win-prob loss / CPL / classification. Book/Theory excluded upstream. */
 function moveAccuracyScore(move) {
     const label = move?.classification?.label;
     if (!label || label === 'Book' || label === 'Theory') return null;
+    // Prefer expected-points loss when present (aligned with new severity model)
+    if (move.winLoss != null && Number.isFinite(move.winLoss)) {
+        // 0→100, 0.05→~78, 0.12→~55, 0.25→~30, 0.4→~15
+        return Math.max(0, Math.min(100, 100 * Math.exp(-6.2 * Math.max(0, move.winLoss))));
+    }
     if (move.evalDeltaCp != null && Number.isFinite(move.evalDeltaCp)) {
         const pawns = Math.max(0, move.evalDeltaCp) / 100;
-        // Harsh decay: 0→100, 0.5→~76, 1→~58, 2→~33, 4→~11
         return Math.max(0, Math.min(100, 100 * Math.exp(-0.55 * pawns)));
     }
     const byLabel = {
@@ -608,7 +612,7 @@ function computeProfileAnalytics(profile) {
     let matedLosses = 0;
     let resignLosses = 0;
 
-    const KING_SAFETY_THEMES = ['king_in_center', 'castle_pawn_push', 'back_rank'];
+    const KING_SAFETY_THEMES = ['king_in_center', 'castle_pawn_push', 'back_rank', 'traded_fianchetto'];
 
     for (const g of games) {
         if (typeof attachGameMeta === 'function') attachGameMeta(g, null);
@@ -2082,17 +2086,20 @@ function renderAboutHowItWorks() {
             <div class="about-coverage-note">Book = continuous prefix from move one in our catalog (FEN and/or move-list). Leaving the line ends Book even if a later position exists elsewhere. Theory is a separate famous-game match (≥12 plies), not the same as Book.</div>
         </div>
         <h3 class="about-section-title">How we classify your moves</h3>
-        <p class="faq-def mb-3">Profile scans use Stockfish at depth ${ENGINE_DEPTH}. Open a game and use <strong>Deepen analysis</strong> for depth ${REVIEW_ENGINE_DEPTH} with MultiPV ${REVIEW_MULTIPV}. Centipawn loss is measured from your side, then we ignore the first ${EVAL_NOISE_FLOOR_CP}cp of noise before banding.</p>
+        <p class="faq-def mb-3">Profile scans use Stockfish at depth ${ENGINE_DEPTH}. Checks, captures, mates, and large first-pass losses re-search at depth ${typeof CRITICAL_ENGINE_DEPTH === 'number' ? CRITICAL_ENGINE_DEPTH : 9} with MultiPV for sharper labels. Open a game and use <strong>Deepen analysis</strong> for depth ${REVIEW_ENGINE_DEPTH} with MultiPV ${REVIEW_MULTIPV} on every move.</p>
+        <p class="faq-def mb-3">Severity is based mainly on <strong>expected-points loss</strong> (change in win probability from the eval before → after your move), not raw centipawns alone. Swings from equal positions count more than swings in already-decided games. A base ${EVAL_NOISE_FLOOR_CP}cp noise floor applies on quiet samples; mates, clear PV gaps, and critical re-searches trust the engine more (lower floor).</p>
         ${[
             ['Theory', 'Your move matches a famous game line (at least 12 plies of SAN continuity from move one).'],
             ['Book', 'Still inside our opening book (continuous FEN / move-list prefix), and not already tagged Theory.'],
-            ['Best', 'You played the engine top move, OR post-noise eval loss ≤ 0.50 pawns.'],
-            ['Good', 'Post-noise eval loss ≤ 1.20 pawns (slight pull, still healthy).'],
-            ['Okay', 'Post-noise eval loss ≤ 2.00 pawns. Also the cap when the engine sample is marked unreliable (never Mistake/Blunder then).'],
-            ['Miss', 'Post-noise eval loss ≤ 3.00 pawns — something clearly better was available.'],
-            ['Mistake', 'Post-noise eval loss ≤ 4.50 pawns — real damage to the position.'],
-            ['Blunder', 'Post-noise eval loss > 4.50 pawns — catastrophic eval collapse.']
+            ['Best', 'Engine top move, or tiny expected-points loss (roughly ≤2%).'],
+            ['Good', 'Small expected-points dip — still a healthy practical choice.'],
+            ['Okay', 'Visible concession, not serious. Also the cap when the engine sample is marked unreliable (never Mistake/Blunder then).'],
+            ['Miss', 'Clear expected-points drop — something better was available without a full collapse.'],
+            ['Mistake', 'Real damage to winning chances (larger expected-points loss).'],
+            ['Blunder', 'Heavy expected-points collapse. Descriptions prefer the concrete theme when we have one (e.g. “Blunder — hung the knight”).']
         ].map(([term, def]) => aboutFeatureItem(term, def)).join('')}
+        <h3 class="about-section-title">Material &amp; structure themes</h3>
+        <p class="faq-def mb-3">Besides tactics, we tag fianchetto completion/trades, doubled pawns, isolated pawns, and hemmed “bad bishops”. These feed coach cards and Miss/Mistake/Blunder headlines.</p>
         <h3 class="about-section-title">Material events</h3>
         <p class="faq-def mb-3"><strong>Limits:</strong> material events use a 6-ply continuation from the actual game (not a full engine search). Hang/sac can miss quiet compensation. Labels refresh on new analysis or when you deepen a review.</p>
         ${[
@@ -2174,11 +2181,11 @@ function renderAboutFeatureSet() {
             ['Game stats', 'Estimated Game ELO for you and opponent, accuracy, phase star ratings, and move-quality group breakdowns.'],
             ['Moves', 'Move list with quality labels; key moment highlighted from the game story.'],
             ['Graph', 'Eval curve for the game; click points to jump to a move.'],
-            ['Deepen analysis', 'Re-run the current game at depth ${REVIEW_ENGINE_DEPTH} with MultiPV ${REVIEW_MULTIPV} for sharper labels and alternate engine lines.']
+            ['Deepen analysis', `Re-run the current game at depth ${REVIEW_ENGINE_DEPTH} with MultiPV ${REVIEW_MULTIPV} for sharper labels and alternate engine lines.`]
         ].map(([t, d]) => aboutFeatureItem(t, d)).join('')}
 
         <h3 class="about-section-title">What the coach analyses</h3>
-        <p class="faq-def mb-3">Coach cards are built from openings, phase move quality, tactics themes, material events, eval swings, heatmaps, and piece patterns — not generic tips.</p>
+        <p class="faq-def mb-3">Coach cards are built from openings, phase move quality, tactics + structure themes (fianchetto, doubled/isolated pawns, bad bishop), material events, expected-points severity, eval swings, heatmaps, and piece patterns — not generic tips.</p>
         ${[
             ['Opening reads', 'Book depth, who left theory first, favourite / weak opening families, early bishop sacs, knight development vs early exchanges.'],
             ['Middlegame reads', 'Blunder rates by phase, hang / fork / missed-hanging themes, knight activity, heatmap hotspots.'],

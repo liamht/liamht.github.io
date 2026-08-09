@@ -454,6 +454,11 @@ function describePlayerMove(opts) {
         }
     }
 
+    // --- Structure: fianchetto, doubled/isolated pawns, bad bishop ---
+    detectStructureThemes({
+        before, after, move, userColor, themes, bits, isNegative, isPositive
+    });
+
     if (!bits.length) {
         if (clsLabel === 'Best') bits.push('Precise — matched the engine idea');
         else if (clsLabel === 'Good') bits.push('Solid improving move');
@@ -470,6 +475,127 @@ function describePlayerMove(opts) {
         narrative: `What you did here: ${bits[0]}${bits[1] ? ` — ${bits[1]}` : ''}.`,
         materialEvent
     };
+}
+
+function pawnFileCounts(chess, color) {
+    const counts = { a: 0, b: 0, c: 0, d: 0, e: 0, f: 0, g: 0, h: 0 };
+    const board = chess.board();
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            const p = board[r][c];
+            if (p && p.type === 'p' && p.color === color) {
+                const file = String.fromCharCode(97 + c);
+                counts[file] += 1;
+            }
+        }
+    }
+    return counts;
+}
+
+function adjacentFiles(file) {
+    const i = file.charCodeAt(0) - 97;
+    const out = [];
+    if (i > 0) out.push(String.fromCharCode(97 + i - 1));
+    if (i < 7) out.push(String.fromCharCode(97 + i + 1));
+    return out;
+}
+
+function isIsolatedOnFile(counts, file) {
+    if ((counts[file] || 0) < 1) return false;
+    return adjacentFiles(file).every(f => (counts[f] || 0) === 0);
+}
+
+function bishopMobility(chess, square, color) {
+    const piece = chess.get(square);
+    if (!piece || piece.type !== 'b' || piece.color !== color) return 0;
+    // Count pseudo-legal target squares for that bishop
+    try {
+        const moves = chess.moves({ square, verbose: true }) || [];
+        return moves.length;
+    } catch (_) {
+        return 0;
+    }
+}
+
+function sameColorSquare(sq) {
+    const c = sq.charCodeAt(0) - 97;
+    const r = Number(sq[1]) - 1;
+    return (c + r) % 2 === 0 ? 'dark' : 'light';
+}
+
+function countOwnPawnsOnColor(chess, color, shade) {
+    let n = 0;
+    const board = chess.board();
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            const p = board[r][c];
+            if (!p || p.type !== 'p' || p.color !== color) continue;
+            const sq = coordsSq(r, c);
+            if (sameColorSquare(sq) === shade) n += 1;
+        }
+    }
+    return n;
+}
+
+function detectStructureThemes({ before, after, move, userColor, themes, bits, isNegative, isPositive }) {
+    const fianchettoSq = userColor === 'w'
+        ? { g: 'g2', b: 'b2' }
+        : { g: 'g7', b: 'b7' };
+
+    // Completing a fianchetto
+    if (
+        (move.san === 'Bg2' || move.san === 'Bb2' || move.san === 'Bg7' || move.san === 'Bb7') &&
+        move.piece === 'b'
+    ) {
+        themes.push('fianchetto');
+        bits.push('Completed a fianchetto on the long diagonal');
+    }
+
+    // Trading away your fianchetto bishop (moved from the hole and captured something / was an exchange)
+    const fromFian = move.from === fianchettoSq.g || move.from === fianchettoSq.b;
+    if (fromFian && move.piece === 'b' && move.captured && isNegative) {
+        themes.push('traded_fianchetto');
+        bits.push('Traded away the fianchetto bishop');
+    }
+
+    // Doubled / isolated pawns created by this move
+    const beforeFiles = pawnFileCounts(before, userColor);
+    const afterFiles = pawnFileCounts(after, userColor);
+    for (const file of 'abcdefgh') {
+        if ((afterFiles[file] || 0) >= 2 && (beforeFiles[file] || 0) < 2) {
+            themes.push('doubled_pawns');
+            bits.push(`Created doubled pawns on the ${file}-file`);
+            break;
+        }
+    }
+    for (const file of 'abcdefgh') {
+        if (isIsolatedOnFile(afterFiles, file) && !isIsolatedOnFile(beforeFiles, file)) {
+            // Only flag when we caused it (our pawn move/capture onto that file, or we captured a neighbour)
+            const touched = move.piece === 'p' && (move.to[0] === file || move.from[0] === file);
+            const captureNear = move.captured && adjacentFiles(file).includes(move.to[0]);
+            if (touched || captureNear || isNegative) {
+                themes.push('isolated_pawn');
+                bits.push(`Left an isolated pawn on the ${file}-file`);
+                break;
+            }
+        }
+    }
+
+    // Bad bishop: our bishop on same colour as many of our pawns, low mobility, after we push a same-colour pawn
+    if (isNegative || (move.piece === 'p' && !isPositive)) {
+        for (const b of eachPieceSquare(after, userColor)) {
+            if (b.type !== 'b') continue;
+            const shade = sameColorSquare(b.sq);
+            const pawnsOn = countOwnPawnsOnColor(after, userColor, shade);
+            const mob = bishopMobility(after, b.sq, userColor);
+            const mobBefore = bishopMobility(before, b.sq, userColor);
+            if (pawnsOn >= 3 && mob <= 2 && mob <= mobBefore) {
+                themes.push('bad_bishop');
+                bits.push(`Hemmed in a bad ${shade}-squared bishop`);
+                break;
+            }
+        }
+    }
 }
 
 function refineMaterialWithEval(analysis) {

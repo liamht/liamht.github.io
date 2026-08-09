@@ -91,14 +91,76 @@ function scoreForSideToMove(analysis) {
     return Math.max(-1500, Math.min(1500, analysis.score || 0));
 }
 
-function computeEvalDelta(bestBefore, actualAfter) {
+/** Map player-centric centipawns → expected score / win probability in [0, 1]. */
+function evalCpToWinProb(cp) {
+    const pawns = Math.max(-12, Math.min(12, (Number(cp) || 0) / 100));
+    return 1 / (1 + Math.exp(-0.65 * pawns));
+}
+
+function topEngineGapCp(bestBefore) {
+    const alts = bestBefore?.altMoves || [];
+    if (!alts.length || bestBefore.score == null) return null;
+    const top = scoreForSideToMove(bestBefore);
+    const alt = alts[0];
+    if (!alt || alt.scoreCp == null) return null;
+    let altCp = alt.scoreCp;
+    if (alt.isMate) {
+        const n = Math.abs(altCp) || 1;
+        altCp = altCp > 0 ? (600 - Math.min(n, 10) * 10) : (-600 + Math.min(n, 10) * 10);
+    }
+    return Math.max(0, top - altCp);
+}
+
+/**
+ * Centipawn loss + expected-points (win-prob) loss.
+ * Adaptive noise: quieter positions keep the full floor; mates / clear PV gaps / critical
+ * moments trust the engine more (lower floor).
+ */
+function computeEvalDelta(bestBefore, actualAfter, opts = {}) {
     // UCI scores are from the side to move:
     // before = player's turn, after = opponent's turn → playerEvalAfter = -scoreAfter
     const before = scoreForSideToMove(bestBefore);
     const afterForPlayer = -scoreForSideToMove(actualAfter);
     const rawCpl = Math.max(0, before - afterForPlayer);
-    const evalDeltaCp = Math.max(0, rawCpl - EVAL_NOISE_FLOOR_CP);
-    return { rawCpl, evalDeltaCp, evalDelta: evalDeltaCp / 100 };
+
+    let noise = opts.noiseFloor != null ? opts.noiseFloor : EVAL_NOISE_FLOOR_CP;
+    if (bestBefore?.isMate || actualAfter?.isMate) noise = Math.min(noise, 35);
+    const gap = opts.engineGapCp != null ? opts.engineGapCp : topEngineGapCp(bestBefore);
+    if (gap != null && gap >= 180) noise = Math.min(noise, 45);
+    if (opts.critical) noise = Math.min(noise, 55);
+    if (opts.deepened) noise = Math.min(noise, 50);
+
+    const evalDeltaCp = Math.max(0, rawCpl - noise);
+    const winBefore = evalCpToWinProb(before);
+    const winAfter = evalCpToWinProb(afterForPlayer);
+    // Expected points lost (0–1). Tiny raw wobbles under noise don't count as win-loss either.
+    const winLossRaw = Math.max(0, winBefore - winAfter);
+    const winLoss = rawCpl < noise * 0.5 ? 0 : winLossRaw;
+
+    return {
+        rawCpl,
+        evalDeltaCp,
+        evalDelta: evalDeltaCp / 100,
+        winLoss,
+        winBefore,
+        winAfter,
+        beforeCp: before,
+        afterCp: afterForPlayer,
+        noiseUsed: noise
+    };
+}
+
+function isCriticalMoment(chessBefore, move, best, rawCpl) {
+    if (best?.isMate) return true;
+    if ((rawCpl || 0) >= 180) return true;
+    if (move?.captured) return true;
+    const san = String(move?.san || '');
+    if (san.includes('+') || san.includes('#')) return true;
+    try {
+        if (typeof chessBefore.in_check === 'function' && chessBefore.in_check()) return true;
+        if (typeof chessBefore.inCheck === 'function' && chessBefore.inCheck()) return true;
+    } catch (_) {}
+    return false;
 }
 
 function getEngineAnalysis(engine, fen, opts = {}) {
@@ -187,7 +249,22 @@ function getEngineAnalysis(engine, fen, opts = {}) {
     });
 }
 
-function classifyMove({ evalDelta, isPlayer, isBook, isTheory, playedBest, reliable, theoryName, openingName }) {
+/**
+ * Classify by expected-points loss (win probability), with CPL as a secondary signal.
+ * Already-decided positions need a larger swing to earn Mistake/Blunder.
+ */
+function classifyMove({
+    evalDelta = 0,
+    winLoss = null,
+    winBefore = 0.5,
+    isPlayer,
+    isBook,
+    isTheory,
+    playedBest,
+    reliable,
+    theoryName,
+    openingName
+}) {
     const stem = (playerText, opponentText) => (isPlayer ? playerText : opponentText);
 
     if (isTheory) {
@@ -211,19 +288,28 @@ function classifyMove({ evalDelta, isPlayer, isBook, isTheory, playedBest, relia
         };
     }
 
-    if (playedBest || evalDelta <= 0.50) {
+    // Competitive weight: swings from ~equal hurt more than swings in a dead lost/won game
+    const competitive = Math.min(1, Math.max(0.35, 1 - Math.abs((winBefore ?? 0.5) - 0.5) * 1.5));
+    const wl = winLoss != null && Number.isFinite(winLoss) ? winLoss : null;
+    // Blend win-prob loss with a softened CPL proxy when winLoss missing
+    const cplProxy = Math.min(0.55, (evalDelta || 0) / 8);
+    const severity = wl != null
+        ? (wl * (0.5 + 0.5 * competitive) + Math.min(wl, 0.12) * 0.25)
+        : cplProxy;
+
+    if (playedBest || severity <= 0.02 || (evalDelta || 0) <= 0.45) {
         return {
             label: 'Best',
             class: 'cls-best',
             desc: stem(
-                playedBest ? 'Engine top choice.' : 'Negligible eval change.',
-                playedBest ? 'Opponent played the engine top choice.' : 'Negligible eval change for the opponent.'
+                playedBest ? 'Engine top choice.' : 'Negligible expected-points loss.',
+                playedBest ? 'Opponent played the engine top choice.' : 'Negligible expected-points loss for the opponent.'
             )
         };
     }
 
     if (!reliable) {
-        if (evalDelta <= 1.20) {
+        if (severity <= 0.06 || (evalDelta || 0) <= 1.20) {
             return {
                 label: 'Good',
                 class: 'cls-good',
@@ -240,39 +326,78 @@ function classifyMove({ evalDelta, isPlayer, isBook, isTheory, playedBest, relia
         };
     }
 
-    if (evalDelta <= 1.20) {
+    if (severity <= 0.055 || (evalDelta || 0) <= 1.10) {
         return {
             label: 'Good',
             class: 'cls-good',
             desc: stem('Slight pull; still healthy.', 'Slight pull for the opponent; still healthy.')
         };
     }
-    if (evalDelta <= 2.00) {
+    if (severity <= 0.10 || (evalDelta || 0) <= 1.85) {
         return {
             label: 'Okay',
             class: 'cls-okay',
             desc: stem('Visible concession, not serious.', 'Opponent concession, not serious.')
         };
     }
-    if (evalDelta <= 3.00) {
+    if (severity <= 0.18 || (evalDelta || 0) <= 2.75) {
         return {
             label: 'Miss',
             class: 'cls-miss',
             desc: stem('Missed something clearly better.', 'Opponent missed something clearly better.')
         };
     }
-    if (evalDelta <= 4.50) {
+    if (severity <= 0.28 || (evalDelta || 0) <= 4.0) {
         return {
             label: 'Mistake',
             class: 'cls-mistake',
-            desc: stem('Real damage to the position.', 'Opponent mistake — real damage to their position.')
+            desc: stem('Real damage to winning chances.', 'Opponent mistake — real damage to their chances.')
         };
     }
     return {
         label: 'Blunder',
         class: 'cls-blunder',
-        desc: stem('Catastrophic eval collapse.', 'Opponent blunder — catastrophic eval collapse.')
+        desc: stem('Heavy expected-points collapse.', 'Opponent blunder — heavy expected-points collapse.')
     };
+}
+
+/** Prefer theme/material wording for Miss/Mistake/Blunder headlines. */
+function enrichClassificationDesc(cls, { themes = [], materialEvent = null, narrative = '', isPlayer = true } = {}) {
+    if (!cls?.label) return cls;
+    const label = cls.label;
+    const hard = ['Miss', 'Mistake', 'Blunder'].includes(label);
+    let phrase = null;
+
+    if (materialEvent?.kind === 'hang' && materialEvent.offered) {
+        phrase = `hung the ${pieceLabel(materialEvent.offered)}`;
+    } else if (materialEvent?.kind === 'missed_capture' && materialEvent.captured) {
+        phrase = `missed a hanging ${pieceLabel(materialEvent.captured)}`;
+    } else if (materialEvent?.kind === 'sacrifice' && materialEvent.offered) {
+        phrase = `sacrificed the ${pieceLabel(materialEvent.offered)}`;
+    } else if (materialEvent?.kind === 'capture' && materialEvent.captured) {
+        phrase = `won the ${pieceLabel(materialEvent.captured)}`;
+    }
+
+    if (!phrase && typeof THEME_LABEL_PHRASES !== 'undefined') {
+        const order = Object.keys(THEME_LABEL_PHRASES);
+        for (const id of order) {
+            if (themes.includes(id) && THEME_LABEL_PHRASES[id]) {
+                phrase = THEME_LABEL_PHRASES[id];
+                break;
+            }
+        }
+    }
+
+    if (hard && phrase) {
+        cls.desc = isPlayer
+            ? `${label} — ${phrase}.`
+            : `Opponent ${label.toLowerCase()} — ${phrase}.`;
+    } else if (narrative) {
+        cls.desc = narrative;
+    } else if (phrase && isPlayer) {
+        cls.desc = `What you did here: ${phrase.charAt(0).toUpperCase()}${phrase.slice(1)}.`;
+    }
+    return cls;
 }
 
 function isPlayerMove(analysis, move) {
@@ -338,16 +463,53 @@ async function analyzeGame(game, user, engine, onMove, opts = {}) {
         let actual = { ...lastEval, reliable: lastEval.reliable || false, altMoves: [] };
         let evalDelta = 0;
         let evalDeltaCp = 0;
+        let winLoss = null;
+        let winBefore = null;
         let playedBest = false;
         let reliable = true;
+        let moveDepth = depth;
 
         // Classify both sides after leaving book/theory (same quality labels)
         if (!isBook && !isTheory) {
             best = await getEngineAnalysis(engine, fenBefore, { depth, multiPv, timeoutMs });
             actual = await getEngineAnalysis(engine, fenAfter, { depth, multiPv: 1, timeoutMs });
-            const delta = computeEvalDelta(best, actual);
-            evalDeltaCp = delta.evalDeltaCp;
-            evalDelta = delta.evalDelta;
+            let gap = topEngineGapCp(best);
+            let rawProbe = computeEvalDelta(best, actual, { engineGapCp: gap });
+            const critical = isCriticalMoment(beforeSnap, history[i], best, rawProbe.rawCpl);
+            const critDepth = typeof CRITICAL_ENGINE_DEPTH === 'number' ? CRITICAL_ENGINE_DEPTH : depth + 4;
+            // Deeper + MultiPV re-search only on sharp / high-CPL moments
+            if (critical && depth < critDepth && analysisStillRunning()) {
+                const deepTimeout = typeof CRITICAL_ENGINE_TIMEOUT_MS === 'number'
+                    ? CRITICAL_ENGINE_TIMEOUT_MS
+                    : Math.max(timeoutMs, 4000);
+                const deepPv = Math.max(multiPv, 2);
+                best = await getEngineAnalysis(engine, fenBefore, {
+                    depth: critDepth,
+                    multiPv: deepPv,
+                    timeoutMs: deepTimeout
+                });
+                actual = await getEngineAnalysis(engine, fenAfter, {
+                    depth: critDepth,
+                    multiPv: 1,
+                    timeoutMs: deepTimeout
+                });
+                gap = topEngineGapCp(best);
+                rawProbe = computeEvalDelta(best, actual, {
+                    engineGapCp: gap,
+                    critical: true,
+                    deepened: true
+                });
+                moveDepth = critDepth;
+            } else {
+                rawProbe = computeEvalDelta(best, actual, {
+                    engineGapCp: gap,
+                    critical
+                });
+            }
+            evalDeltaCp = rawProbe.evalDeltaCp;
+            evalDelta = rawProbe.evalDelta;
+            winLoss = rawProbe.winLoss;
+            winBefore = rawProbe.winBefore;
             playedBest = !!(best.bestMove && moveToUci(history[i]) === best.bestMove.toLowerCase());
             reliable = !!(best.reliable && actual.reliable);
             lastEval = actual;
@@ -355,6 +517,8 @@ async function analyzeGame(game, user, engine, onMove, opts = {}) {
 
         const cls = classifyMove({
             evalDelta,
+            winLoss,
+            winBefore,
             isPlayer: isUserTurn,
             isBook,
             isTheory,
@@ -382,7 +546,12 @@ async function analyzeGame(game, user, engine, onMove, opts = {}) {
                 themes = described.themes;
                 materialEvent = described.materialEvent || null;
                 narrative = described.narrative || cls.desc;
-                cls.desc = narrative;
+                enrichClassificationDesc(cls, {
+                    themes,
+                    materialEvent,
+                    narrative,
+                    isPlayer: true
+                });
             } catch (_) {
                 cls.desc = narrative || cls.desc;
             }
@@ -394,6 +563,9 @@ async function analyzeGame(game, user, engine, onMove, opts = {}) {
             if (cls.label === 'Blunder') counters.blunders++;
             if (cls.label === 'Best' || cls.label === 'Good') counters.great++;
             if (cls.label === 'Book' || cls.label === 'Theory') counters.book++;
+        } else if (!isBook && !isTheory) {
+            // Opponent side: still prefer concrete wording when we later attach themes (none today)
+            enrichClassificationDesc(cls, { narrative: cls.desc, isPlayer: false });
         }
 
         // Always white-centric: after the move, STM is the other side
@@ -415,10 +587,13 @@ async function analyzeGame(game, user, engine, onMove, opts = {}) {
             moveThemes: themes,
             materialEvent,
             evalDelta: !isBook && !isTheory ? evalDelta : null,
-            evalDeltaCp: !isBook && !isTheory ? evalDeltaCp : null
+            evalDeltaCp: !isBook && !isTheory ? evalDeltaCp : null,
+            winLoss: !isBook && !isTheory ? winLoss : null,
+            engineDepth: !isBook && !isTheory ? moveDepth : null
         });
     }
 
+    const maxDepth = moveData.reduce((m, x) => Math.max(m, x.engineDepth || depth), depth);
     return finalizeAnalysis(attachGameMeta(attachGamePlayers({
         moves: moveData,
         isWhite,
@@ -433,7 +608,7 @@ async function analyzeGame(game, user, engine, onMove, opts = {}) {
         openingName: theoryMatch.name || openingMatch.name,
         moveThemes: [...new Set(moveThemes)],
         moveThemeCounts,
-        engineDepth: depth,
+        engineDepth: maxDepth,
         multiPv
     }, game, user), game));
 }
@@ -579,6 +754,11 @@ function themeHeadline(themeId, won, materialEvent) {
         castle_pawn_push: won ? null : 'King-side pawn pushes left you exposed',
         king_in_center: won ? null : 'An uncastled king got punished',
         claimed_center: won ? 'Central control became a lasting edge' : null,
+        fianchetto: won ? 'The fianchetto bishop became a lasting asset' : null,
+        traded_fianchetto: won ? null : 'Trading the fianchetto bishop left lasting weak squares',
+        doubled_pawns: won ? null : 'Doubled pawns became a lasting weakness',
+        isolated_pawn: won ? null : 'An isolated pawn was successfully targeted',
+        bad_bishop: won ? null : 'A hemmed bad bishop never got into the game',
         castled_safe: null,
         developed_piece: null,
         quiet_improve: null
