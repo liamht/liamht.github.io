@@ -1235,6 +1235,7 @@ function rebuildAnalysisSnapshot(profile) {
         return null;
     }
     for (const g of profile.analyzedGames) {
+        if (typeof hydrateCachedAnalysis === 'function') hydrateCachedAnalysis(g, g.pgn);
         if (typeof enrichAnalysisMeta === 'function') enrichAnalysisMeta(g);
     }
     const heat = typeof buildPhaseColorHeatmaps === 'function'
@@ -1247,15 +1248,298 @@ function rebuildAnalysisSnapshot(profile) {
         ? aggregateCheckmatePieces(profile)
         : null;
     const insights = generateProfileInsights(profile, { survival, heat });
+    const analytics = typeof computeProfileAnalytics === 'function'
+        ? computeProfileAnalytics(profile)
+        : null;
     profile.analysisSnapshot = {
         gameCount: profile.analyzedGames.length,
         insights,
         survival,
         mates,
-        heat
+        heat,
+        analytics
     };
     profile.analysisSnapshotDirty = false;
     return profile.analysisSnapshot;
+}
+
+function finishBarsHtml(groups, total, resultKey) {
+    const order = ['mate', 'resign', 'timeout', 'draw', 'win', 'other'];
+    const entries = order
+        .map(k => ({ key: k, n: groups?.[k] || 0 }))
+        .filter(e => e.n > 0);
+    if (!entries.length || !total) {
+        return '<div class="insight-empty">No finishes in this bucket yet.</div>';
+    }
+    return `
+        <div class="finish-stack">
+            ${entries.map(e => {
+                const pct = Math.round((e.n / total) * 1000) / 10;
+                const label = (typeof FINISH_GROUP_LABELS !== 'undefined' && FINISH_GROUP_LABELS[e.key])
+                    || e.key;
+                return `
+                    <div class="finish-row">
+                        <div class="finish-label">${escInsightHtml(label)}</div>
+                        <div class="finish-track">
+                            <div class="finish-fill finish-${escInsightHtml(resultKey.toLowerCase())}" style="width:${Math.max(pct, e.n ? 3 : 0)}%"></div>
+                        </div>
+                        <div class="finish-pct">${e.n} · ${pct}%</div>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+}
+
+function evidenceBtnHtml(ev) {
+    if (!ev?.gameKey) return '';
+    return `<button type="button" class="coach-evidence-item" onclick="openCoachEvidence(decodeURIComponent('${encodeURIComponent(ev.gameKey)}'), ${Number(ev.moveIndex)})">
+        vs ${escInsightHtml(ev.opponent || 'opponent')} · ${escInsightHtml(ev.moveRef || ev.san || '')}${ev.label ? ` · ${escInsightHtml(ev.label)}` : ''}
+    </button>`;
+}
+
+function wldMiniHtml(row, title) {
+    if (!row?.games) return '';
+    return `
+        <div class="split-stat-card">
+            <div class="split-stat-title">${escInsightHtml(title)}</div>
+            <div class="split-stat-line">${row.games} games · ${row.wins}/${row.losses}/${row.draws}${row.wr != null ? ` · ${row.wr}% W` : ''}</div>
+            <div class="split-stat-line text-color-secondary">${row.avgAccuracy != null ? `${row.avgAccuracy}% acc` : '—'}${row.avgCpl != null ? ` · ${row.avgCpl} CPL` : ''}</div>
+        </div>
+    `;
+}
+
+function renderProfileFormPanel(profile, analyticsData) {
+    const root = document.getElementById('analysis-form');
+    if (!root) return;
+    const a = analyticsData || (typeof computeProfileAnalytics === 'function'
+        ? computeProfileAnalytics(profile)
+        : null);
+    if (!a || !a.gameCount) {
+        root.innerHTML = '<div class="insight-empty">Form stats appear once games are analyzed.</div>';
+        return;
+    }
+
+    const wins = Object.values(a.finishGroups.WIN || {}).reduce((s, n) => s + n, 0);
+    const losses = Object.values(a.finishGroups.LOSS || {}).reduce((s, n) => s + n, 0);
+    const draws = Object.values(a.finishGroups.DRAW || {}).reduce((s, n) => s + n, 0);
+    const gap = a.avgRatingGap;
+    const pc = a.phaseCpl || {};
+
+    const resignNote = a.resignLosses
+        ? `<div class="form-note text-color-secondary text-sm mb-3">
+            Losses: ${a.matedLosses} by mate · ${a.resignLosses} by resign
+            ${a.earlyResignLosses ? ` (${a.earlyResignLosses} while eval was not fully dead)` : ''}.
+           </div>`
+        : '';
+
+    const gapCards = ['underdog', 'even', 'favorite']
+        .map(k => wldMiniHtml(a.gapBands?.[k], (typeof GAP_BAND_LABELS !== 'undefined' ? GAP_BAND_LABELS[k] : k)))
+        .filter(Boolean)
+        .join('');
+
+    const tcCards = Object.entries(a.timeClassStats || {})
+        .filter(([, row]) => row.games > 0)
+        .sort((x, y) => y[1].games - x[1].games)
+        .map(([k, row]) => {
+            const label = typeof formatTimeClassLabel === 'function' ? formatTimeClassLabel(k) : k;
+            return wldMiniHtml(row, label);
+        })
+        .join('');
+
+    root.innerHTML = `
+        <div class="form-metrics">
+            <div class="form-metric">
+                <div class="form-metric-value">${a.avgAccuracy != null ? `${a.avgAccuracy}%` : '—'}</div>
+                <div class="form-metric-label">Avg accuracy</div>
+            </div>
+            <div class="form-metric">
+                <div class="form-metric-value">${a.avgGameElo != null ? a.avgGameElo : '—'}</div>
+                <div class="form-metric-label">Avg Game ELO</div>
+            </div>
+            <div class="form-metric">
+                <div class="form-metric-value">${a.avgCpl != null ? a.avgCpl : '—'}</div>
+                <div class="form-metric-label">Avg CPL</div>
+            </div>
+            <div class="form-metric">
+                <div class="form-metric-value">${a.avgGameCpl != null ? a.avgGameCpl : '—'}</div>
+                <div class="form-metric-label">CPL / game</div>
+            </div>
+            <div class="form-metric">
+                <div class="form-metric-value">${a.avgSwingCp != null ? a.avgSwingCp : '—'}</div>
+                <div class="form-metric-label">Avg max swing</div>
+            </div>
+            <div class="form-metric">
+                <div class="form-metric-value">${a.collapses || 0}/${a.comebacks || 0}</div>
+                <div class="form-metric-label">Collapses / comebacks</div>
+            </div>
+            <div class="form-metric">
+                <div class="form-metric-value">${a.avgOppAccuracy != null ? `${a.avgOppAccuracy}%` : '—'}</div>
+                <div class="form-metric-label">Opp accuracy</div>
+            </div>
+            <div class="form-metric">
+                <div class="form-metric-value">${gap == null ? '—' : (gap >= 0 ? `+${gap}` : String(gap))}</div>
+                <div class="form-metric-label">Rating gap</div>
+            </div>
+        </div>
+        <div class="profile-kicker mb-2">CPL by phase</div>
+        <div class="phase-cpl-row mb-3">
+            <span>Opening <strong>${pc.opening != null ? pc.opening : '—'}</strong></span>
+            <span>Middlegame <strong>${pc.middlegame != null ? pc.middlegame : '—'}</strong></span>
+            <span>Endgame <strong>${pc.endgame != null ? pc.endgame : '—'}</strong></span>
+        </div>
+        ${resignNote}
+        <div class="finish-grid mb-3">
+            <div class="finish-col">
+                <div class="profile-kicker">Wins · ${wins}</div>
+                ${finishBarsHtml(a.finishGroups.WIN, wins, 'WIN')}
+            </div>
+            <div class="finish-col">
+                <div class="profile-kicker">Losses · ${losses}</div>
+                ${finishBarsHtml(a.finishGroups.LOSS, losses, 'LOSS')}
+            </div>
+            <div class="finish-col">
+                <div class="profile-kicker">Draws · ${draws}</div>
+                ${finishBarsHtml(a.finishGroups.DRAW, draws, 'DRAW')}
+            </div>
+        </div>
+        ${gapCards ? `<div class="profile-kicker mb-2">Performance vs rating gap</div><div class="split-stat-grid mb-3">${gapCards}</div>` : ''}
+        ${tcCards ? `<div class="profile-kicker mb-2">By time control</div><div class="split-stat-grid">${tcCards}</div>` : ''}
+    `;
+}
+
+function renderTacticsEnginePanel(profile, analyticsData) {
+    const root = document.getElementById('analysis-tactics');
+    if (!root) return;
+    const a = analyticsData || (typeof computeProfileAnalytics === 'function'
+        ? computeProfileAnalytics(profile)
+        : null);
+    if (!a || !a.gameCount) {
+        root.innerHTML = '<div class="insight-empty">Tactics stats appear once games are analyzed.</div>';
+        return;
+    }
+
+    const mat = a.materialCards || [];
+    const em = a.engineMisses || {};
+    const alt = a.altEngine || {};
+    const od = a.opponentDynamics || {};
+    const ks = a.kingSafety || [];
+
+    const matHtml = mat.length
+        ? mat.map(c => `
+            <div class="theme-freq-card polarity-${escInsightHtml(c.polarity)}">
+                <div class="theme-freq-pct">${c.pctGames}%</div>
+                <div class="theme-freq-body">
+                    <div class="theme-freq-text">${escInsightHtml(c.label)} in ${c.games} game${c.games === 1 ? '' : 's'} (${c.events}×)</div>
+                    <div class="theme-freq-detail text-color-secondary">Material-event rate from hang / sac / capture tagging.</div>
+                    ${c.evidence ? `<div class="coach-evidence">${evidenceBtnHtml(c.evidence)}</div>` : ''}
+                </div>
+            </div>
+        `).join('')
+        : '<div class="insight-empty">No material events tagged yet.</div>';
+
+    const engineHtml = em.chances
+        ? `<div class="split-stat-card">
+                <div class="split-stat-title">Missed engine shots</div>
+                <div class="split-stat-line">${em.capture} capture · ${em.check} check misses (${em.chances} chances)</div>
+                <div class="coach-evidence">
+                    ${evidenceBtnHtml(em.examples?.capture)}
+                    ${evidenceBtnHtml(em.examples?.check)}
+                </div>
+           </div>`
+        : `<div class="split-stat-card"><div class="split-stat-title">Missed engine shots</div><div class="split-stat-line text-color-secondary">No clear capture/check engine misses in this sample.</div></div>`;
+
+    const altHtml = alt.games
+        ? `<div class="split-stat-card">
+                <div class="split-stat-title">MultiPV / deepen</div>
+                <div class="split-stat-line">${alt.games} deepened game${alt.games === 1 ? '' : 's'}</div>
+                <div class="split-stat-line text-color-secondary">When missing #1, played a top-2 line ${alt.top2Rate != null ? `${alt.top2Rate}%` : '—'} of the time (${alt.top2Hits}/${alt.chances})</div>
+           </div>`
+        : `<div class="split-stat-card"><div class="split-stat-title">MultiPV / deepen</div><div class="split-stat-line text-color-secondary">Deepen a review to track top-2 engine hits.</div></div>`;
+
+    const oppHtml = `
+        <div class="split-stat-card">
+            <div class="split-stat-title">You punish mistakes</div>
+            <div class="split-stat-line">${od.punishRate != null ? `${od.punishRate}%` : '—'} after opp Mistake/Blunder (${od.punishedOpp || 0}/${od.oppBlunders || 0})</div>
+            ${od.punishEvidence ? `<div class="coach-evidence">${evidenceBtnHtml(od.punishEvidence)}</div>` : ''}
+        </div>
+        <div class="split-stat-card">
+            <div class="split-stat-title">Opponents punish you</div>
+            <div class="split-stat-line">${od.outplayRate != null ? `${od.outplayRate}%` : '—'} after your Mistake/Blunder (${od.oppPunishedYou || 0}/${od.yourBlunders || 0})</div>
+            ${od.outplayEvidence ? `<div class="coach-evidence">${evidenceBtnHtml(od.outplayEvidence)}</div>` : ''}
+        </div>
+    `;
+
+    const ksHtml = ks.length
+        ? `<div class="profile-kicker mb-2">King safety</div>
+           <div class="theme-freq-list mb-3">${ks.map(c => `
+                <div class="theme-freq-card polarity-bad">
+                    <div class="theme-freq-pct">${c.pct}%</div>
+                    <div class="theme-freq-body">
+                        <div class="theme-freq-text">${escInsightHtml(c.text)}</div>
+                        <div class="theme-freq-detail text-color-secondary">${escInsightHtml(c.detail)}</div>
+                        ${c.evidence ? `<div class="coach-evidence">${evidenceBtnHtml(c.evidence)}</div>` : ''}
+                    </div>
+                </div>
+           `).join('')}</div>`
+        : '';
+
+    root.innerHTML = `
+        <div class="profile-kicker mb-2">Material events</div>
+        <div class="theme-freq-list mb-3">${matHtml}</div>
+        <div class="profile-kicker mb-2">Engine &amp; opponents</div>
+        <div class="split-stat-grid mb-3">${engineHtml}${altHtml}${oppHtml}</div>
+        ${ksHtml}
+    `;
+}
+
+function renderThemeFrequencyPanel(profile, analyticsData) {
+    const root = document.getElementById('analysis-themes');
+    if (!root) return;
+    const a = analyticsData || (typeof computeProfileAnalytics === 'function'
+        ? computeProfileAnalytics(profile)
+        : null);
+    const cards = a?.themeCards || [];
+    if (!cards.length) {
+        root.innerHTML = '<div class="insight-empty">Theme frequency fills in as tactical and positional tags appear on your moves.</div>';
+        return;
+    }
+
+    const habits = cards.filter(c => c.skipped && c.polarity === 'good').slice(0, 4);
+    // King-safety themes are featured in the tactics panel — keep theme list focused elsewhere
+    const focus = cards.filter(c => !c.skipped && !c.kingSafety).slice(0, 10);
+
+    const cardHtml = (c) => {
+        const ev = c.evidence;
+        const evidenceBtn = ev?.gameKey
+            ? `<button type="button" class="coach-evidence-item" onclick="openCoachEvidence(decodeURIComponent('${encodeURIComponent(ev.gameKey)}'), ${Number(ev.moveIndex)})">
+                    vs ${escInsightHtml(ev.opponent)} · ${escInsightHtml(ev.moveRef || ev.san)}${ev.label ? ` · ${escInsightHtml(ev.label)}` : ''}
+               </button>`
+            : '';
+        return `
+            <div class="theme-freq-card polarity-${escInsightHtml(c.polarity)}${c.skipped ? ' is-habit' : ''}">
+                <div class="theme-freq-pct">${c.pct}%</div>
+                <div class="theme-freq-body">
+                    <div class="theme-freq-text">${escInsightHtml(c.text)}</div>
+                    <div class="theme-freq-detail text-color-secondary">${escInsightHtml(c.detail)}</div>
+                    ${evidenceBtn ? `<div class="coach-evidence">${evidenceBtn}</div>` : ''}
+                </div>
+            </div>
+        `;
+    };
+
+    root.innerHTML = `
+        ${habits.length ? `
+            <div class="theme-habits mb-3">
+                <div class="profile-kicker mb-2">Healthy habits</div>
+                <div class="theme-freq-list">${habits.map(cardHtml).join('')}</div>
+            </div>
+        ` : ''}
+        <div class="profile-kicker mb-2">Standing out</div>
+        <div class="theme-freq-list">
+            ${focus.length ? focus.map(cardHtml).join('') : '<div class="insight-empty">No distinctive themes yet.</div>'}
+        </div>
+    `;
 }
 
 function renderCoachInsights(profile, insightsData) {

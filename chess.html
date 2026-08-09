@@ -29,10 +29,21 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeng@17.18.15/resources/primeng.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeicons@7.0.0/primeicons.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeflex@3.3.1/primeflex.min.css">
-    <link rel="stylesheet" href="chess.css?v=20260808z">
+    <link rel="stylesheet" href="chess.css?v=20260809c">
 </head>
 <body>
 <div class="app-shell">
+    <header class="app-topnav" role="banner">
+        <button type="button" class="app-brand" onclick="switchAppView('analyze')" title="Analyze Chess">
+            Analyze Chess
+        </button>
+        <nav class="app-topnav-links" aria-label="Primary">
+            <button type="button" class="app-topnav-link is-active" data-view="analyze" onclick="switchAppView('analyze')">Analyze</button>
+            <button type="button" class="app-topnav-link" data-view="about" onclick="switchAppView('about')">About</button>
+        </nav>
+    </header>
+
+    <div id="analyze-view">
     <div class="p-card mb-3">
         <div class="p-card-body">
             <div class="flex flex-column md:flex-row gap-2 align-items-stretch md:align-items-center">
@@ -83,7 +94,7 @@
                     <img id="profile-avatar" class="profile-avatar" alt="avatar" src="">
                     <div class="flex-1">
                         <div id="profile-display-name" class="text-2xl font-bold mb-1">Analyze Chess</div>
-                        <div id="profile-header-sub" class="text-color-secondary text-sm mb-3">Load your Chess.com profile or game for a customised, fully client-side engine review. Insights across recent games, openings, and learnable theory — see About for how labels work.</div>
+                        <div id="profile-header-sub" class="text-color-secondary text-sm mb-3">Load your Chess.com profile or game for a customised, fully client-side engine review. Insights across recent games, openings, and learnable theory — open About in the top menu for how labels work.</div>
                         <div class="flex flex-wrap gap-2" id="profile-stat-row"></div>
                     </div>
                 </div>
@@ -112,11 +123,6 @@
                         <li role="presentation">
                             <a href="#" class="p-tabview-nav-link" data-tab="learning" onclick="switchDashTab('learning', this); return false;" role="tab">
                                 <span class="p-tabview-title">Learn</span>
-                            </a>
-                        </li>
-                        <li role="presentation">
-                            <a href="#" class="p-tabview-nav-link" data-tab="about" onclick="switchDashTab('about', this); return false;" role="tab">
-                                <span class="p-tabview-title">About</span>
                             </a>
                         </li>
                     </ul>
@@ -150,8 +156,15 @@
                     <div id="overview-content" class="overview-grid">
                         <div class="p-card full">
                             <div class="p-card-body">
-                                <div class="p-card-title mb-1">Chess.com ELO over time</div>
-                                <div class="text-color-secondary text-sm mb-3">Your rating after each analyzed game · click a point to open that game</div>
+                                <div class="p-card-title mb-1">Accuracy form</div>
+                                <div class="text-color-secondary text-sm mb-3">Average move accuracy across analyzed games · click a point to open that game</div>
+                                <div id="overview-accuracy" class="overview-accuracy"></div>
+                            </div>
+                        </div>
+                        <div class="p-card full">
+                            <div class="p-card-body">
+                                <div class="p-card-title mb-1">Chess.com ELO &amp; Game ELO</div>
+                                <div class="text-color-secondary text-sm mb-3">Stable Chess.com rating vs volatile estimated Game ELO from each game’s move accuracy — stems show the gap · click a point to open that game</div>
                                 <div id="overview-elo-chart" class="overview-elo-chart"></div>
                             </div>
                         </div>
@@ -159,6 +172,13 @@
                             <div class="p-card-body">
                                 <div class="p-card-title mb-3">Move quality</div>
                                 <div id="overview-quality"></div>
+                            </div>
+                        </div>
+                        <div class="p-card">
+                            <div class="p-card-body">
+                                <div class="p-card-title mb-1">Quality form</div>
+                                <div class="text-color-secondary text-sm mb-3">Distribution of game quality scores and your current streak.</div>
+                                <div id="overview-form"></div>
                             </div>
                         </div>
                         <div class="p-card">
@@ -191,6 +211,14 @@
                                 <option value="LOSS">Losses</option>
                                 <option value="DRAW">Draws</option>
                             </select>
+                            <select id="filter-time" class="p-inputtext p-component" onchange="renderMatchesTab()">
+                                <option value="all">All time controls</option>
+                                <option value="bullet">Bullet</option>
+                                <option value="blitz">Blitz</option>
+                                <option value="rapid">Rapid</option>
+                                <option value="classical">Classical</option>
+                                <option value="daily">Daily</option>
+                            </select>
                             <div id="match-sort-chip" class="match-sort-chip p-tag p-component">
                                 <span id="match-sort-label">Sorted by Best %</span>
                                 <button type="button" class="p-button p-button-text p-button-sm p-component" onclick="clearMatchesSort()">Clear</button>
@@ -203,6 +231,27 @@
                 <div id="tab-analysis" class="p-tabview-panel dash-panel">
                     <div id="analysis-empty" class="tab-empty-state"></div>
                     <div id="analysis-content">
+                        <div class="p-card mb-3">
+                            <div class="p-card-body">
+                                <div class="p-card-title mb-1">Form &amp; finishes</div>
+                                <div class="text-color-secondary text-sm mb-3">Accuracy, CPL by phase, eval swings, finishes, rating-gap bands, and time-control splits.</div>
+                                <div id="analysis-form"></div>
+                            </div>
+                        </div>
+                        <div class="p-card mb-3">
+                            <div class="p-card-body">
+                                <div class="p-card-title mb-1">Tactics, engine &amp; opponents</div>
+                                <div class="text-color-secondary text-sm mb-3">Material-event rates, missed engine captures/checks, MultiPV top-2 hits, and whether you punish opponent slips.</div>
+                                <div id="analysis-tactics"></div>
+                            </div>
+                        </div>
+                        <div class="p-card mb-3">
+                            <div class="p-card-body">
+                                <div class="p-card-title mb-1">Theme frequency</div>
+                                <div class="text-color-secondary text-sm mb-3">How often each tactical or positional theme shows up across your games — click evidence to jump to the move.</div>
+                                <div id="analysis-themes"></div>
+                            </div>
+                        </div>
                         <div class="p-card mb-3">
                             <div class="p-card-body">
                                 <div class="p-card-title mb-1">Coach notes</div>
@@ -268,13 +317,6 @@
                     <div id="learn-detail" style="display:none"></div>
                 </div>
 
-                <div id="tab-about" class="p-tabview-panel dash-panel">
-                    <div id="faq-content"></div>
-                    <details class="about-debug mt-4">
-                        <summary class="about-debug-summary">Debug log</summary>
-                        <div id="debug-log" class="mt-3">System initializing...</div>
-                    </details>
-                </div>
             </div>
         </div>
     </div>
@@ -388,17 +430,30 @@
             </div>
         </div>
     </div>
+    </div><!-- /#analyze-view -->
+
+    <div id="about-view" class="about-view" style="display:none">
+        <div class="p-card">
+            <div class="p-card-body">
+                <div id="faq-content"></div>
+                <details class="about-debug mt-4">
+                    <summary class="about-debug-summary">Debug log</summary>
+                    <div id="debug-log" class="mt-3">System initializing...</div>
+                </details>
+            </div>
+        </div>
+    </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
-<script src="js/chess/constants.js?v=20260808z"></script>
-<script src="js/chess/tactics.js?v=20260808z"></script>
-<script src="js/chess/openings.js?v=20260808z"></script>
-<script src="js/chess/learning.js?v=20260808z"></script>
-<script src="js/chess/cache.js?v=20260808z"></script>
-<script src="js/chess/analysis.js?v=20260808z"></script>
-<script src="js/chess/pieces.js?v=20260808z"></script>
-<script src="js/chess/ui.js?v=20260808z"></script>
-<script src="js/chess/insights.js?v=20260808z"></script>
-<script src="js/chess/app.js?v=20260808z"></script>
+<script src="js/chess/constants.js?v=20260809c"></script>
+<script src="js/chess/tactics.js?v=20260809c"></script>
+<script src="js/chess/openings.js?v=20260809c"></script>
+<script src="js/chess/learning.js?v=20260809c"></script>
+<script src="js/chess/cache.js?v=20260809c"></script>
+<script src="js/chess/analysis.js?v=20260809c"></script>
+<script src="js/chess/pieces.js?v=20260809c"></script>
+<script src="js/chess/ui.js?v=20260809c"></script>
+<script src="js/chess/insights.js?v=20260809c"></script>
+<script src="js/chess/app.js?v=20260809c"></script>
 </body>
 </html>

@@ -419,7 +419,7 @@ async function analyzeGame(game, user, engine, onMove, opts = {}) {
         });
     }
 
-    return finalizeAnalysis(attachGamePlayers({
+    return finalizeAnalysis(attachGameMeta(attachGamePlayers({
         moves: moveData,
         isWhite,
         username: user,
@@ -435,7 +435,7 @@ async function analyzeGame(game, user, engine, onMove, opts = {}) {
         moveThemeCounts,
         engineDepth: depth,
         multiPv
-    }, game, user));
+    }, game, user), game));
 }
 
 function pgnHeaderTag(pgn, tag) {
@@ -443,6 +443,56 @@ function pgnHeaderTag(pgn, tag) {
     const re = new RegExp('\\[' + tag + '\\s+"([^"]*)"\\]', 'i');
     const m = String(pgn).match(re);
     return m ? m[1] : null;
+}
+
+/** Infer Chess.com-style time class from a TimeControl string (seconds or base+inc). */
+function inferTimeClassFromControl(tc) {
+    if (!tc) return null;
+    const s = String(tc).trim();
+    if (!s || s === '-' || s.toLowerCase() === 'unknown') return null;
+    if (s.includes('/')) return 'daily';
+    const m = s.match(/^(\d+)\s*(?:\+\s*(\d+))?$/);
+    if (!m) return null;
+    const base = Number(m[1]);
+    const inc = Number(m[2] || 0);
+    // Estimated game length in seconds (Chess.com-ish): base + 40 increments
+    const est = base + 40 * inc;
+    if (est < 180) return 'bullet';
+    if (est < 600) return 'blitz';
+    if (est < 1500) return 'rapid';
+    return 'classical';
+}
+
+/** Persist time class / rated flags from Chess.com API or PGN headers. */
+function attachGameMeta(analysis, game) {
+    if (!analysis) return analysis;
+    if (game) {
+        if (game.time_class) analysis.timeClass = String(game.time_class).toLowerCase();
+        if (game.time_control != null && game.time_control !== '') {
+            analysis.timeControl = String(game.time_control);
+        }
+        if (typeof game.rated === 'boolean') analysis.rated = game.rated;
+    }
+    const pgn = game?.pgn || analysis.pgn || '';
+    if (!analysis.timeControl) {
+        const tc = pgnHeaderTag(pgn, 'TimeControl');
+        if (tc) analysis.timeControl = tc;
+    }
+    if (!analysis.timeClass) {
+        analysis.timeClass = inferTimeClassFromControl(analysis.timeControl);
+    }
+    if (analysis.rated == null) {
+        const event = pgnHeaderTag(pgn, 'Event') || '';
+        if (/rated/i.test(event)) analysis.rated = true;
+        else if (/unrated/i.test(event)) analysis.rated = false;
+    }
+    return analysis;
+}
+
+function formatTimeClassLabel(tc) {
+    if (!tc) return '';
+    const s = String(tc).toLowerCase();
+    return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 /** Attach Chess.com white/black usernames + ratings (API first, PGN headers as fallback). */

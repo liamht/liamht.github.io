@@ -342,13 +342,659 @@ function sideMoveStats(analysis, forPlayer) {
         ratedN += 1;
     }
     const accuracy = ratedN ? Math.round((accSum / ratedN) * 10) / 10 : null;
+    let cplSum = 0;
+    let cplN = 0;
+    for (const m of moves) {
+        if (m.evalDeltaCp == null || !Number.isFinite(m.evalDeltaCp)) continue;
+        if (m.classification?.label === 'Book' || m.classification?.label === 'Theory') continue;
+        cplSum += m.evalDeltaCp;
+        cplN += 1;
+    }
+    const avgCpl = cplN ? Math.round(cplSum / cplN) : null;
     return {
         moves,
         counts,
         total: moves.length,
         ratedN,
         accuracy,
+        avgCpl,
+        cplN,
         gameElo: estimateGameElo(accuracy, counts, ratedN)
+    };
+}
+
+const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+
+/** Largest drop (cp) from a running peak of player-centric eval within a game. */
+function maxEvalSwingCp(analysis) {
+    const curve = classifyEvalCurve(analysis);
+    return curve ? curve.maxDrop : null;
+}
+
+function fenBeforeMove(analysis, moveIndex) {
+    if (moveIndex <= 0) return START_FEN;
+    return analysis?.moves?.[moveIndex - 1]?.fen || null;
+}
+
+function moveUci(m) {
+    if (!m?.from || !m?.to) return null;
+    const promoMatch = String(m.san || '').match(/=([NBRQ])/i);
+    const promo = promoMatch ? promoMatch[1].toLowerCase() : '';
+    return m.from + m.to + promo;
+}
+
+/** Whether the engine's best UCI is a capture and/or delivers check from fenBefore. */
+function classifyBestEngineMove(fenBefore, bestUci) {
+    if (!fenBefore || !bestUci || bestUci.length < 4 || typeof Chess === 'undefined') {
+        return { capture: false, check: false, ok: false };
+    }
+    try {
+        const c = new Chess(fenBefore);
+        const from = bestUci.slice(0, 2);
+        const to = bestUci.slice(2, 4);
+        const promo = bestUci.length > 4 ? bestUci[4] : undefined;
+        const target = c.get(to);
+        const captureHint = !!(target && target.color !== c.turn());
+        const moved = c.move({ from, to, promotion: promo || 'q' });
+        if (!moved) return { capture: captureHint, check: false, ok: false };
+        return {
+            capture: !!(moved.captured || captureHint),
+            check: !!(typeof c.in_check === 'function' ? c.in_check() : c.inCheck?.()),
+            ok: true
+        };
+    } catch (_) {
+        return { capture: false, check: false, ok: false };
+    }
+}
+
+function classifyEvalCurve(analysis) {
+    const moves = analysis?.moves || [];
+    if (!moves.length || typeof playerEvalAt !== 'function') return null;
+    let peak = null;
+    let trough = null;
+    let maxDrop = 0;
+    let maxRise = 0;
+    let wasWorseThan = false; // pe <= -150 at some point
+    let recovered = false;
+    let endPe = null;
+    for (const m of moves) {
+        if (m.eval == null || !Number.isFinite(m.eval)) continue;
+        const pe = playerEvalAt(analysis, m);
+        endPe = pe;
+        if (peak == null || pe > peak) peak = pe;
+        if (trough == null || pe < trough) trough = pe;
+        if (peak != null) maxDrop = Math.max(maxDrop, peak - pe);
+        if (trough != null) maxRise = Math.max(maxRise, pe - trough);
+        if (pe <= -150) wasWorseThan = true;
+        if (wasWorseThan && pe >= 50) recovered = true;
+    }
+    if (peak == null) return null;
+    const collapse = maxDrop >= 200 && (analysis.result === 'LOSS' || (endPe != null && endPe <= -100));
+    const comeback = (recovered || (wasWorseThan && analysis.result === 'WIN')) && maxRise >= 150;
+    return {
+        maxDrop: Math.round(maxDrop),
+        maxRise: Math.round(maxRise),
+        collapse,
+        comeback,
+        endPe: endPe != null ? Math.round(endPe) : null
+    };
+}
+
+function qualityBucket(score) {
+    if (score == null || !Number.isFinite(score)) return null;
+    if (score >= 4.2) return 'excellent';
+    if (score >= 3.5) return 'solid';
+    if (score >= 2.5) return 'mixed';
+    return 'rough';
+}
+
+const QUALITY_BUCKET_LABELS = {
+    excellent: 'Excellent (≥4.2)',
+    solid: 'Solid (3.5–4.2)',
+    mixed: 'Mixed (2.5–3.5)',
+    rough: 'Rough (<2.5)'
+};
+
+function ratingGapBand(delta) {
+    if (delta <= -150) return 'underdog';
+    if (delta >= 150) return 'favorite';
+    return 'even';
+}
+
+const GAP_BAND_LABELS = {
+    underdog: 'Underdog (−150+)',
+    even: 'Even (±149)',
+    favorite: 'Favorite (+150+)'
+};
+
+function emptyWldAcc() {
+    return { games: 0, wins: 0, losses: 0, draws: 0, accSum: 0, accN: 0, cplSum: 0, cplN: 0 };
+}
+
+function bumpWldAcc(bucket, result, accuracy, avgCpl, cplMoves) {
+    bucket.games += 1;
+    if (result === 'WIN') bucket.wins += 1;
+    else if (result === 'LOSS') bucket.losses += 1;
+    else bucket.draws += 1;
+    if (accuracy != null) {
+        bucket.accSum += accuracy;
+        bucket.accN += 1;
+    }
+    if (avgCpl != null && cplMoves) {
+        bucket.cplSum += avgCpl * cplMoves;
+        bucket.cplN += cplMoves;
+    }
+}
+
+function finalizeWldAcc(bucket) {
+    return {
+        games: bucket.games,
+        wins: bucket.wins,
+        losses: bucket.losses,
+        draws: bucket.draws,
+        wr: bucket.games ? Math.round((bucket.wins / bucket.games) * 1000) / 10 : null,
+        avgAccuracy: bucket.accN ? Math.round((bucket.accSum / bucket.accN) * 10) / 10 : null,
+        avgCpl: bucket.cplN ? Math.round(bucket.cplSum / bucket.cplN) : null
+    };
+}
+
+function pushExample(store, key, example, score) {
+    if (!store[key] || score > (store[key]._score || 0)) {
+        store[key] = { ...example, _score: score };
+    }
+}
+
+/** How the game ended, from your seat (wins use opponent's terminal result). */
+function finishReasonCode(analysis) {
+    if (!analysis) return 'unknown';
+    if (analysis.result === 'WIN') {
+        const opp = analysis.oppResultDetail || '';
+        if (opp && opp !== 'lose') return opp;
+        return analysis.resultDetail === 'win' ? 'win' : (analysis.resultDetail || 'win');
+    }
+    return analysis.resultDetail || (analysis.result === 'DRAW' ? 'agreed' : 'unknown');
+}
+
+function finishReasonGroup(code) {
+    const c = String(code || '').toLowerCase();
+    if (c === 'checkmated') return 'mate';
+    if (c === 'resigned' || c === 'abandoned') return 'resign';
+    if (c === 'timeout' || c === 'timevsinsufficient') return 'timeout';
+    if (c === 'stalemate' || c === 'agreed' || c === 'repetition' || c === 'insufficient' || c === '50move') {
+        return 'draw';
+    }
+    if (c === 'win') return 'win';
+    return 'other';
+}
+
+const FINISH_GROUP_LABELS = {
+    mate: 'Checkmate',
+    resign: 'Resignation',
+    timeout: 'Timeout',
+    draw: 'Drawn finish',
+    win: 'Won (detail missing)',
+    other: 'Other'
+};
+
+/**
+ * Profile-level form stats for Overview + Insights: accuracy, CPL by phase,
+ * swings/comebacks, finishes, themes, material rates, engine misses, gap bands,
+ * time-class splits, opponent punish/outplay, quality distribution/streaks.
+ */
+function computeProfileAnalytics(profile) {
+    const games = [...(profile?.analyzedGames || [])].sort((a, b) => (a.endTime || 0) - (b.endTime || 0));
+    const n = games.length;
+    const accuracySeries = [];
+    const gameEloSeries = [];
+    let accSum = 0;
+    let accN = 0;
+    let cplSum = 0;
+    let cplN = 0;
+    let gameCplSum = 0;
+    let gameCplN = 0;
+    const phaseCpl = {
+        opening: { sum: 0, n: 0 },
+        middlegame: { sum: 0, n: 0 },
+        endgame: { sum: 0, n: 0 }
+    };
+    let swingSum = 0;
+    let swingN = 0;
+    let collapses = 0;
+    let comebacks = 0;
+    let oppAccSum = 0;
+    let oppAccN = 0;
+    let ratingGapSum = 0;
+    let ratingGapN = 0;
+    const finishes = { WIN: {}, LOSS: {}, DRAW: {} };
+    const finishGroups = { WIN: {}, LOSS: {}, DRAW: {} };
+    const themeGameHits = {};
+    const themeExamples = {};
+    const timeClassCounts = {};
+    const timeClassStats = {};
+    const gapBands = {
+        underdog: emptyWldAcc(),
+        even: emptyWldAcc(),
+        favorite: emptyWldAcc()
+    };
+    const qualityDist = { excellent: 0, solid: 0, mixed: 0, rough: 0 };
+    const qualitySeries = [];
+    let qualitySum = 0;
+    let qualityN = 0;
+
+    const material = {
+        hang: 0, sacrifice: 0, missed_capture: 0, capture: 0, exchange: 0
+    };
+    const materialGames = {
+        hang: 0, sacrifice: 0, missed_capture: 0, capture: 0, exchange: 0
+    };
+    const materialExamples = {};
+
+    let engineMissChances = 0;
+    let engineMissCapture = 0;
+    let engineMissCheck = 0;
+    const engineMissExamples = {};
+    let altGames = 0;
+    let altChances = 0;
+    let altTop2Hits = 0;
+
+    let oppBlunders = 0;
+    let punishedOpp = 0;
+    let yourBlunders = 0;
+    let oppPunishedYou = 0;
+    const punishExamples = {};
+    const outplayExamples = {};
+
+    let earlyResignLosses = 0;
+    let matedLosses = 0;
+    let resignLosses = 0;
+
+    const KING_SAFETY_THEMES = ['king_in_center', 'castle_pawn_push', 'back_rank'];
+
+    for (const g of games) {
+        if (typeof attachGameMeta === 'function') attachGameMeta(g, null);
+        if (typeof assignMovePhases === 'function') assignMovePhases(g);
+
+        const tc = g.timeClass || 'unknown';
+        timeClassCounts[tc] = (timeClassCounts[tc] || 0) + 1;
+        if (!timeClassStats[tc]) timeClassStats[tc] = emptyWldAcc();
+
+        const you = sideMoveStats(g, true);
+        const opp = sideMoveStats(g, false);
+        const qScore = g.qualityScore ?? (typeof gameQualityScore === 'function' ? gameQualityScore(g) : null);
+        const myElo = playerGameElo(g);
+        const oppEloRaw = g.isWhite ? g.blackRating : g.whiteRating;
+        const oppElo = oppEloRaw != null && !Number.isNaN(Number(oppEloRaw)) ? Number(oppEloRaw) : null;
+        const gap = myElo != null && oppElo != null ? myElo - oppElo : null;
+
+        if (you.accuracy != null) {
+            accuracySeries.push({
+                t: g.endTime || 0,
+                accuracy: you.accuracy,
+                gameKey: g.gameKey || null,
+                result: g.result || '',
+                avgCpl: you.avgCpl,
+                gameElo: you.gameElo,
+                chessComElo: myElo,
+                qualityScore: qScore
+            });
+            accSum += you.accuracy;
+            accN += 1;
+        }
+        if (you.gameElo != null && (g.endTime || myElo != null)) {
+            gameEloSeries.push({
+                t: g.endTime || 0,
+                gameElo: you.gameElo,
+                chessComElo: myElo,
+                gameKey: g.gameKey || null,
+                result: g.result || ''
+            });
+        }
+        if (you.avgCpl != null && you.cplN) {
+            cplSum += you.avgCpl * you.cplN;
+            cplN += you.cplN;
+            gameCplSum += you.avgCpl;
+            gameCplN += 1;
+        }
+        const curve = classifyEvalCurve(g);
+        if (curve) {
+            swingSum += curve.maxDrop;
+            swingN += 1;
+            if (curve.collapse) collapses += 1;
+            if (curve.comeback) comebacks += 1;
+        }
+        if (opp.accuracy != null) {
+            oppAccSum += opp.accuracy;
+            oppAccN += 1;
+        }
+        if (gap != null) {
+            ratingGapSum += gap;
+            ratingGapN += 1;
+            bumpWldAcc(gapBands[ratingGapBand(gap)], g.result || 'DRAW', you.accuracy, you.avgCpl, you.cplN);
+        }
+        bumpWldAcc(timeClassStats[tc], g.result || 'DRAW', you.accuracy, you.avgCpl, you.cplN);
+
+        if (qScore != null) {
+            qualitySum += qScore;
+            qualityN += 1;
+            const qb = qualityBucket(qScore);
+            if (qb) qualityDist[qb] += 1;
+            qualitySeries.push({
+                t: g.endTime || 0,
+                score: qScore,
+                bucket: qb,
+                gameKey: g.gameKey || null,
+                result: g.result || ''
+            });
+        }
+
+        const result = g.result || 'DRAW';
+        const code = finishReasonCode(g);
+        const group = finishReasonGroup(code);
+        if (!finishes[result]) finishes[result] = {};
+        if (!finishGroups[result]) finishGroups[result] = {};
+        finishes[result][code] = (finishes[result][code] || 0) + 1;
+        finishGroups[result][group] = (finishGroups[result][group] || 0) + 1;
+
+        if (result === 'LOSS') {
+            if (group === 'mate') matedLosses += 1;
+            if (group === 'resign') {
+                resignLosses += 1;
+                const endPe = curve?.endPe;
+                // Resigned while not fully dead → early/soft resign signal
+                if (endPe != null && endPe > -400) earlyResignLosses += 1;
+            }
+        }
+
+        const phases = g.movePhases || [];
+        const seenThemes = new Set();
+        const seenMaterial = new Set();
+        let gameHasAlts = false;
+
+        for (let i = 0; i < (g.moves || []).length; i++) {
+            const m = g.moves[i];
+            const label = m.classification?.label;
+            const isYou = isPlayerMove(g, m);
+
+            if (isYou && label && label !== 'Book' && label !== 'Theory') {
+                const phase = phases[i] || 'middlegame';
+                if (phaseCpl[phase] && m.evalDeltaCp != null && Number.isFinite(m.evalDeltaCp)) {
+                    phaseCpl[phase].sum += m.evalDeltaCp;
+                    phaseCpl[phase].n += 1;
+                }
+            }
+
+            // Opponent blunder → did you answer well on the next player move?
+            if (!isYou && (label === 'Blunder' || label === 'Mistake')) {
+                oppBlunders += 1;
+                let nextYou = null;
+                let nextIdx = -1;
+                for (let j = i + 1; j < g.moves.length; j++) {
+                    if (isPlayerMove(g, g.moves[j])) {
+                        nextYou = g.moves[j];
+                        nextIdx = j;
+                        break;
+                    }
+                }
+                if (nextYou && ['Best', 'Good'].includes(nextYou.classification?.label)) {
+                    punishedOpp += 1;
+                    pushExample(punishExamples, 'punish', {
+                        gameKey: g.gameKey, moveIndex: nextIdx, san: nextYou.san,
+                        moveRef: typeof formatMoveRef === 'function' ? formatMoveRef(nextYou) : nextYou.san,
+                        opponent: g.opponent || 'opponent', result: g.result || '',
+                        label: nextYou.classification?.label || ''
+                    }, 2 + (nextYou.evalDelta || 0));
+                }
+            }
+
+            if (isYou && (label === 'Blunder' || label === 'Mistake')) {
+                yourBlunders += 1;
+                let nextOpp = null;
+                let nextIdx = -1;
+                for (let j = i + 1; j < g.moves.length; j++) {
+                    if (!isPlayerMove(g, g.moves[j])) {
+                        nextOpp = g.moves[j];
+                        nextIdx = j;
+                        break;
+                    }
+                }
+                if (nextOpp && ['Best', 'Good'].includes(nextOpp.classification?.label)) {
+                    oppPunishedYou += 1;
+                    pushExample(outplayExamples, 'outplay', {
+                        gameKey: g.gameKey, moveIndex: i, san: m.san,
+                        moveRef: typeof formatMoveRef === 'function' ? formatMoveRef(m) : m.san,
+                        opponent: g.opponent || 'opponent', result: g.result || '',
+                        label: m.classification?.label || ''
+                    }, 2 + (m.evalDelta || 0));
+                }
+            }
+
+            if (!isYou) continue;
+
+            const ev = m.materialEvent;
+            if (ev?.kind && material[ev.kind] != null) {
+                material[ev.kind] += 1;
+                if (!seenMaterial.has(ev.kind)) {
+                    seenMaterial.add(ev.kind);
+                    materialGames[ev.kind] += 1;
+                }
+                pushExample(materialExamples, ev.kind, {
+                    gameKey: g.gameKey, moveIndex: i, san: m.san,
+                    moveRef: typeof formatMoveRef === 'function' ? formatMoveRef(m) : m.san,
+                    opponent: g.opponent || 'opponent', result: g.result || '',
+                    label: label || ''
+                }, (label === 'Blunder' ? 3 : label === 'Mistake' ? 2 : 1) + (m.evalDelta || 0));
+            }
+
+            for (const id of (m.moveThemes || [])) {
+                if (!THEME_CATALOG[id]) continue;
+                if (!seenThemes.has(id)) {
+                    seenThemes.add(id);
+                    themeGameHits[id] = (themeGameHits[id] || 0) + 1;
+                }
+                if (!themeExamples[id] || (m.evalDelta || 0) > (themeExamples[id].evalDelta || 0)) {
+                    themeExamples[id] = {
+                        gameKey: g.gameKey || null,
+                        moveIndex: i,
+                        san: m.san || '',
+                        moveRef: typeof formatMoveRef === 'function' ? formatMoveRef(m) : m.san,
+                        opponent: g.opponent || 'opponent',
+                        result: g.result || '',
+                        label: label || '',
+                        evalDelta: m.evalDelta || 0
+                    };
+                }
+            }
+
+            const alts = m.altEngineMoves || [];
+            if (alts.length) gameHasAlts = true;
+
+            if (!label || label === 'Book' || label === 'Theory') continue;
+            const best = m.bestEngineMove;
+            if (!best || best.length < 4) continue;
+            const played = moveUci(m);
+            const matchedBest = played && played === best;
+            if (alts.length && !matchedBest) {
+                altChances += 1;
+                const hitAlt = alts.some(a => a.move && played && a.move === played);
+                if (hitAlt) altTop2Hits += 1;
+            }
+            if (matchedBest || ['Best', 'Good'].includes(label)) continue;
+
+            const fen = fenBeforeMove(g, i);
+            const kind = classifyBestEngineMove(fen, best);
+            if (!kind.ok) continue;
+            if (kind.capture || kind.check) {
+                engineMissChances += 1;
+                if (kind.capture) {
+                    engineMissCapture += 1;
+                    pushExample(engineMissExamples, 'capture', {
+                        gameKey: g.gameKey, moveIndex: i, san: m.san,
+                        moveRef: typeof formatMoveRef === 'function' ? formatMoveRef(m) : m.san,
+                        opponent: g.opponent || 'opponent', result: g.result || '',
+                        label: label || '', best
+                    }, (m.evalDelta || 0) + (label === 'Blunder' ? 2 : 0));
+                }
+                if (kind.check) {
+                    engineMissCheck += 1;
+                    pushExample(engineMissExamples, 'check', {
+                        gameKey: g.gameKey, moveIndex: i, san: m.san,
+                        moveRef: typeof formatMoveRef === 'function' ? formatMoveRef(m) : m.san,
+                        opponent: g.opponent || 'opponent', result: g.result || '',
+                        label: label || '', best
+                    }, (m.evalDelta || 0) + 1);
+                }
+            }
+        }
+        if (gameHasAlts) altGames += 1;
+    }
+
+    // Quality form streak (chronological): consecutive games at/above solid (≥3.5)
+    let formStreak = 0;
+    let formStreakKind = null; // 'hot' | 'cold'
+    if (qualitySeries.length) {
+        const last = qualitySeries[qualitySeries.length - 1];
+        const hot = (last.score || 0) >= 3.5;
+        formStreakKind = hot ? 'hot' : 'cold';
+        for (let i = qualitySeries.length - 1; i >= 0; i--) {
+            const ok = (qualitySeries[i].score || 0) >= 3.5;
+            if (ok === hot) formStreak += 1;
+            else break;
+        }
+    }
+
+    const themeCards = Object.keys(THEME_CATALOG)
+        .map(id => {
+            const hits = themeGameHits[id] || 0;
+            if (!hits || !n) return null;
+            const pctVal = Math.round((hits / n) * 1000) / 10;
+            const cat = THEME_CATALOG[id];
+            return {
+                id,
+                hits,
+                pct: pctVal,
+                polarity: cat.polarity,
+                skipped: PROFILE_SKIP_THEMES.has(id),
+                kingSafety: KING_SAFETY_THEMES.includes(id),
+                text: typeof cat.text === 'function' ? cat.text(pctVal) : cat.detail,
+                detail: cat.detail,
+                evidence: themeExamples[id] || null
+            };
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.pct - a.pct || b.hits - a.hits);
+
+    const firstAcc = accuracySeries.length ? accuracySeries[0].accuracy : null;
+    const lastAcc = accuracySeries.length ? accuracySeries[accuracySeries.length - 1].accuracy : null;
+
+    const materialCards = ['hang', 'missed_capture', 'sacrifice', 'capture']
+        .filter(k => material[k] > 0)
+        .map(k => {
+            const labels = {
+                hang: 'Hangs',
+                missed_capture: 'Missed captures',
+                sacrifice: 'Sacrifices',
+                capture: 'Winning captures'
+            };
+            const polarity = (k === 'hang' || k === 'missed_capture') ? 'bad' : 'good';
+            const gHits = materialGames[k] || 0;
+            return {
+                kind: k,
+                label: labels[k],
+                events: material[k],
+                games: gHits,
+                pctGames: n ? Math.round((gHits / n) * 1000) / 10 : 0,
+                polarity,
+                evidence: materialExamples[k] || null
+            };
+        });
+
+    const stripScore = (ex) => {
+        if (!ex) return null;
+        const { _score, ...rest } = ex;
+        return rest;
+    };
+
+    return {
+        gameCount: n,
+        avgAccuracy: accN ? Math.round((accSum / accN) * 10) / 10 : null,
+        accuracySeries,
+        gameEloSeries,
+        accuracyDelta: firstAcc != null && lastAcc != null
+            ? Math.round((lastAcc - firstAcc) * 10) / 10
+            : null,
+        avgGameElo: gameEloSeries.length
+            ? Math.round(gameEloSeries.reduce((s, p) => s + p.gameElo, 0) / gameEloSeries.length)
+            : null,
+        avgCpl: cplN ? Math.round(cplSum / cplN) : null,
+        avgGameCpl: gameCplN ? Math.round(gameCplSum / gameCplN) : null,
+        cplMoves: cplN,
+        phaseCpl: {
+            opening: phaseCpl.opening.n ? Math.round(phaseCpl.opening.sum / phaseCpl.opening.n) : null,
+            middlegame: phaseCpl.middlegame.n ? Math.round(phaseCpl.middlegame.sum / phaseCpl.middlegame.n) : null,
+            endgame: phaseCpl.endgame.n ? Math.round(phaseCpl.endgame.sum / phaseCpl.endgame.n) : null,
+            counts: {
+                opening: phaseCpl.opening.n,
+                middlegame: phaseCpl.middlegame.n,
+                endgame: phaseCpl.endgame.n
+            }
+        },
+        avgSwingCp: swingN ? Math.round(swingSum / swingN) : null,
+        swingGames: swingN,
+        collapses,
+        comebacks,
+        avgOppAccuracy: oppAccN ? Math.round((oppAccSum / oppAccN) * 10) / 10 : null,
+        avgRatingGap: ratingGapN ? Math.round(ratingGapSum / ratingGapN) : null,
+        ratingGapN,
+        gapBands: {
+            underdog: finalizeWldAcc(gapBands.underdog),
+            even: finalizeWldAcc(gapBands.even),
+            favorite: finalizeWldAcc(gapBands.favorite)
+        },
+        avgQuality: qualityN ? Math.round((qualitySum / qualityN) * 100) / 100 : null,
+        qualityDist,
+        qualitySeries,
+        formStreak,
+        formStreakKind,
+        finishes,
+        finishGroups,
+        earlyResignLosses,
+        matedLosses,
+        resignLosses,
+        themeCards,
+        kingSafety: themeCards.filter(c => c.kingSafety),
+        timeClassCounts,
+        timeClassStats: Object.fromEntries(
+            Object.entries(timeClassStats).map(([k, v]) => [k, finalizeWldAcc(v)])
+        ),
+        materialCards,
+        engineMisses: {
+            chances: engineMissChances,
+            capture: engineMissCapture,
+            check: engineMissCheck,
+            capturePct: engineMissChances
+                ? Math.round((engineMissCapture / Math.max(engineMissChances, 1)) * 1000) / 10
+                : null,
+            examples: {
+                capture: stripScore(engineMissExamples.capture),
+                check: stripScore(engineMissExamples.check)
+            }
+        },
+        altEngine: {
+            games: altGames,
+            chances: altChances,
+            top2Hits: altTop2Hits,
+            top2Rate: altChances ? Math.round((altTop2Hits / altChances) * 1000) / 10 : null
+        },
+        opponentDynamics: {
+            oppBlunders,
+            punishedOpp,
+            punishRate: oppBlunders ? Math.round((punishedOpp / oppBlunders) * 1000) / 10 : null,
+            yourBlunders,
+            oppPunishedYou,
+            outplayRate: yourBlunders ? Math.round((oppPunishedYou / yourBlunders) * 1000) / 10 : null,
+            punishEvidence: stripScore(punishExamples.punish),
+            outplayEvidence: stripScore(outplayExamples.outplay)
+        }
     };
 }
 
@@ -479,9 +1125,34 @@ function hasAnalyzedGames(profile = profileState) {
     return !!(profile && profile.games > 0);
 }
 
+/** Top-level app views (Analyze workspace vs About). Extensible for future nav items. */
+function switchAppView(view) {
+    const name = (view === 'faq' || view === 'console') ? 'about' : (view || 'analyze');
+    const analyze = document.getElementById('analyze-view');
+    const about = document.getElementById('about-view');
+    document.querySelectorAll('.app-topnav-link').forEach(btn => {
+        btn.classList.toggle('is-active', btn.dataset.view === name);
+    });
+    if (name === 'about') {
+        if (typeof currentReviewGame !== 'undefined' && currentReviewGame && typeof exitReview === 'function') {
+            exitReview();
+        }
+        if (analyze) analyze.style.display = 'none';
+        if (about) about.style.display = 'block';
+        renderFaqTab();
+        return;
+    }
+    if (about) about.style.display = 'none';
+    if (analyze) analyze.style.display = 'block';
+}
+
 function switchDashTab(name, el) {
-    // Legacy aliases from FAQ / Console tabs
-    if (name === 'faq' || name === 'console') name = 'about';
+    // Legacy: FAQ / About used to live inside dash tabs
+    if (name === 'faq' || name === 'console' || name === 'about') {
+        switchAppView('about');
+        return;
+    }
+    switchAppView('analyze');
     document.querySelectorAll('#dash-tabs .p-tabview-nav > li').forEach(li => li.classList.remove('p-highlight'));
     document.querySelectorAll('.dash-panel').forEach(p => p.classList.remove('active'));
     const link = el?.classList?.contains('p-tabview-nav-link')
@@ -490,7 +1161,6 @@ function switchDashTab(name, el) {
     if (link) link.closest('li')?.classList.add('p-highlight');
     const panel = document.getElementById('tab-' + name);
     if (panel) panel.classList.add('active');
-    if (name === 'about') renderFaqTab();
     if (name === 'learning') renderLearningBrowse();
     if (name === 'analysis') renderAnalysisTab(profileState);
     if (name === 'matches') renderMatchesTab();
@@ -626,126 +1296,312 @@ function playerGameElo(analysis) {
     return Number(elo);
 }
 
-function renderOverviewEloChart(profile) {
-    const el = document.getElementById('overview-elo-chart');
+function renderOverviewAccuracy(profile, analytics) {
+    const el = document.getElementById('overview-accuracy');
     if (!el) return;
+    const stats = analytics || (typeof computeProfileAnalytics === 'function' ? computeProfileAnalytics(profile) : null);
+    const series = stats?.accuracySeries || [];
+    if (!series.length) {
+        el.innerHTML = '<div class="insight-empty">Accuracy needs rated (non-book) moves from analyzed games.</div>';
+        return;
+    }
 
-    const points = (profile.analyzedGames || [])
-        .map(g => {
-            attachGamePlayers(g, null, g.username || profile.username);
-            return {
-                g,
-                elo: playerGameElo(g),
-                t: g.endTime || 0
-            };
-        })
-        .filter(p => p.elo != null && p.t > 0)
-        .sort((a, b) => a.t - b.t);
+    const avg = stats.avgAccuracy;
+    const delta = stats.accuracyDelta;
+    const deltaLabel = delta == null ? '—' : ((delta >= 0 ? '+' : '') + delta);
+    const metaBits = [
+        avg != null ? `<span class="accuracy-hero">${avg}<small>%</small></span>` : '',
+        `<span>${series.length} game${series.length === 1 ? '' : 's'}</span>`,
+        stats.avgCpl != null ? `<span>${stats.avgCpl} avg CPL</span>` : '',
+        stats.avgOppAccuracy != null ? `<span>Opp ${stats.avgOppAccuracy}%</span>` : '',
+        delta != null && series.length >= 2
+            ? `<span class="${delta >= 0 ? 'elo-up' : 'elo-down'}">${deltaLabel} across sample</span>`
+            : ''
+    ].filter(Boolean).join('');
 
-    if (points.length < 2) {
-        el.innerHTML = points.length === 1
-            ? `<div class="insight-empty">Only one rated game so far (${points[0].elo}). More games will draw your ELO trend.</div>`
-            : '<div class="insight-empty">ELO history needs rated games with timestamps. Keep analysing to fill this chart.</div>';
+    if (series.length < 2) {
+        el.innerHTML = `
+            <div class="accuracy-summary">${metaBits}</div>
+            <div class="insight-empty">One more analyzed game will draw your accuracy sparkline.</div>
+        `;
         return;
     }
 
     const W = 640;
-    const H = 200;
+    const H = 140;
+    const pad = { t: 14, b: 24, l: 36, r: 12 };
+    const plotW = W - pad.l - pad.r;
+    const plotH = H - pad.t - pad.b;
+    const vals = series.map(p => p.accuracy);
+    let minA = Math.min(...vals);
+    let maxA = Math.max(...vals);
+    if (minA === maxA) {
+        minA = Math.max(0, minA - 5);
+        maxA = Math.min(100, maxA + 5);
+    } else {
+        const padA = Math.max(2, (maxA - minA) * 0.12);
+        minA = Math.max(0, minA - padA);
+        maxA = Math.min(100, maxA + padA);
+    }
+    const xAt = (i) => pad.l + (i / Math.max(1, series.length - 1)) * plotW;
+    const yAt = (a) => pad.t + (1 - (a - minA) / (maxA - minA)) * plotH;
+    const linePts = series.map((p, i) => `${xAt(i).toFixed(2)},${yAt(p.accuracy).toFixed(2)}`).join(' ');
+    const areaPts = [
+        `${xAt(0).toFixed(2)},${(pad.t + plotH).toFixed(2)}`,
+        ...series.map((p, i) => `${xAt(i).toFixed(2)},${yAt(p.accuracy).toFixed(2)}`),
+        `${xAt(series.length - 1).toFixed(2)},${(pad.t + plotH).toFixed(2)}`
+    ].join(' ');
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.classList.add('accuracy-spark-svg');
+    svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', 'Move accuracy over recent games');
+    svg.innerHTML = `
+        <line class="elo-grid-line" x1="${pad.l}" y1="${yAt(minA)}" x2="${W - pad.r}" y2="${yAt(minA)}"></line>
+        <line class="elo-grid-line" x1="${pad.l}" y1="${yAt(maxA)}" x2="${W - pad.r}" y2="${yAt(maxA)}"></line>
+        <text class="elo-axis-label" x="${pad.l - 4}" y="${yAt(maxA) + 3}" text-anchor="end">${Math.round(maxA)}</text>
+        <text class="elo-axis-label" x="${pad.l - 4}" y="${yAt(minA) + 3}" text-anchor="end">${Math.round(minA)}</text>
+        <polygon class="accuracy-spark-area" points="${areaPts}"></polygon>
+        <polyline class="accuracy-spark-path" points="${linePts}"></polyline>
+    `;
+
+    series.forEach((p, idx) => {
+        const cx = xAt(idx);
+        const cy = yAt(p.accuracy);
+        const hit = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        hit.setAttribute('cx', cx);
+        hit.setAttribute('cy', cy);
+        hit.setAttribute('r', Math.max(6, plotW / Math.max(series.length, 1) / 2));
+        hit.classList.add('elo-line-hit');
+        const tip = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        tip.textContent = `${p.accuracy}% · ${p.result || ''}${p.avgCpl != null ? ` · ${p.avgCpl} CPL` : ''}`;
+        hit.appendChild(tip);
+        if (p.gameKey) {
+            hit.addEventListener('click', () => openReviewFromStore(p.gameKey));
+        }
+        svg.appendChild(hit);
+        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        dot.setAttribute('cx', cx);
+        dot.setAttribute('cy', cy);
+        dot.setAttribute('r', idx === series.length - 1 ? 4 : 2.75);
+        dot.classList.add('accuracy-spark-dot');
+        if (idx === series.length - 1) dot.classList.add('is-latest');
+        svg.appendChild(dot);
+    });
+
+    el.innerHTML = `<div class="accuracy-summary">${metaBits}</div>`;
+    el.appendChild(svg);
+}
+
+function renderOverviewEloChart(profile, analytics) {
+    const el = document.getElementById('overview-elo-chart');
+    if (!el) return;
+
+    const stats = analytics || (typeof computeProfileAnalytics === 'function' ? computeProfileAnalytics(profile) : null);
+
+    // One point per analyzed game (chronological) so Game ELO volatility is visible game-to-game
+    const points = [...(profile.analyzedGames || [])]
+        .map(g => {
+            attachGamePlayers(g, null, g.username || profile.username);
+            const you = typeof sideMoveStats === 'function' ? sideMoveStats(g, true) : null;
+            return {
+                g,
+                t: g.endTime || 0,
+                chessCom: playerGameElo(g),
+                gameElo: you?.gameElo ?? null,
+                gameKey: g.gameKey || null,
+                result: g.result || ''
+            };
+        })
+        .sort((a, b) => (a.t - b.t) || 0);
+
+    const drawable = points.filter(p => p.chessCom != null || p.gameElo != null);
+    if (drawable.length < 2) {
+        el.innerHTML = drawable.length === 1
+            ? '<div class="insight-empty">One more analyzed game will draw Chess.com vs Game ELO.</div>'
+            : '<div class="insight-empty">Needs analyzed games to compare Chess.com ELO and estimated Game ELO.</div>';
+        return;
+    }
+
+    const allVals = drawable.flatMap(p => [p.chessCom, p.gameElo]).filter(v => v != null);
+    const gameElos = drawable.map(p => p.gameElo).filter(v => v != null);
+    const W = 640;
+    const H = 220;
     const pad = { t: 18, b: 28, l: 44, r: 14 };
     const plotW = W - pad.l - pad.r;
     const plotH = H - pad.t - pad.b;
-    const elos = points.map(p => p.elo);
-    let minE = Math.min(...elos);
-    let maxE = Math.max(...elos);
+    let minE = Math.min(...allVals);
+    let maxE = Math.max(...allVals);
     if (minE === maxE) {
         minE -= 50;
         maxE += 50;
     } else {
-        const padE = Math.max(20, Math.round((maxE - minE) * 0.08));
+        const padE = Math.max(20, Math.round((maxE - minE) * 0.1));
         minE -= padE;
         maxE += padE;
     }
-    const t0 = points[0].t;
-    const t1 = points[points.length - 1].t;
-    const tSpan = Math.max(1, t1 - t0);
 
-    const xAt = (t) => pad.l + ((t - t0) / tSpan) * plotW;
+    // Index X-axis: equal spacing makes volatility readable even when timestamps bunch
+    const xAt = (i) => pad.l + (i / Math.max(1, drawable.length - 1)) * plotW;
     const yAt = (elo) => pad.t + (1 - (elo - minE) / (maxE - minE)) * plotH;
 
-    const linePts = points.map(p => `${xAt(p.t).toFixed(2)},${yAt(p.elo).toFixed(2)}`).join(' ');
-    const areaPts = [
-        `${xAt(points[0].t).toFixed(2)},${(pad.t + plotH).toFixed(2)}`,
-        ...points.map(p => `${xAt(p.t).toFixed(2)},${yAt(p.elo).toFixed(2)}`),
-        `${xAt(points[points.length - 1].t).toFixed(2)},${(pad.t + plotH).toFixed(2)}`
-    ].join(' ');
+    const sitePts = drawable.map((p, i) => (p.chessCom != null ? { i, ...p } : null)).filter(Boolean);
+    const gamePts = drawable.map((p, i) => (p.gameElo != null ? { i, ...p } : null)).filter(Boolean);
+    const siteLine = sitePts.map(p => `${xAt(p.i).toFixed(2)},${yAt(p.chessCom).toFixed(2)}`).join(' ');
+    const gameLine = gamePts.map(p => `${xAt(p.i).toFixed(2)},${yAt(p.gameElo).toFixed(2)}`).join(' ');
 
-    const first = points[0].elo;
-    const last = points[points.length - 1].elo;
-    const delta = last - first;
-    const deltaLabel = (delta >= 0 ? '+' : '') + delta;
+    // Mean ± 1σ band for Game ELO (visual volatility envelope)
+    let bandHtml = '';
+    if (gameElos.length >= 2) {
+        const mean = gameElos.reduce((s, v) => s + v, 0) / gameElos.length;
+        const variance = gameElos.reduce((s, v) => s + (v - mean) ** 2, 0) / gameElos.length;
+        const sd = Math.sqrt(variance);
+        const yLo = yAt(Math.max(minE, mean - sd));
+        const yHi = yAt(Math.min(maxE, mean + sd));
+        bandHtml = `<rect class="elo-vol-band" x="${pad.l}" y="${Math.min(yHi, yLo)}" width="${plotW}" height="${Math.abs(yLo - yHi)}"></rect>`;
+    }
 
-    const yTicks = 4;
+    let stems = '';
+    drawable.forEach((p, i) => {
+        if (p.chessCom == null || p.gameElo == null) return;
+        const x = xAt(i);
+        stems += `<line class="elo-gap-stem" x1="${x}" y1="${yAt(p.chessCom)}" x2="${x}" y2="${yAt(p.gameElo)}"></line>`;
+    });
+
     let grid = '';
-    for (let i = 0; i <= yTicks; i++) {
-        const elo = minE + ((maxE - minE) * i) / yTicks;
+    for (let i = 0; i <= 4; i++) {
+        const elo = minE + ((maxE - minE) * i) / 4;
         const y = yAt(elo);
         grid += `<line class="elo-grid-line" x1="${pad.l}" y1="${y}" x2="${W - pad.r}" y2="${y}"></line>`;
         grid += `<text class="elo-axis-label" x="${pad.l - 6}" y="${y + 3}" text-anchor="end">${Math.round(elo)}</text>`;
     }
 
-    const fmtDate = (ts) => new Date(ts * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    const xLabels = `
-        <text class="elo-axis-label" x="${pad.l}" y="${H - 8}" text-anchor="start">${fmtDate(t0)}</text>
-        <text class="elo-axis-label" x="${W - pad.r}" y="${H - 8}" text-anchor="end">${fmtDate(t1)}</text>
-    `;
+    const fmtDate = (ts) => ts
+        ? new Date(ts * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+        : '—';
+    const tFirst = drawable[0].t;
+    const tLast = drawable[drawable.length - 1].t;
 
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     svg.setAttribute('preserveAspectRatio', 'none');
     svg.classList.add('elo-line-svg');
     svg.setAttribute('role', 'img');
-    svg.setAttribute('aria-label', 'Chess.com ELO over time');
+    svg.setAttribute('aria-label', 'Chess.com ELO and estimated Game ELO over analyzed games');
     svg.innerHTML = `
         ${grid}
-        <polygon class="elo-line-area" points="${areaPts}"></polygon>
-        <polyline class="elo-line-path" points="${linePts}"></polyline>
-        ${xLabels}
+        ${bandHtml}
+        ${stems}
+        ${siteLine ? `<polyline class="elo-line-path" points="${siteLine}"></polyline>` : ''}
+        ${gameLine ? `<polyline class="elo-line-path elo-line-perf" points="${gameLine}"></polyline>` : ''}
+        <text class="elo-axis-label" x="${pad.l}" y="${H - 8}" text-anchor="start">${drawable.length} games · ${fmtDate(tFirst)}</text>
+        <text class="elo-axis-label" x="${W - pad.r}" y="${H - 8}" text-anchor="end">${fmtDate(tLast)}</text>
     `;
 
-    points.forEach((p, idx) => {
-        const cx = xAt(p.t);
-        const cy = yAt(p.elo);
-        const hit = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        hit.setAttribute('cx', cx);
-        hit.setAttribute('cy', cy);
-        hit.setAttribute('r', Math.max(7, plotW / Math.max(points.length, 1) / 2));
-        hit.classList.add('elo-line-hit');
-        const when = fmtDate(p.t);
-        const tip = document.createElementNS('http://www.w3.org/2000/svg', 'title');
-        tip.textContent = `${p.elo} · ${when} · ${p.g.result || ''}`;
-        hit.appendChild(tip);
-        hit.addEventListener('click', () => {
-            if (p.g.gameKey) openReviewFromStore(p.g.gameKey);
-        });
-        svg.appendChild(hit);
-
-        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        dot.setAttribute('cx', cx);
-        dot.setAttribute('cy', cy);
-        dot.setAttribute('r', idx === points.length - 1 ? 4.5 : 3);
-        dot.classList.add('elo-line-dot');
-        if (idx === points.length - 1) dot.classList.add('is-latest');
-        svg.appendChild(dot);
+    drawable.forEach((p, idx) => {
+        const addDot = (val, cls, label) => {
+            if (val == null) return;
+            const cx = xAt(idx);
+            const cy = yAt(val);
+            const hit = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            hit.setAttribute('cx', cx);
+            hit.setAttribute('cy', cy);
+            hit.setAttribute('r', Math.max(6, plotW / Math.max(drawable.length, 1) / 2.2));
+            hit.classList.add('elo-line-hit');
+            const tip = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+            const gap = p.chessCom != null && p.gameElo != null
+                ? ` · gap ${p.gameElo - p.chessCom >= 0 ? '+' : ''}${p.gameElo - p.chessCom}`
+                : '';
+            tip.textContent = `${label} ${val}${p.chessCom != null && p.gameElo != null && label === 'Game ELO' ? gap : ''} · ${fmtDate(p.t)} · ${p.result}`;
+            hit.appendChild(tip);
+            if (p.gameKey) hit.addEventListener('click', () => openReviewFromStore(p.gameKey));
+            svg.appendChild(hit);
+            const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            dot.setAttribute('cx', cx);
+            dot.setAttribute('cy', cy);
+            dot.setAttribute('r', idx === drawable.length - 1 ? 4.25 : 2.9);
+            dot.classList.add(cls);
+            if (idx === drawable.length - 1) dot.classList.add('is-latest');
+            svg.appendChild(dot);
+        };
+        addDot(p.chessCom, 'elo-line-dot', 'Chess.com');
+        addDot(p.gameElo, 'elo-perf-dot', 'Game ELO');
     });
+
+    const last = drawable[drawable.length - 1];
+    const avgGame = gameElos.length
+        ? Math.round(gameElos.reduce((s, v) => s + v, 0) / gameElos.length)
+        : (stats?.avgGameElo ?? null);
+    let volatility = null;
+    if (gameElos.length >= 2) {
+        const mean = gameElos.reduce((s, v) => s + v, 0) / gameElos.length;
+        volatility = Math.round(Math.sqrt(gameElos.reduce((s, v) => s + (v - mean) ** 2, 0) / gameElos.length));
+    }
+    const siteDelta = sitePts.length >= 2
+        ? sitePts[sitePts.length - 1].chessCom - sitePts[0].chessCom
+        : null;
+    const lastGap = last.chessCom != null && last.gameElo != null
+        ? last.gameElo - last.chessCom
+        : null;
 
     el.innerHTML = `
         <div class="elo-chart-summary">
-            <span><strong>${last}</strong> latest</span>
-            <span>${points.length} rated games</span>
-            <span class="${delta >= 0 ? 'elo-up' : 'elo-down'}">${deltaLabel} across sample</span>
+            ${last.chessCom != null ? `<span><strong>${last.chessCom}</strong> Chess.com</span>` : ''}
+            ${last.gameElo != null ? `<span><strong>${last.gameElo}</strong> Game ELO</span>` : ''}
+            ${avgGame != null ? `<span>Avg Game ELO ${avgGame}</span>` : ''}
+            ${volatility != null ? `<span>±${volatility} Game ELO volatility</span>` : ''}
+            ${lastGap != null ? `<span class="${lastGap >= 0 ? 'elo-up' : 'elo-down'}">Latest gap ${lastGap >= 0 ? '+' : ''}${lastGap}</span>` : ''}
+            ${siteDelta != null ? `<span class="${siteDelta >= 0 ? 'elo-up' : 'elo-down'}">${siteDelta >= 0 ? '+' : ''}${siteDelta} Chess.com</span>` : ''}
+        </div>
+        <div class="elo-legend text-color-secondary text-sm mb-2">
+            <span class="elo-legend-item"><i class="elo-legend-swatch site"></i> Chess.com ELO</span>
+            <span class="elo-legend-item"><i class="elo-legend-swatch perf"></i> Estimated Game ELO</span>
+            <span class="elo-legend-item"><i class="elo-legend-swatch stem"></i> Per-game gap</span>
+            <span class="elo-legend-item"><i class="elo-legend-swatch band"></i> ±1σ Game ELO band</span>
         </div>
     `;
     el.appendChild(svg);
+}
+
+function renderOverviewForm(profile, analytics) {
+    const el = document.getElementById('overview-form');
+    if (!el) return;
+    const a = analytics || (typeof computeProfileAnalytics === 'function' ? computeProfileAnalytics(profile) : null);
+    const dist = a?.qualityDist;
+    const total = a?.qualitySeries?.length || 0;
+    if (!dist || !total) {
+        el.innerHTML = '<div class="insight-empty">Quality form fills in as games get scores.</div>';
+        return;
+    }
+    const order = ['excellent', 'solid', 'mixed', 'rough'];
+    const streak = a.formStreak || 0;
+    const kind = a.formStreakKind;
+    const streakLabel = !streak
+        ? 'No streak yet'
+        : kind === 'hot'
+            ? `${streak}-game solid streak`
+            : `${streak}-game rough patch`;
+    el.innerHTML = `
+        <div class="form-streak mb-3">
+            <span class="form-streak-value ${kind === 'hot' ? 'is-hot' : 'is-cold'}">${escAttr(streakLabel)}</span>
+            ${a.avgQuality != null ? `<span class="text-color-secondary text-sm">Avg ${a.avgQuality.toFixed(2)}</span>` : ''}
+        </div>
+        <div class="quality-dist">
+            ${order.map(k => {
+                const n = dist[k] || 0;
+                const p = Math.round((n / total) * 1000) / 10;
+                return `
+                    <div class="quality-dist-row">
+                        <div class="quality-dist-label">${QUALITY_BUCKET_LABELS[k] || k}</div>
+                        <div class="finish-track"><div class="finish-fill finish-${k === 'excellent' || k === 'solid' ? 'win' : k === 'mixed' ? 'draw' : 'loss'}" style="width:${Math.max(p, n ? 3 : 0)}%"></div></div>
+                        <div class="finish-pct">${n} · ${p}%</div>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
 }
 
 function renderOverviewTab(profile) {
@@ -754,7 +1610,7 @@ function renderOverviewTab(profile) {
             ? {
                 icon: 'pi-hourglass',
                 title: 'Waiting for games',
-                body: 'Your overview will fill in as games finish analyzing — ELO trend, move quality, best and worst games, and your last five results.'
+                body: 'Your overview will fill in as games finish analyzing — accuracy form, ELO trend, move quality, best and worst games, and your last five results.'
             }
             : {
                 icon: 'pi-chart-bar',
@@ -765,7 +1621,12 @@ function renderOverviewTab(profile) {
     }
     showTabContent('overview');
 
-    renderOverviewEloChart(profile);
+    const formStats = typeof computeProfileAnalytics === 'function'
+        ? computeProfileAnalytics(profile)
+        : null;
+    renderOverviewAccuracy(profile, formStats);
+    renderOverviewEloChart(profile, formStats);
+    renderOverviewForm(profile, formStats);
     document.getElementById('overview-quality').innerHTML = qualityRowsHtml(profile);
 
     const games = gamesByRecency(profile);
@@ -830,7 +1691,7 @@ function renderMatchesTab() {
             ? {
                 icon: 'pi-hourglass',
                 title: 'No matches yet',
-                body: 'Analyzed games will land here as they finish. You can filter by colour and result once you have some.'
+                body: 'Analyzed games will land here as they finish. You can filter by colour, result, and time control once you have some.'
             }
             : {
                 icon: 'pi-list',
@@ -846,11 +1707,14 @@ function renderMatchesTab() {
     updateMatchSortChip();
     const color = document.getElementById('filter-color')?.value || 'all';
     const result = document.getElementById('filter-result')?.value || 'all';
+    const timeClass = document.getElementById('filter-time')?.value || 'all';
     let games = gamesByRecency(profileState)
         .filter(g => {
+            if (typeof attachGameMeta === 'function') attachGameMeta(g, null);
             if (color === 'white' && !g.isWhite) return false;
             if (color === 'black' && g.isWhite) return false;
             if (result !== 'all' && g.result !== result) return false;
+            if (timeClass !== 'all' && (g.timeClass || '') !== timeClass) return false;
             return true;
         });
     if (matchesSortLabel) {
@@ -913,6 +1777,12 @@ function paintAnalysisTab(profile) {
 
     const snap = profile.analysisSnapshot;
     if (!snap) {
+        const form = document.getElementById('analysis-form');
+        if (form) form.innerHTML = '<div class="insight-empty">Building form stats…</div>';
+        const tactics = document.getElementById('analysis-tactics');
+        if (tactics) tactics.innerHTML = '<div class="insight-empty">Building tactics stats…</div>';
+        const themes = document.getElementById('analysis-themes');
+        if (themes) themes.innerHTML = '<div class="insight-empty">Building theme frequency…</div>';
         const coach = document.getElementById('analysis-coach');
         if (coach) coach.innerHTML = '<div class="insight-empty">Building coach notes…</div>';
         const heat = document.getElementById('player-move-heatmap');
@@ -924,6 +1794,15 @@ function paintAnalysisTab(profile) {
         return;
     }
 
+    if (typeof renderProfileFormPanel === 'function') {
+        renderProfileFormPanel(profile, snap.analytics);
+    }
+    if (typeof renderTacticsEnginePanel === 'function') {
+        renderTacticsEnginePanel(profile, snap.analytics);
+    }
+    if (typeof renderThemeFrequencyPanel === 'function') {
+        renderThemeFrequencyPanel(profile, snap.analytics);
+    }
     renderPlayerMoveHeatmap(profile, snap.heat);
     renderCoachInsights(profile, snap.insights);
     renderPieceSurvivalPanel(profile, snap.survival);
@@ -1246,14 +2125,27 @@ function renderGameItem(game, analysis) {
         const share = labelShareInGame(analysis, matchesSortLabel);
         sortLine = `<div class="game-card-sort">${share.pct}% ${matchesSortLabel} · ${share.count}/${share.total} moves</div>`;
     }
+    if (typeof attachGameMeta === 'function') attachGameMeta(analysis, null);
+    const tcLabel = typeof formatTimeClassLabel === 'function'
+        ? formatTimeClassLabel(analysis.timeClass)
+        : (analysis.timeClass || '');
+    const finish = analysis.resultDetail || analysis.oppResultDetail
+        ? chessComResultLabel(
+            analysis.result === 'WIN'
+                ? (analysis.oppResultDetail || analysis.resultDetail)
+                : analysis.resultDetail
+        )
+        : '';
+    const youAcc = sideMoveStats(analysis, true).accuracy;
     card.innerHTML = `
         <div class="p-card-body" style="text-align:left">
             <div class="font-bold text-lg game-matchup-title">${gameMatchupTitle(analysis)}</div>
             <div class="text-primary text-sm mb-2">${analysis.openingName || ''}</div>
             <div class="flex justify-content-between align-items-center">
-                <span class="text-color-secondary text-sm">${analysis.isWhite ? 'White' : 'Black'} · ${analysis.moves.length} moves</span>
+                <span class="text-color-secondary text-sm">${analysis.isWhite ? 'White' : 'Black'}${tcLabel ? ` · ${tcLabel}` : ''} · ${analysis.moves.length} moves${youAcc != null ? ` · ${youAcc}%` : ''}</span>
                 <span class="p-tag p-component" style="background:${resultColor}">${analysis.result}</span>
             </div>
+            ${finish ? `<div class="game-card-finish text-color-secondary text-sm">${finish}</div>` : ''}
             ${sortLine}
             ${story}
         </div>
@@ -1979,6 +2871,7 @@ function exitReview() {
             try { engine.postMessage('stop'); } catch (_) {}
         }
     }
+    currentReviewGame = null;
     document.getElementById('review-view').style.display = 'none';
     document.getElementById('dashboard').style.display = 'block';
     refreshDashboard();

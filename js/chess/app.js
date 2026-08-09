@@ -65,7 +65,7 @@ async function initApp() {
     document.getElementById('dashboard').style.display = 'block';
     document.getElementById('profile-display-name').innerText = 'Analyze Chess';
     document.getElementById('profile-header-sub').innerText =
-        "Load your Chess.com profile or game for a customised, fully client-side engine review. Insights across recent games, openings, and learnable theory — see About for how labels work.";
+        "Load your Chess.com profile or game for a customised, fully client-side engine review. Insights across recent games, openings, and learnable theory — open About in the top menu for how labels work.";
     refreshDashboard();
 
     log(`Initializing up to ${PARALLEL_GAMES} engines (depth ${ENGINE_DEPTH})...`);
@@ -113,8 +113,10 @@ function applyAnalysisToUi(game, analysis, gameKey, stats, opts = {}) {
         analysis.resultDetail = (analysis.isWhite ? game.white.result : game.black.result) || analysis.resultDetail || '';
         analysis.oppResultDetail = (analysis.isWhite ? game.black.result : game.white.result) || analysis.oppResultDetail || '';
         attachGamePlayers(analysis, game, profileState?.username);
+        attachGameMeta(analysis, game);
     } else {
         attachGamePlayers(analysis, null, analysis.username || profileState?.username);
+        attachGameMeta(analysis, null);
     }
     analysis.qualityScore = gameQualityScore(analysis);
     hydrateCachedAnalysis(analysis, analysis.pgn);

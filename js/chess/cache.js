@@ -46,6 +46,9 @@ function hydrateCachedAnalysis(analysis, pgn) {
     if (typeof attachGamePlayers === 'function') {
         attachGamePlayers(analysis, null, analysis.username);
     }
+    if (typeof attachGameMeta === 'function') {
+        attachGameMeta(analysis, null);
+    }
     const needsFen = analysis.moves.some(m => !m.fen);
     if (!needsFen || !srcPgn) return analysis;
     try {
