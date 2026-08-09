@@ -999,14 +999,14 @@ function computeProfileAnalytics(profile) {
 }
 
 /**
- * Rough single-game performance rating.
- * Tuned so ~82% accuracy with blunders lands near club-novice, not mid-1500s.
+ * Rough single-game performance rating from accuracy.
+ * High accuracy soft-caps at IM (2400) and hard-caps at GM (2500).
  */
 function estimateGameElo(accuracy, counts, ratedN) {
     if (accuracy == null || !Number.isFinite(accuracy) || !ratedN) return null;
     const a = Math.max(0, Math.min(100, accuracy)) / 100;
-    // ~70%→~550, 80%→~920, 85%→~1150, 90%→~1450, 95%→~1900, 98%→~2250
-    let elo = 80 + 2150 * Math.pow(a, 4.5);
+    // Club → master curve; soft-caps above IM. ~70%→~550, 90%→~1550, 97%→~2200, 100%→~2450 raw
+    let elo = 80 + 2380 * Math.pow(a, 4.6);
 
     const best = counts.Best || 0;
     const blunders = counts.Blunder || 0;
@@ -1015,12 +1015,31 @@ function estimateGameElo(accuracy, counts, ratedN) {
     const bestRate = best / ratedN;
     const badWeight = (blunders * 1.6 + mistakes + misses * 0.45) / ratedN;
 
-    elo += (bestRate - 0.55) * 280;
+    elo += (bestRate - 0.55) * 260;
     elo -= badWeight * 850;
     // Extra hit when multiple blunders appear in a short game
     if (blunders >= 2) elo -= 60 + (blunders - 2) * 35;
 
-    return Math.round(Math.max(200, Math.min(2700, elo)));
+    const im = typeof GAME_ELO_IM === 'number' ? GAME_ELO_IM : 2400;
+    const gm = typeof GAME_ELO_GM === 'number' ? GAME_ELO_GM : 2500;
+    // Compress anything above IM toward GM so near-perfect games read as titles, not 2700+
+    if (elo > im) {
+        const over = elo - im;
+        elo = im + (gm - im) * (1 - Math.exp(-over / 140));
+    }
+    return Math.round(Math.max(200, Math.min(gm, elo)));
+}
+
+/** Display helper: show IM / GM when Game ELO sits in title territory. */
+function formatGameEloLabel(elo, { withNumber = true } = {}) {
+    if (elo == null || !Number.isFinite(elo)) return '—';
+    const im = typeof GAME_ELO_IM === 'number' ? GAME_ELO_IM : 2400;
+    const gm = typeof GAME_ELO_GM === 'number' ? GAME_ELO_GM : 2500;
+    let title = null;
+    if (elo >= gm - 20) title = 'GM';
+    else if (elo >= im) title = 'IM';
+    if (!title) return String(elo);
+    return withNumber ? `${title} (${elo})` : title;
 }
 
 function pct(n, d) {
@@ -1152,6 +1171,8 @@ function switchDashTab(name, el) {
         switchAppView('about');
         return;
     }
+    // Legacy Insights tab → Coaching (advice) or Stats (numbers)
+    if (name === 'analysis' || name === 'insights') name = 'coaching';
     switchAppView('analyze');
     document.querySelectorAll('#dash-tabs .p-tabview-nav > li').forEach(li => li.classList.remove('p-highlight'));
     document.querySelectorAll('.dash-panel').forEach(p => p.classList.remove('active'));
@@ -1162,7 +1183,8 @@ function switchDashTab(name, el) {
     const panel = document.getElementById('tab-' + name);
     if (panel) panel.classList.add('active');
     if (name === 'learning') renderLearningBrowse();
-    if (name === 'analysis') renderAnalysisTab(profileState);
+    if (name === 'coaching') renderCoachingTab(profileState);
+    if (name === 'stats') renderStatsTab(profileState);
     if (name === 'matches') renderMatchesTab();
     if (name === 'overview') renderOverviewTab(profileState);
 }
@@ -1549,15 +1571,15 @@ function renderOverviewEloChart(profile, analytics) {
     el.innerHTML = `
         <div class="elo-chart-summary">
             ${last.chessCom != null ? `<span><strong>${last.chessCom}</strong> Chess.com</span>` : ''}
-            ${last.gameElo != null ? `<span><strong>${last.gameElo}</strong> Game ELO</span>` : ''}
-            ${avgGame != null ? `<span>Avg Game ELO ${avgGame}</span>` : ''}
+            ${last.gameElo != null ? `<span><strong>${formatGameEloLabel(last.gameElo)}</strong> Game ELO</span>` : ''}
+            ${avgGame != null ? `<span>Avg ${formatGameEloLabel(avgGame)}</span>` : ''}
             ${volatility != null ? `<span>±${volatility} Game ELO volatility</span>` : ''}
             ${lastGap != null ? `<span class="${lastGap >= 0 ? 'elo-up' : 'elo-down'}">Latest gap ${lastGap >= 0 ? '+' : ''}${lastGap}</span>` : ''}
             ${siteDelta != null ? `<span class="${siteDelta >= 0 ? 'elo-up' : 'elo-down'}">${siteDelta >= 0 ? '+' : ''}${siteDelta} Chess.com</span>` : ''}
         </div>
         <div class="elo-legend text-color-secondary text-sm mb-2">
             <span class="elo-legend-item"><i class="elo-legend-swatch site"></i> Chess.com ELO</span>
-            <span class="elo-legend-item"><i class="elo-legend-swatch perf"></i> Estimated Game ELO</span>
+            <span class="elo-legend-item"><i class="elo-legend-swatch perf"></i> Estimated Game ELO (caps IM/GM)</span>
             <span class="elo-legend-item"><i class="elo-legend-swatch stem"></i> Per-game gap</span>
             <span class="elo-legend-item"><i class="elo-legend-swatch band"></i> ±1σ Game ELO band</span>
         </div>
@@ -1757,10 +1779,55 @@ function analysisSnapshotIsFresh(profile) {
     );
 }
 
-/** Cheap paint from a prebuilt snapshot (openings always live from profile buckets). */
-function paintAnalysisTab(profile) {
+function profileInsightEmptyCopy(profile, kind) {
+    if (kind === 'coaching') {
+        return profile
+            ? {
+                icon: 'pi-comments',
+                title: 'No coaching yet',
+                body: 'Once a few games are analyzed, coach notes and theme frequency land here.'
+            }
+            : {
+                icon: 'pi-comments',
+                title: 'Coaching needs a profile',
+                body: 'Load a Chess.com profile and analyze games to get phase-by-phase coaching.'
+            };
+    }
+    return profile
+        ? {
+            icon: 'pi-chart-bar',
+            title: 'No game stats yet',
+            body: 'Form, openings, heatmaps, and piece patterns show up after games are analyzed.'
+        }
+        : {
+            icon: 'pi-chart-bar',
+            title: 'Game stats need a profile',
+            body: 'Load a Chess.com profile and analyze games to see form, tactics rates, and tendencies.'
+        };
+}
+
+/** Paint Coaching tab panels from snapshot (or placeholders while building). */
+function paintCoachingTab(profile) {
     if (!hasAnalyzedGames(profile)) return;
-    showTabContent('analysis');
+    showTabContent('coaching');
+    const snap = profile.analysisSnapshot;
+    if (!snap) {
+        const themes = document.getElementById('analysis-themes');
+        if (themes) themes.innerHTML = '<div class="insight-empty">Building theme frequency…</div>';
+        const coach = document.getElementById('analysis-coach');
+        if (coach) coach.innerHTML = '<div class="insight-empty">Building coach notes…</div>';
+        return;
+    }
+    if (typeof renderThemeFrequencyPanel === 'function') {
+        renderThemeFrequencyPanel(profile, snap.analytics);
+    }
+    renderCoachInsights(profile, snap.insights);
+}
+
+/** Paint Game stats tab panels from snapshot (or placeholders while building). */
+function paintStatsTab(profile) {
+    if (!hasAnalyzedGames(profile)) return;
+    showTabContent('stats');
 
     renderOpeningRankList(
         'profile-white-openings',
@@ -1781,10 +1848,6 @@ function paintAnalysisTab(profile) {
         if (form) form.innerHTML = '<div class="insight-empty">Building form stats…</div>';
         const tactics = document.getElementById('analysis-tactics');
         if (tactics) tactics.innerHTML = '<div class="insight-empty">Building tactics stats…</div>';
-        const themes = document.getElementById('analysis-themes');
-        if (themes) themes.innerHTML = '<div class="insight-empty">Building theme frequency…</div>';
-        const coach = document.getElementById('analysis-coach');
-        if (coach) coach.innerHTML = '<div class="insight-empty">Building coach notes…</div>';
         const heat = document.getElementById('player-move-heatmap');
         if (heat) heat.innerHTML = '<div class="insight-empty">Building heatmaps…</div>';
         const surv = document.getElementById('analysis-piece-survival');
@@ -1800,38 +1863,47 @@ function paintAnalysisTab(profile) {
     if (typeof renderTacticsEnginePanel === 'function') {
         renderTacticsEnginePanel(profile, snap.analytics);
     }
-    if (typeof renderThemeFrequencyPanel === 'function') {
-        renderThemeFrequencyPanel(profile, snap.analytics);
-    }
     renderPlayerMoveHeatmap(profile, snap.heat);
-    renderCoachInsights(profile, snap.insights);
     renderPieceSurvivalPanel(profile, snap.survival);
     renderCheckmateWithPanel(profile, snap.mates);
 }
 
-function renderAnalysisTab(profile) {
+/** @deprecated alias — paints whichever coaching/stats panels exist */
+function paintAnalysisTab(profile) {
+    paintCoachingTab(profile);
+    paintStatsTab(profile);
+}
+
+function renderCoachingTab(profile) {
     if (!hasAnalyzedGames(profile)) {
-        showTabEmpty('analysis', profile
-            ? {
-                icon: 'pi-hourglass',
-                title: 'Nothing to dig into yet',
-                body: "Once a few games are analyzed, you'll see player tendencies, coach notes by phase, and piece patterns."
-            }
-            : {
-                icon: 'pi-chart-line',
-                title: 'Insights need a profile',
-                body: "Player tendencies, coach notes, opening trends, and piece patterns show up after you've analyzed some Chess.com games."
-            });
+        showTabEmpty('coaching', profileInsightEmptyCopy(profile, 'coaching'));
         return;
     }
-    showTabContent('analysis');
-
+    showTabContent('coaching');
     if (!analysisSnapshotIsFresh(profile)) {
-        paintAnalysisTab(profile);
+        paintCoachingTab(profile);
         scheduleAnalysisSnapshot(profile, { immediate: true });
         return;
     }
-    paintAnalysisTab(profile);
+    paintCoachingTab(profile);
+}
+
+function renderStatsTab(profile) {
+    if (!hasAnalyzedGames(profile)) {
+        showTabEmpty('stats', profileInsightEmptyCopy(profile, 'stats'));
+        return;
+    }
+    showTabContent('stats');
+    if (!analysisSnapshotIsFresh(profile)) {
+        paintStatsTab(profile);
+        scheduleAnalysisSnapshot(profile, { immediate: true });
+        return;
+    }
+    paintStatsTab(profile);
+}
+
+function renderAnalysisTab(profile) {
+    renderCoachingTab(profile);
 }
 
 /** Map a board square into the player's view (their first rank at the bottom). */
@@ -2036,11 +2108,20 @@ function refreshDashboard() {
     const active = document.querySelector('#dash-tabs .p-tabview-nav > li.p-highlight .p-tabview-nav-link')?.dataset?.tab || 'overview';
     renderOverviewTab(profileState);
     if (active === 'matches') renderMatchesTab();
-    if (active === 'analysis') {
+    if (active === 'coaching' || active === 'stats' || active === 'analysis') {
         // Never rebuild heavy analysis work on every game tick — paint snapshot / schedule
-        if (analysisSnapshotIsFresh(profileState)) paintAnalysisTab(profileState);
+        const paint = () => {
+            if (active === 'stats') paintStatsTab(profileState);
+            else paintCoachingTab(profileState);
+            // Keep the other tab warm when snapshot is ready
+            if (analysisSnapshotIsFresh(profileState)) {
+                if (active === 'stats') paintCoachingTab(profileState);
+                else paintStatsTab(profileState);
+            }
+        };
+        if (analysisSnapshotIsFresh(profileState)) paint();
         else {
-            paintAnalysisTab(profileState);
+            paint();
             scheduleAnalysisSnapshot(profileState);
         }
     }
@@ -2236,14 +2317,18 @@ function openReview(analysis) {
     });
 
     renderEvalLineGraph(analysis);
-    renderReviewOverview(analysis);
+    renderReviewCoachTab(analysis);
+    renderReviewStatsTab(analysis);
 
-    // Default to Overview tab
+    // Default to Coaching tab
     const reviewNav = document.querySelector('#review-view .p-tabview-nav');
     if (reviewNav) {
         reviewNav.querySelectorAll('li').forEach((li, i) => li.classList.toggle('p-highlight', i === 0));
     }
-    document.getElementById('overview-tab').style.display = 'block';
+    const coachEl = document.getElementById('coach-tab');
+    const statsEl = document.getElementById('stats-tab');
+    if (coachEl) coachEl.style.display = 'block';
+    if (statsEl) statsEl.style.display = 'none';
     document.getElementById('moves-tab').style.display = 'none';
     document.getElementById('graph-tab').style.display = 'none';
 
@@ -2504,7 +2589,11 @@ function scheduleAnalysisSnapshot(profile, opts = {}) {
             rebuildAnalysisSnapshot(profile);
         }
         const active = document.querySelector('#dash-tabs .p-tabview-nav > li.p-highlight .p-tabview-nav-link')?.dataset?.tab;
-        if (active === 'analysis') paintAnalysisTab(profile);
+        // Keep both panels warm so switching Coaching ↔ Game stats is instant
+        if (active === 'coaching' || active === 'stats' || active === 'analysis') {
+            paintCoachingTab(profile);
+            paintStatsTab(profile);
+        }
     }, delay);
 }
 
@@ -2622,8 +2711,16 @@ function phaseRowsHtml(breakdown) {
     }).join('');
 }
 
-function renderReviewOverview(analysis) {
-    const el = document.getElementById('overview-tab');
+function renderReviewCoachTab(analysis) {
+    const el = document.getElementById('coach-tab');
+    if (!el) return;
+    el.innerHTML = typeof renderGameCoachNotes === 'function'
+        ? `<div class="review-stats">${renderGameCoachNotes(analysis)}</div>`
+        : '<div class="insight-empty">Coach notes unavailable for this game.</div>';
+}
+
+function renderReviewStatsTab(analysis) {
+    const el = document.getElementById('stats-tab');
     if (!el) return;
 
     const you = sideMoveStats(analysis, true);
@@ -2640,11 +2737,12 @@ function renderReviewOverview(analysis) {
     const eloCard = (label, stats, chessComElo, phaseBreakdown) => `
         <div class="game-elo-card">
             <div class="game-elo-kicker">${label}</div>
-            <div class="game-elo-value">${stats.gameElo != null ? stats.gameElo : '—'}</div>
+            <div class="game-elo-value">${formatGameEloLabel(stats.gameElo)}</div>
             <div class="game-elo-meta">
                 ${chessComElo != null ? `Chess.com ${chessComElo} · ` : ''}
                 ${stats.accuracy != null ? `${stats.accuracy}% accuracy` : 'No rated moves'}
                 · ${stats.ratedN}/${stats.total} rated moves
+                ${stats.gameElo >= (typeof GAME_ELO_IM === 'number' ? GAME_ELO_IM : 2400) ? ' · capped at title level' : ''}
             </div>
             <div class="game-elo-groups">
                 <div class="game-elo-groups-title">Phase ratings</div>
@@ -2659,15 +2757,20 @@ function renderReviewOverview(analysis) {
 
     el.innerHTML = `
         <div class="review-stats">
-            ${typeof renderGameCoachNotes === 'function' ? renderGameCoachNotes(analysis) : ''}
             <div class="review-stats-title">Game ELO &amp; phases</div>
             <div class="game-elo-row">
                 ${eloCard(youName, you, chessComYou, youPhases)}
                 ${eloCard(oppName, opp, chessComOpp, oppPhases)}
             </div>
-            <div class="review-stats-note">Phase stars rate your play in opening, middlegame, and endgame (N/A if that phase never happened). Game ELO is a rough guess from rated non-book moves — not your Chess.com rating.</div>
+            <div class="review-stats-note">Phase stars rate your play in opening, middlegame, and endgame (N/A if that phase never happened). Game ELO is a rough guess from rated non-book moves — not your Chess.com rating. High accuracy caps at IM (~${typeof GAME_ELO_IM === 'number' ? GAME_ELO_IM : 2400}) / GM (~${typeof GAME_ELO_GM === 'number' ? GAME_ELO_GM : 2500}).</div>
         </div>
     `;
+}
+
+/** @deprecated — use renderReviewCoachTab + renderReviewStatsTab */
+function renderReviewOverview(analysis) {
+    renderReviewCoachTab(analysis);
+    renderReviewStatsTab(analysis);
 }
 
 function goToMove(idx) {
@@ -2856,10 +2959,15 @@ function goToKeyMove() {
 }
 
 function switchTab(t, el) {
+    // Legacy review "overview" mixed coaching + stats
+    if (t === 'overview') t = 'coaching';
     const nav = el?.closest('.p-tabview-nav');
     if (nav) nav.querySelectorAll('li').forEach(li => li.classList.remove('p-highlight'));
     el?.closest('li')?.classList.add('p-highlight');
-    document.getElementById('overview-tab').style.display = t === 'overview' ? 'block' : 'none';
+    const coachEl = document.getElementById('coach-tab');
+    const statsEl = document.getElementById('stats-tab');
+    if (coachEl) coachEl.style.display = t === 'coaching' ? 'block' : 'none';
+    if (statsEl) statsEl.style.display = t === 'stats' ? 'block' : 'none';
     document.getElementById('moves-tab').style.display = t === 'moves' ? 'block' : 'none';
     document.getElementById('graph-tab').style.display = t === 'graph' ? 'block' : 'none';
 }

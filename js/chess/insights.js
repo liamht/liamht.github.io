@@ -1354,7 +1354,9 @@ function renderProfileFormPanel(profile, analyticsData) {
                 <div class="form-metric-label">Avg accuracy</div>
             </div>
             <div class="form-metric">
-                <div class="form-metric-value">${a.avgGameElo != null ? a.avgGameElo : '—'}</div>
+                <div class="form-metric-value">${a.avgGameElo != null
+                    ? (typeof formatGameEloLabel === 'function' ? formatGameEloLabel(a.avgGameElo) : a.avgGameElo)
+                    : '—'}</div>
                 <div class="form-metric-label">Avg Game ELO</div>
             </div>
             <div class="form-metric">
@@ -1723,7 +1725,9 @@ function generateGameCoachNotes(analysis) {
     if (you.accuracy != null) {
         overview.push(
             `Your rated-move accuracy this game: ${you.accuracy}%` +
-            (you.gameElo != null ? ` · Game ELO guess ${you.gameElo}.` : '.')
+            (you.gameElo != null
+                ? ` · Game ELO guess ${typeof formatGameEloLabel === 'function' ? formatGameEloLabel(you.gameElo) : you.gameElo}.`
+                : '.')
         );
     }
     if (analysis.gameStory?.keyMoveRef) {
@@ -1809,7 +1813,6 @@ function renderGameCoachNotes(analysis) {
     const byPiece = buildGameByPieceNotes(analysis);
     return `
         <div class="game-coach">
-            <div class="review-stats-title">Coach notes</div>
             <div class="coach-block">
                 <div class="coach-kicker">Overview</div>
                 ${insightParagraphsHtml(notes.overview)}

@@ -29,7 +29,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeng@17.18.15/resources/primeng.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeicons@7.0.0/primeicons.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeflex@3.3.1/primeflex.min.css">
-    <link rel="stylesheet" href="chess.css?v=20260809c">
+    <link rel="stylesheet" href="chess.css?v=20260809e">
 </head>
 <body>
 <div class="app-shell">
@@ -116,8 +116,13 @@
                             </a>
                         </li>
                         <li role="presentation">
-                            <a href="#" class="p-tabview-nav-link" data-tab="analysis" onclick="switchDashTab('analysis', this); return false;" role="tab">
-                                <span class="p-tabview-title">Insights</span>
+                            <a href="#" class="p-tabview-nav-link" data-tab="coaching" onclick="switchDashTab('coaching', this); return false;" role="tab">
+                                <span class="p-tabview-title">Coaching</span>
+                            </a>
+                        </li>
+                        <li role="presentation">
+                            <a href="#" class="p-tabview-nav-link" data-tab="stats" onclick="switchDashTab('stats', this); return false;" role="tab">
+                                <span class="p-tabview-title">Game stats</span>
                             </a>
                         </li>
                         <li role="presentation">
@@ -228,9 +233,29 @@
                     </div>
                 </div>
 
-                <div id="tab-analysis" class="p-tabview-panel dash-panel">
-                    <div id="analysis-empty" class="tab-empty-state"></div>
-                    <div id="analysis-content">
+                <div id="tab-coaching" class="p-tabview-panel dash-panel">
+                    <div id="coaching-empty" class="tab-empty-state"></div>
+                    <div id="coaching-content">
+                        <div class="p-card mb-3">
+                            <div class="p-card-body">
+                                <div class="p-card-title mb-1">Coach notes</div>
+                                <div class="text-color-secondary text-sm mb-3">Overview plus opening / middlegame / endgame reads — built from openings, phases, tactics, material events, and move quality.</div>
+                                <div id="analysis-coach"></div>
+                            </div>
+                        </div>
+                        <div class="p-card mb-3">
+                            <div class="p-card-body">
+                                <div class="p-card-title mb-1">Theme frequency</div>
+                                <div class="text-color-secondary text-sm mb-3">How often each tactical or positional theme shows up across your games — click evidence to jump to the move.</div>
+                                <div id="analysis-themes"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tab-stats" class="p-tabview-panel dash-panel">
+                    <div id="stats-empty" class="tab-empty-state"></div>
+                    <div id="stats-content">
                         <div class="p-card mb-3">
                             <div class="p-card-body">
                                 <div class="p-card-title mb-1">Form &amp; finishes</div>
@@ -243,20 +268,6 @@
                                 <div class="p-card-title mb-1">Tactics, engine &amp; opponents</div>
                                 <div class="text-color-secondary text-sm mb-3">Material-event rates, missed engine captures/checks, MultiPV top-2 hits, and whether you punish opponent slips.</div>
                                 <div id="analysis-tactics"></div>
-                            </div>
-                        </div>
-                        <div class="p-card mb-3">
-                            <div class="p-card-body">
-                                <div class="p-card-title mb-1">Theme frequency</div>
-                                <div class="text-color-secondary text-sm mb-3">How often each tactical or positional theme shows up across your games — click evidence to jump to the move.</div>
-                                <div id="analysis-themes"></div>
-                            </div>
-                        </div>
-                        <div class="p-card mb-3">
-                            <div class="p-card-body">
-                                <div class="p-card-title mb-1">Coach notes</div>
-                                <div class="text-color-secondary text-sm mb-3">Overview plus opening / middlegame / endgame reads — built from openings, phases, tactics, material events, and move quality.</div>
-                                <div id="analysis-coach"></div>
                             </div>
                         </div>
                         <div class="p-card mb-3">
@@ -409,19 +420,23 @@
                     <div class="p-tabview-nav-content">
                         <ul class="p-tabview-nav" role="tablist">
                             <li class="p-highlight" role="presentation">
-                                <a href="#" class="p-tabview-nav-link" onclick="switchTab('overview', this); return false;" role="tab"><span class="p-tabview-title">Overview</span></a>
+                                <a href="#" class="p-tabview-nav-link" data-review-tab="coaching" onclick="switchTab('coaching', this); return false;" role="tab"><span class="p-tabview-title">Coaching</span></a>
                             </li>
                             <li role="presentation">
-                                <a href="#" class="p-tabview-nav-link" onclick="switchTab('moves', this); return false;" role="tab"><span class="p-tabview-title">Moves</span></a>
+                                <a href="#" class="p-tabview-nav-link" data-review-tab="stats" onclick="switchTab('stats', this); return false;" role="tab"><span class="p-tabview-title">Game stats</span></a>
                             </li>
                             <li role="presentation">
-                                <a href="#" class="p-tabview-nav-link" onclick="switchTab('graph', this); return false;" role="tab"><span class="p-tabview-title">Graph</span></a>
+                                <a href="#" class="p-tabview-nav-link" data-review-tab="moves" onclick="switchTab('moves', this); return false;" role="tab"><span class="p-tabview-title">Moves</span></a>
+                            </li>
+                            <li role="presentation">
+                                <a href="#" class="p-tabview-nav-link" data-review-tab="graph" onclick="switchTab('graph', this); return false;" role="tab"><span class="p-tabview-title">Graph</span></a>
                             </li>
                         </ul>
                     </div>
                 </div>
                 <div class="p-tabview-panels">
-                    <div id="overview-tab" class="p-tabview-panel" style="max-height:400px;overflow:auto"></div>
+                    <div id="coach-tab" class="p-tabview-panel" style="max-height:400px;overflow:auto"></div>
+                    <div id="stats-tab" class="p-tabview-panel" style="display:none;max-height:400px;overflow:auto"></div>
                     <div id="moves-tab" class="p-tabview-panel" style="display:none;max-height:400px;overflow:auto"></div>
                     <div id="graph-tab" class="p-tabview-panel" style="display:none;height:400px">
                         <div id="eval-graph" class="graph-container"></div>
@@ -445,15 +460,15 @@
     </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
-<script src="js/chess/constants.js?v=20260809c"></script>
-<script src="js/chess/tactics.js?v=20260809c"></script>
-<script src="js/chess/openings.js?v=20260809c"></script>
-<script src="js/chess/learning.js?v=20260809c"></script>
-<script src="js/chess/cache.js?v=20260809c"></script>
-<script src="js/chess/analysis.js?v=20260809c"></script>
-<script src="js/chess/pieces.js?v=20260809c"></script>
-<script src="js/chess/ui.js?v=20260809c"></script>
-<script src="js/chess/insights.js?v=20260809c"></script>
-<script src="js/chess/app.js?v=20260809c"></script>
+<script src="js/chess/constants.js?v=20260809e"></script>
+<script src="js/chess/tactics.js?v=20260809e"></script>
+<script src="js/chess/openings.js?v=20260809e"></script>
+<script src="js/chess/learning.js?v=20260809e"></script>
+<script src="js/chess/cache.js?v=20260809e"></script>
+<script src="js/chess/analysis.js?v=20260809e"></script>
+<script src="js/chess/pieces.js?v=20260809e"></script>
+<script src="js/chess/ui.js?v=20260809e"></script>
+<script src="js/chess/insights.js?v=20260809e"></script>
+<script src="js/chess/app.js?v=20260809e"></script>
 </body>
 </html>
