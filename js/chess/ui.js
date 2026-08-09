@@ -2040,7 +2040,35 @@ function renderPlayerMoveHeatmap(profile, heatData) {
     `;
 }
 
-function renderFaqTab() {
+function switchAboutTab(name, el) {
+    const tab = name === 'features' ? 'features' : 'how';
+    document.querySelectorAll('#about-view .about-tabs .p-tabview-nav > li').forEach(li => li.classList.remove('p-highlight'));
+    const link = el?.classList?.contains('p-tabview-nav-link')
+        ? el
+        : document.querySelector(`#about-view .p-tabview-nav-link[data-about="${tab}"]`);
+    if (link) link.closest('li')?.classList.add('p-highlight');
+    const how = document.getElementById('about-panel-how');
+    const features = document.getElementById('about-panel-features');
+    if (how) {
+        how.style.display = tab === 'how' ? 'block' : 'none';
+        how.classList.toggle('active', tab === 'how');
+    }
+    if (features) {
+        features.style.display = tab === 'features' ? 'block' : 'none';
+        features.classList.toggle('active', tab === 'features');
+    }
+}
+
+function aboutFeatureItem(term, def) {
+    return `
+        <div class="faq-item">
+            <div class="faq-term">${term}</div>
+            <div class="faq-def">${def}</div>
+        </div>
+    `;
+}
+
+function renderAboutHowItWorks() {
     const el = document.getElementById('faq-content');
     if (!el) return;
     const openingCount = (ACTIVE_OPENING_BOOK || []).length;
@@ -2048,15 +2076,13 @@ function renderFaqTab() {
     const bookSrc = openingBookSource === 'external' ? 'openings.json' : 'internal fallback';
     const famSrc = famousGamesSource === 'external' ? 'famous-games.json' : 'internal fallback';
     el.innerHTML = `
-        <h2 class="about-title" style="margin:0 0 4px">About Analyze Chess</h2>
-        <p class="faq-def" style="margin-bottom:12px">Everything runs in your browser — Stockfish, cache, and Insights. Below is how move labels and material events are decided.</p>
         <div class="about-coverage mb-3">
             <div class="about-coverage-line"><strong>${openingCount.toLocaleString()}</strong> openings loaded (${bookSrc})</div>
             <div class="about-coverage-line"><strong>${famousCount.toLocaleString()}</strong> famous games loaded (${famSrc})</div>
             <div class="about-coverage-note">Book = continuous prefix from move one in our catalog (FEN and/or move-list). Leaving the line ends Book even if a later position exists elsewhere. Theory is a separate famous-game match (≥12 plies), not the same as Book.</div>
         </div>
-        <h3 style="margin:0 0 8px">How we classify your moves</h3>
-        <p class="faq-def" style="margin-bottom:12px">Profile scans use Stockfish at depth ${ENGINE_DEPTH}. Open a game and use <strong>Deepen analysis</strong> for depth ${REVIEW_ENGINE_DEPTH} with MultiPV ${REVIEW_MULTIPV}. Centipawn loss is measured from your side, then we ignore the first ${EVAL_NOISE_FLOOR_CP}cp of noise before banding.</p>
+        <h3 class="about-section-title">How we classify your moves</h3>
+        <p class="faq-def mb-3">Profile scans use Stockfish at depth ${ENGINE_DEPTH}. Open a game and use <strong>Deepen analysis</strong> for depth ${REVIEW_ENGINE_DEPTH} with MultiPV ${REVIEW_MULTIPV}. Centipawn loss is measured from your side, then we ignore the first ${EVAL_NOISE_FLOOR_CP}cp of noise before banding.</p>
         ${[
             ['Theory', 'Your move matches a famous game line (at least 12 plies of SAN continuity from move one).'],
             ['Book', 'Still inside our opening book (continuous FEN / move-list prefix), and not already tagged Theory.'],
@@ -2066,40 +2092,112 @@ function renderFaqTab() {
             ['Miss', 'Post-noise eval loss ≤ 3.00 pawns — something clearly better was available.'],
             ['Mistake', 'Post-noise eval loss ≤ 4.50 pawns — real damage to the position.'],
             ['Blunder', 'Post-noise eval loss > 4.50 pawns — catastrophic eval collapse.']
-        ].map(([term, def]) => `
-            <div class="faq-item">
-                <div class="faq-term">${term}</div>
-                <div class="faq-def">${def}</div>
-            </div>
-        `).join('')}
-        <h3 style="margin:18px 0 8px">Material events (from our code)</h3>
-        <p class="faq-def" style="margin-bottom:12px"><strong>Limits:</strong> material events use a 6-ply continuation from the actual game (not a full engine search). Hang/sac can miss quiet compensation. Labels refresh on new analysis or when you deepen a review.</p>
-        <div class="faq-item">
-            <div class="faq-term">Take / capture</div>
-            <div class="faq-def">You captured a piece and, after a short lookahead of the next few moves, the material balance is still in your favour (sequence net &gt; 0). We may phrase it as “Took the …” or “Won the …”.</div>
-            <div class="faq-code">capturedPiece && sequenceNet &gt; 0 → kind: 'capture'</div>
-        </div>
-        <div class="faq-item">
-            <div class="faq-term">Exchange</div>
-            <div class="faq-def">You captured, but the immediate material swing is roughly even (|immediateNet| ≤ 1). Tracked as an exchange, not a win of material.</div>
-            <div class="faq-code">capturedPiece && |immediateNet| ≤ 1 → kind: 'exchange'</div>
-        </div>
-        <div class="faq-item">
-            <div class="faq-term">Hang</div>
-            <div class="faq-def">A newly hanging piece (knight or heavier, or any piece the opponent actually takes in the lookahead) after your move. Uncompensated hanging pawns with no take are ignored to cut false positives.</div>
-            <div class="faq-code">primaryHang && (hangTaken || (isNegative && offeredValue ≥ 3)) → kind: 'hang'</div>
-        </div>
-        <div class="faq-item">
-            <div class="faq-term">Sacrifice</div>
-            <div class="faq-def">You offer a knight-or-heavier piece and the short sequence recovers the material (or better), with a healthy/eval-supported label — not Miss/Mistake/Blunder.</div>
-            <div class="faq-code">looksLikeOffer && offeredValue ≥ 3 && compensated && evalSupportsSac && !isNegative → kind: 'sacrifice'</div>
-        </div>
-        <div class="faq-item">
-            <div class="faq-term">Missed capture</div>
-            <div class="faq-def">The engine’s best move would take a hanging opponent piece on a different square than what you played (engine best ≠ your move).</div>
-            <div class="faq-code">best move captures hanging opponent piece you ignored → kind: 'missed_capture'</div>
-        </div>
+        ].map(([term, def]) => aboutFeatureItem(term, def)).join('')}
+        <h3 class="about-section-title">Material events</h3>
+        <p class="faq-def mb-3"><strong>Limits:</strong> material events use a 6-ply continuation from the actual game (not a full engine search). Hang/sac can miss quiet compensation. Labels refresh on new analysis or when you deepen a review.</p>
+        ${[
+            ['Take / capture', 'You captured a piece and, after a short lookahead, the material balance is still in your favour (sequence net &gt; 0).'],
+            ['Exchange', 'You captured, but the immediate material swing is roughly even (|immediateNet| ≤ 1).'],
+            ['Hang', 'A newly hanging piece (knight or heavier, or any piece the opponent actually takes in the lookahead) after your move.'],
+            ['Sacrifice', 'You offer a knight-or-heavier piece and the short sequence recovers the material (or better), with a healthy/eval-supported label.'],
+            ['Missed capture', 'The engine’s best move would take a hanging opponent piece on a different square than what you played.']
+        ].map(([term, def]) => aboutFeatureItem(term, def)).join('')}
     `;
+}
+
+function renderAboutFeatureSet() {
+    const el = document.getElementById('about-features-content');
+    if (!el) return;
+
+    const themeRows = Object.entries(THEME_CATALOG || {}).map(([id, cat]) => {
+        const habit = typeof PROFILE_SKIP_THEMES !== 'undefined' && PROFILE_SKIP_THEMES.has(id)
+            ? ' <span class="about-tag">healthy habit</span>'
+            : '';
+        const pol = cat.polarity === 'bad' ? 'bad' : 'good';
+        return aboutFeatureItem(
+            `${id.replace(/_/g, ' ')}${habit}`,
+            `<span class="about-polarity about-polarity-${pol}">${pol}</span> — ${cat.detail}`
+        );
+    }).join('');
+
+    const im = typeof GAME_ELO_IM === 'number' ? GAME_ELO_IM : 2400;
+    const gm = typeof GAME_ELO_GM === 'number' ? GAME_ELO_GM : 2500;
+
+    el.innerHTML = `
+        <p class="faq-def mb-3">What each dashboard area and coach surface measures. Numbers come from your locally analyzed games only.</p>
+
+        <h3 class="about-section-title">Dashboard · Overview</h3>
+        ${[
+            ['Accuracy form', 'Average move accuracy across analyzed games, with a sparkline over time. Click a point to open that game.'],
+            ['Chess.com ELO & Game ELO', 'Your Chess.com rating after each game vs estimated Game ELO from accuracy. Stems show the gap; the band is ±1σ Game ELO volatility. Game ELO soft-caps at IM (~${im}) and hard-caps at GM (~${gm}).'],
+            ['Move quality', 'Share of your moves in each quality band (Best → Blunder). Click a band to rank Matches by that share.'],
+            ['Quality form', 'Distribution of per-game quality scores (excellent / solid / mixed / rough) and your current hot or cold streak.'],
+            ['Best & worst', 'Highest and lowest qualityScore games in the sample, with opening and outcome context.'],
+            ['Last 5 games', 'Most recent analyzed results with finish reason.']
+        ].map(([t, d]) => aboutFeatureItem(t, d)).join('')}
+
+        <h3 class="about-section-title">Dashboard · Matches</h3>
+        ${[
+            ['Game list', 'Analyzed games with matchup, colour, time class, accuracy, result, and finish reason.'],
+            ['Filters', 'Colour (white/black), result (W/L/D), and time control (bullet / blitz / rapid / classical / daily).'],
+            ['Sort chip', 'When you click a move-quality row on Overview, Matches ranks by that label’s % share.']
+        ].map(([t, d]) => aboutFeatureItem(t, d)).join('')}
+
+        <h3 class="about-section-title">Dashboard · Coaching</h3>
+        ${[
+            ['Coach notes', 'Evidence-backed cards for overview, opening, middlegame, and endgame, plus a weekly focus. Cards include confidence, advice, and clickable evidence moves.'],
+            ['By piece', 'Pros and cons for how you handle each piece type across the sample.'],
+            ['Theme frequency', 'How often each tagged theme appears across games (% of games), with healthy-habits called out separately and evidence links.']
+        ].map(([t, d]) => aboutFeatureItem(t, d)).join('')}
+
+        <h3 class="about-section-title">Dashboard · Game stats</h3>
+        ${[
+            ['Form & finishes', 'Avg accuracy, Game ELO, CPL (overall and per game), max eval swing, collapses vs comebacks, opponent accuracy, rating gap. Finish breakdown by mate / resign / timeout / draw. Early-resign note when you resign before the position is fully dead.'],
+            ['CPL by phase', 'Average centipawn loss in opening, middlegame, and endgame.'],
+            ['Performance vs rating gap', 'Win rate and accuracy when underdog (−150+), even, or favorite (+150+).'],
+            ['By time control', 'Per time-class games, W/L/D, accuracy, and CPL.'],
+            ['Tactics, engine & opponents', 'Material-event rates (hang / missed capture / sac / winning capture); missed engine capture/check shots; MultiPV top-2 hits after deepen; punish-opp vs get-punished rates; dedicated king-safety themes.'],
+            ['Player tendencies', 'Favourite opening families as White and Black; destination-square heatmaps by colour × phase.'],
+            ['Piece survival', 'Average life (in moves) of each starting piece as White and as Black.'],
+            ['Checkmate with', 'Which piece delivered your checkmate wins, by percentage.']
+        ].map(([t, d]) => aboutFeatureItem(t, d)).join('')}
+
+        <h3 class="about-section-title">Dashboard · Learn</h3>
+        ${[
+            ['Openings', 'Browse and study opening lines from the loaded catalog.'],
+            ['Famous games', 'Browse theory lines used for the Theory move label.']
+        ].map(([t, d]) => aboutFeatureItem(t, d)).join('')}
+
+        <h3 class="about-section-title">Single-game review</h3>
+        ${[
+            ['Coaching', 'Per-game coach notes: overview, opening / middlegame / endgame, and by-piece pros/cons from that game’s themes and material events.'],
+            ['Game stats', 'Estimated Game ELO for you and opponent, accuracy, phase star ratings, and move-quality group breakdowns.'],
+            ['Moves', 'Move list with quality labels; key moment highlighted from the game story.'],
+            ['Graph', 'Eval curve for the game; click points to jump to a move.'],
+            ['Deepen analysis', 'Re-run the current game at depth ${REVIEW_ENGINE_DEPTH} with MultiPV ${REVIEW_MULTIPV} for sharper labels and alternate engine lines.']
+        ].map(([t, d]) => aboutFeatureItem(t, d)).join('')}
+
+        <h3 class="about-section-title">What the coach analyses</h3>
+        <p class="faq-def mb-3">Coach cards are built from openings, phase move quality, tactics themes, material events, eval swings, heatmaps, and piece patterns — not generic tips.</p>
+        ${[
+            ['Opening reads', 'Book depth, who left theory first, favourite / weak opening families, early bishop sacs, knight development vs early exchanges.'],
+            ['Middlegame reads', 'Blunder rates by phase, hang / fork / missed-hanging themes, knight activity, heatmap hotspots.'],
+            ['Endgame reads', 'How often you enter the endgame up or down material, pawn endgames, back-rank issues.'],
+            ['Weekly focus', 'Highest-priority card from the corpus (confidence-weighted) as a single practice target.'],
+            ['Evidence', 'Up to three concrete moves you can open in review at the exact ply.']
+        ].map(([t, d]) => aboutFeatureItem(t, d)).join('')}
+
+        <h3 class="about-section-title">Tagged themes</h3>
+        <p class="faq-def mb-3">Themes are attached to moves during analysis. Frequency cards use % of games where the theme appears at least once. Healthy-habit themes are muted in the main list but shown as positives.</p>
+        ${themeRows}
+    `;
+}
+
+/** Entry point when opening About — fills How it works + Feature set. */
+function renderFaqTab() {
+    renderAboutHowItWorks();
+    renderAboutFeatureSet();
+    switchAboutTab('how');
 }
 
 function refreshDashboard() {

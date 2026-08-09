@@ -180,6 +180,35 @@ html, body {
     background: color-mix(in srgb, var(--primary-color) 14%, transparent);
 }
 .about-view { margin-bottom: 1.25rem; }
+.about-tabs { margin-top: 0.25rem; }
+.about-tabs .p-tabview-panels { padding-top: 1rem; }
+.about-panel { display: none; }
+.about-panel.active { display: block; }
+.about-section-title {
+    margin: 1.25rem 0 0.5rem;
+    font-size: 1.05rem;
+    font-weight: 700;
+}
+.about-section-title:first-child { margin-top: 0; }
+.about-tag {
+    display: inline-block;
+    margin-left: 0.35rem;
+    padding: 0.05rem 0.4rem;
+    border-radius: 0.3rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--success, #34d399);
+    background: color-mix(in srgb, var(--success, #34d399) 16%, transparent);
+    vertical-align: middle;
+}
+.about-polarity {
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+}
+.about-polarity-good { color: var(--success, #34d399); }
+.about-polarity-bad { color: var(--accent, #f87171); }
 
 #dashboard { display: none; margin-bottom: 1.25rem; }
 #btnStop { display: none; }
