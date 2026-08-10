@@ -4,7 +4,7 @@
 
 const STOCKFISH_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
 const STOCKFISH_LOCAL = 'stockfish.js?v=20260803';
-const APP_BUILD = '2026-08-10a';
+const APP_BUILD = '2026-08-10b';
 const CACHE_VERSION = 9;
 /** Soft ceiling for estimated Game ELO (IM territory). */
 const GAME_ELO_IM = 2400;
@@ -18,9 +18,9 @@ const ENGINE_DEPTH = 5;
 const ENGINE_DEPTH_MIN = 3;
 const ENGINE_DEPTH_MAX = 12;
 const SETTINGS_STORAGE_KEY = 'chessAnalyze:settings:v1';
-/** Extra depth for checks/captures/mate threats / large first-pass CPL (offset from scan depth). */
-const CRITICAL_ENGINE_DEPTH_OFFSET = 4;
-const CRITICAL_ENGINE_DEPTH_CAP = 15;
+/** Extra depth for sharp first-pass moments only (mates / large CPL). */
+const CRITICAL_ENGINE_DEPTH_OFFSET = 2;
+const CRITICAL_ENGINE_DEPTH_CAP = 12;
 const EVAL_NOISE_FLOOR_CP = 100; // base ignore for quiet depth-5 wobble
 /** Opt-in deeper analysis when reviewing a single game. */
 const REVIEW_ENGINE_DEPTH = 12;

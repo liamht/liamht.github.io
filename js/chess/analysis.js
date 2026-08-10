@@ -151,14 +151,18 @@ function computeEvalDelta(bestBefore, actualAfter, opts = {}) {
 }
 
 function isCriticalMoment(chessBefore, move, best, rawCpl) {
+    // Keep this narrow — every capture/check used to force a depth+4 MultiPV re-search
+    // and roughly doubled scan time. Only re-search when the first pass already looks sharp.
     if (best?.isMate) return true;
-    if ((rawCpl || 0) >= 180) return true;
-    if (move?.captured) return true;
+    const cpl = rawCpl || 0;
+    if (cpl >= 220) return true;
     const san = String(move?.san || '');
-    if (san.includes('+') || san.includes('#')) return true;
+    if ((san.includes('#') || san.includes('+')) && cpl >= 120) return true;
+    if (move?.captured && cpl >= 150) return true;
     try {
-        if (typeof chessBefore.in_check === 'function' && chessBefore.in_check()) return true;
-        if (typeof chessBefore.inCheck === 'function' && chessBefore.inCheck()) return true;
+        const inCheck = (typeof chessBefore.in_check === 'function' && chessBefore.in_check())
+            || (typeof chessBefore.inCheck === 'function' && chessBefore.inCheck());
+        if (inCheck && cpl >= 120) return true;
     } catch (_) {}
     return false;
 }
@@ -481,15 +485,14 @@ async function analyzeGame(game, user, engine, onMove, opts = {}) {
             const critDepth = typeof getCriticalEngineDepth === 'function'
                 ? getCriticalEngineDepth()
                 : (depth + 4);
-            // Deeper + MultiPV re-search only on sharp / high-CPL moments
+            // Deeper re-search only on sharp first-pass moments (MultiPV 1 during scans for speed)
             if (critical && depth < critDepth && analysisStillRunning()) {
                 const deepTimeout = typeof CRITICAL_ENGINE_TIMEOUT_MS === 'number'
                     ? CRITICAL_ENGINE_TIMEOUT_MS
                     : Math.max(timeoutMs, 4000);
-                const deepPv = Math.max(multiPv, 2);
                 best = await getEngineAnalysis(engine, fenBefore, {
                     depth: critDepth,
-                    multiPv: deepPv,
+                    multiPv: 1,
                     timeoutMs: deepTimeout
                 });
                 actual = await getEngineAnalysis(engine, fenAfter, {

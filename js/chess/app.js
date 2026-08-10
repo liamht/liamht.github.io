@@ -122,7 +122,9 @@ function applyAnalysisToUi(game, analysis, gameKey, stats, opts = {}) {
     hydrateCachedAnalysis(analysis, analysis.pgn);
     enrichAnalysisMeta(analysis);
     ingestAnalysis(profileState, analysis, gameKey);
-    scheduleAnalysisSnapshot(profileState, { delay: opts.snapshotDelay ?? 280 });
+    // During parallel scans, defer heavy overview rebuilds so workers aren't starved by main-thread work
+    const delay = opts.snapshotDelay ?? (typeof isScanning !== 'undefined' && isScanning ? 2200 : 280);
+    scheduleAnalysisSnapshot(profileState, { delay });
     if (!opts.deferRefresh) refreshDashboard();
 }
 

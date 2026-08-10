@@ -2085,7 +2085,7 @@ function renderAboutSettings() {
         </div>
         <div class="settings-meta text-color-secondary text-sm mb-3">
             <div>Current scan depth: <strong>${depth}</strong></div>
-            <div>Critical moments (checks / captures / big swings) re-search at depth <strong>${crit}</strong></div>
+            <div>Sharp moments (mates / large first-pass swings) re-search at depth <strong>${crit}</strong></div>
             <div>Deepen analysis (per game) stays at depth <strong>${REVIEW_ENGINE_DEPTH}</strong> with MultiPV ${REVIEW_MULTIPV}</div>
         </div>
         <p class="faq-def">Changing depth applies to the <em>next</em> scan or single-game analysis. Already cached games keep their previous depth until you re-analyze them.</p>
@@ -2130,7 +2130,7 @@ function renderAboutHowItWorks() {
             <div class="about-coverage-note">Book = continuous prefix from move one in our catalog (FEN and/or move-list). Leaving the line ends Book even if a later position exists elsewhere. Theory is a separate famous-game match (≥12 plies), not the same as Book.</div>
         </div>
         <h3 class="about-section-title">How we classify your moves</h3>
-        <p class="faq-def mb-3">Profile scans use Stockfish at depth ${typeof getScanEngineDepth === 'function' ? getScanEngineDepth() : ENGINE_DEPTH} (changeable in Settings). Checks, captures, mates, and large first-pass losses re-search at depth ${typeof getCriticalEngineDepth === 'function' ? getCriticalEngineDepth() : 9} with MultiPV for sharper labels. Open a game and use <strong>Deepen analysis</strong> for depth ${REVIEW_ENGINE_DEPTH} with MultiPV ${REVIEW_MULTIPV} on every move.</p>
+        <p class="faq-def mb-3">Profile scans use Stockfish at depth ${typeof getScanEngineDepth === 'function' ? getScanEngineDepth() : ENGINE_DEPTH} (changeable in Settings), with up to ${typeof PARALLEL_GAMES === 'number' ? PARALLEL_GAMES : 4} games analyzed in parallel. Sharp first-pass moments (mates / large eval swings) re-search a bit deeper. Open a game and use <strong>Deepen analysis</strong> for depth ${REVIEW_ENGINE_DEPTH} with MultiPV ${REVIEW_MULTIPV} on every move.</p>
         <p class="faq-def mb-3">Severity is based mainly on <strong>expected-points loss</strong> (change in win probability from the eval before → after your move), not raw centipawns alone. Swings from equal positions count more than swings in already-decided games. A base ${EVAL_NOISE_FLOOR_CP}cp noise floor applies on quiet samples; mates, clear PV gaps, and critical re-searches trust the engine more (lower floor).</p>
         ${[
             ['Theory', 'Your move matches a famous game line (at least 12 plies of SAN continuity from move one).'],
