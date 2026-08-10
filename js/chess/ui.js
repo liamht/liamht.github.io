@@ -2045,22 +2045,66 @@ function renderPlayerMoveHeatmap(profile, heatData) {
 }
 
 function switchAboutTab(name, el) {
-    const tab = name === 'features' ? 'features' : 'how';
+    const tab = name === 'features' ? 'features' : (name === 'settings' ? 'settings' : 'how');
     document.querySelectorAll('#about-view .about-tabs .p-tabview-nav > li').forEach(li => li.classList.remove('p-highlight'));
     const link = el?.classList?.contains('p-tabview-nav-link')
         ? el
         : document.querySelector(`#about-view .p-tabview-nav-link[data-about="${tab}"]`);
     if (link) link.closest('li')?.classList.add('p-highlight');
-    const how = document.getElementById('about-panel-how');
-    const features = document.getElementById('about-panel-features');
-    if (how) {
-        how.style.display = tab === 'how' ? 'block' : 'none';
-        how.classList.toggle('active', tab === 'how');
+    const panels = {
+        how: document.getElementById('about-panel-how'),
+        features: document.getElementById('about-panel-features'),
+        settings: document.getElementById('about-panel-settings')
+    };
+    Object.entries(panels).forEach(([key, panel]) => {
+        if (!panel) return;
+        const on = key === tab;
+        panel.style.display = on ? 'block' : 'none';
+        panel.classList.toggle('active', on);
+    });
+    if (tab === 'settings') renderAboutSettings();
+}
+
+function renderAboutSettings() {
+    const el = document.getElementById('about-settings-content');
+    if (!el) return;
+    const depth = typeof getScanEngineDepth === 'function' ? getScanEngineDepth() : ENGINE_DEPTH;
+    const crit = typeof getCriticalEngineDepth === 'function' ? getCriticalEngineDepth() : depth + 4;
+    const options = [];
+    for (let d = ENGINE_DEPTH_MIN; d <= ENGINE_DEPTH_MAX; d++) {
+        options.push(`<option value="${d}"${d === depth ? ' selected' : ''}>Depth ${d}${d === ENGINE_DEPTH ? ' (default)' : ''}</option>`);
     }
-    if (features) {
-        features.style.display = tab === 'features' ? 'block' : 'none';
-        features.classList.toggle('active', tab === 'features');
+    el.innerHTML = `
+        <h3 class="about-section-title" style="margin-top:0">Engine analysis</h3>
+        <p class="faq-def mb-3">Profile scans and single-game reviews use Stockfish search depth (plies). Higher is slower but labels are sharper. Default is <strong>${ENGINE_DEPTH}</strong>.</p>
+        <div class="settings-row mb-3">
+            <label class="settings-label" for="setting-engine-depth">Scan depth</label>
+            <select id="setting-engine-depth" class="p-inputtext p-component" onchange="onEngineDepthSettingChange(this.value)">
+                ${options.join('')}
+            </select>
+        </div>
+        <div class="settings-meta text-color-secondary text-sm mb-3">
+            <div>Current scan depth: <strong>${depth}</strong></div>
+            <div>Critical moments (checks / captures / big swings) re-search at depth <strong>${crit}</strong></div>
+            <div>Deepen analysis (per game) stays at depth <strong>${REVIEW_ENGINE_DEPTH}</strong> with MultiPV ${REVIEW_MULTIPV}</div>
+        </div>
+        <p class="faq-def">Changing depth applies to the <em>next</em> scan or single-game analysis. Already cached games keep their previous depth until you re-analyze them.</p>
+        <div id="settings-save-status" class="settings-status text-sm mt-2"></div>
+    `;
+}
+
+function onEngineDepthSettingChange(value) {
+    const next = typeof clampEngineDepth === 'function' ? clampEngineDepth(value) : Number(value);
+    if (typeof saveUserSettings === 'function') saveUserSettings({ engineDepth: next });
+    const status = document.getElementById('settings-save-status');
+    const crit = typeof getCriticalEngineDepth === 'function' ? getCriticalEngineDepth() : next + 4;
+    if (status) {
+        status.textContent = `Saved — scans will use depth ${next} (critical re-search ${crit}).`;
+        status.classList.add('is-saved');
     }
+    if (typeof log === 'function') log(`Settings: engine depth set to ${next}`);
+    // Refresh meta lines without wiping the select focus awkwardly
+    renderAboutSettings();
 }
 
 function aboutFeatureItem(term, def) {
@@ -2086,7 +2130,7 @@ function renderAboutHowItWorks() {
             <div class="about-coverage-note">Book = continuous prefix from move one in our catalog (FEN and/or move-list). Leaving the line ends Book even if a later position exists elsewhere. Theory is a separate famous-game match (≥12 plies), not the same as Book.</div>
         </div>
         <h3 class="about-section-title">How we classify your moves</h3>
-        <p class="faq-def mb-3">Profile scans use Stockfish at depth ${ENGINE_DEPTH}. Checks, captures, mates, and large first-pass losses re-search at depth ${typeof CRITICAL_ENGINE_DEPTH === 'number' ? CRITICAL_ENGINE_DEPTH : 9} with MultiPV for sharper labels. Open a game and use <strong>Deepen analysis</strong> for depth ${REVIEW_ENGINE_DEPTH} with MultiPV ${REVIEW_MULTIPV} on every move.</p>
+        <p class="faq-def mb-3">Profile scans use Stockfish at depth ${typeof getScanEngineDepth === 'function' ? getScanEngineDepth() : ENGINE_DEPTH} (changeable in Settings). Checks, captures, mates, and large first-pass losses re-search at depth ${typeof getCriticalEngineDepth === 'function' ? getCriticalEngineDepth() : 9} with MultiPV for sharper labels. Open a game and use <strong>Deepen analysis</strong> for depth ${REVIEW_ENGINE_DEPTH} with MultiPV ${REVIEW_MULTIPV} on every move.</p>
         <p class="faq-def mb-3">Severity is based mainly on <strong>expected-points loss</strong> (change in win probability from the eval before → after your move), not raw centipawns alone. Swings from equal positions count more than swings in already-decided games. A base ${EVAL_NOISE_FLOOR_CP}cp noise floor applies on quiet samples; mates, clear PV gaps, and critical re-searches trust the engine more (lower floor).</p>
         ${[
             ['Theory', 'Your move matches a famous game line (at least 12 plies of SAN continuity from move one).'],
@@ -2200,10 +2244,11 @@ function renderAboutFeatureSet() {
     `;
 }
 
-/** Entry point when opening About — fills How it works + Feature set. */
+/** Entry point when opening About — fills How it works + Feature set + Settings. */
 function renderFaqTab() {
     renderAboutHowItWorks();
     renderAboutFeatureSet();
+    renderAboutSettings();
     switchAboutTab('how');
 }
 

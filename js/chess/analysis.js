@@ -164,9 +164,10 @@ function isCriticalMoment(chessBefore, move, best, rawCpl) {
 }
 
 function getEngineAnalysis(engine, fen, opts = {}) {
-    const depth = opts.depth ?? ENGINE_DEPTH;
+    const depth = opts.depth ?? (typeof getScanEngineDepth === 'function' ? getScanEngineDepth() : ENGINE_DEPTH);
     const multiPv = Math.max(1, opts.multiPv ?? 1);
-    const timeoutMs = opts.timeoutMs ?? (depth > ENGINE_DEPTH ? REVIEW_ENGINE_TIMEOUT_MS : 2500);
+    const baseDepth = typeof getScanEngineDepth === 'function' ? getScanEngineDepth() : ENGINE_DEPTH;
+    const timeoutMs = opts.timeoutMs ?? (depth > baseDepth ? REVIEW_ENGINE_TIMEOUT_MS : 2500);
 
     return new Promise((resolve) => {
         if (!enginesReady || !engine) {
@@ -418,9 +419,10 @@ function analysisStillRunning() {
 }
 
 async function analyzeGame(game, user, engine, onMove, opts = {}) {
-    const depth = opts.depth ?? ENGINE_DEPTH;
+    const depth = opts.depth ?? (typeof getScanEngineDepth === 'function' ? getScanEngineDepth() : ENGINE_DEPTH);
     const multiPv = opts.multiPv ?? 1;
-    const timeoutMs = opts.timeoutMs ?? (depth > ENGINE_DEPTH ? REVIEW_ENGINE_TIMEOUT_MS : 2500);
+    const baseDepth = typeof getScanEngineDepth === 'function' ? getScanEngineDepth() : ENGINE_DEPTH;
+    const timeoutMs = opts.timeoutMs ?? (depth > baseDepth ? REVIEW_ENGINE_TIMEOUT_MS : 2500);
 
     const chess = new Chess();
     chess.load_pgn(game.pgn);
@@ -476,7 +478,9 @@ async function analyzeGame(game, user, engine, onMove, opts = {}) {
             let gap = topEngineGapCp(best);
             let rawProbe = computeEvalDelta(best, actual, { engineGapCp: gap });
             const critical = isCriticalMoment(beforeSnap, history[i], best, rawProbe.rawCpl);
-            const critDepth = typeof CRITICAL_ENGINE_DEPTH === 'number' ? CRITICAL_ENGINE_DEPTH : depth + 4;
+            const critDepth = typeof getCriticalEngineDepth === 'function'
+                ? getCriticalEngineDepth()
+                : (depth + 4);
             // Deeper + MultiPV re-search only on sharp / high-CPL moments
             if (critical && depth < critDepth && analysisStillRunning()) {
                 const deepTimeout = typeof CRITICAL_ENGINE_TIMEOUT_MS === 'number'

@@ -4,7 +4,7 @@
 
 const STOCKFISH_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
 const STOCKFISH_LOCAL = 'stockfish.js?v=20260803';
-const APP_BUILD = '2026-08-09g';
+const APP_BUILD = '2026-08-10a';
 const CACHE_VERSION = 9;
 /** Soft ceiling for estimated Game ELO (IM territory). */
 const GAME_ELO_IM = 2400;
@@ -13,9 +13,14 @@ const GAME_ELO_GM = 2500;
 // Relative to the page URL so this works on a server and when opened locally
 const EXTERNAL_BOOK_URL = 'openings.json';
 const FAMOUS_GAMES_URL = 'famous-games.json';
+/** Default Stockfish depth for profile / single-game scans (plies of search). */
 const ENGINE_DEPTH = 5;
-/** Extra depth for checks/captures/mate threats / large first-pass CPL. */
-const CRITICAL_ENGINE_DEPTH = 9;
+const ENGINE_DEPTH_MIN = 3;
+const ENGINE_DEPTH_MAX = 12;
+const SETTINGS_STORAGE_KEY = 'chessAnalyze:settings:v1';
+/** Extra depth for checks/captures/mate threats / large first-pass CPL (offset from scan depth). */
+const CRITICAL_ENGINE_DEPTH_OFFSET = 4;
+const CRITICAL_ENGINE_DEPTH_CAP = 15;
 const EVAL_NOISE_FLOOR_CP = 100; // base ignore for quiet depth-5 wobble
 /** Opt-in deeper analysis when reviewing a single game. */
 const REVIEW_ENGINE_DEPTH = 12;
@@ -338,3 +343,54 @@ const MOVE_QUALITY_ORDER = [
     { label: 'Mistake', className: 'cls-mistake', color: '#e67e22' },
     { label: 'Blunder', className: 'cls-blunder', color: 'var(--accent)' }
 ];
+
+/** Runtime user settings (persisted). engineDepth defaults to ENGINE_DEPTH (5). */
+let userSettings = { engineDepth: ENGINE_DEPTH };
+
+function clampEngineDepth(n) {
+    const v = Number(n);
+    if (!Number.isFinite(v)) return ENGINE_DEPTH;
+    return Math.max(ENGINE_DEPTH_MIN, Math.min(ENGINE_DEPTH_MAX, Math.round(v)));
+}
+
+function loadUserSettings() {
+    try {
+        const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
+        const parsed = raw ? JSON.parse(raw) : null;
+        if (parsed && typeof parsed === 'object') {
+            userSettings = {
+                engineDepth: clampEngineDepth(parsed.engineDepth ?? ENGINE_DEPTH)
+            };
+            return userSettings;
+        }
+    } catch (_) {}
+    userSettings = { engineDepth: ENGINE_DEPTH };
+    return userSettings;
+}
+
+function saveUserSettings(partial = {}) {
+    userSettings = {
+        ...userSettings,
+        ...partial,
+        engineDepth: clampEngineDepth(partial.engineDepth ?? userSettings.engineDepth ?? ENGINE_DEPTH)
+    };
+    try {
+        localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(userSettings));
+    } catch (_) {}
+    return userSettings;
+}
+
+/** Effective Stockfish depth for profile / single-game scans. */
+function getScanEngineDepth() {
+    return clampEngineDepth(userSettings?.engineDepth ?? ENGINE_DEPTH);
+}
+
+/** Critical-moment re-search depth (scan depth + offset, capped). */
+function getCriticalEngineDepth() {
+    const base = getScanEngineDepth();
+    const offset = typeof CRITICAL_ENGINE_DEPTH_OFFSET === 'number' ? CRITICAL_ENGINE_DEPTH_OFFSET : 4;
+    const cap = typeof CRITICAL_ENGINE_DEPTH_CAP === 'number' ? CRITICAL_ENGINE_DEPTH_CAP : 15;
+    return Math.min(cap, base + offset);
+}
+
+loadUserSettings();

@@ -68,7 +68,7 @@ async function initApp() {
         "Load your Chess.com profile or game for a customised, fully client-side engine review. Insights across recent games, openings, and learnable theory — open About in the top menu for how labels work.";
     refreshDashboard();
 
-    log(`Initializing up to ${PARALLEL_GAMES} engines (depth ${ENGINE_DEPTH})...`);
+    log(`Initializing up to ${PARALLEL_GAMES} engines (scan depth ${typeof getScanEngineDepth === 'function' ? getScanEngineDepth() : ENGINE_DEPTH})...`);
     try {
         const workerUrl = await resolveStockfishWorkerUrl();
         log(`Worker URL: ${workerUrl}`);
@@ -594,6 +594,7 @@ window.selectSingleGame = selectSingleGame;
 window.switchDashTab = switchDashTab;
 window.switchAppView = switchAppView;
 window.switchAboutTab = switchAboutTab;
+window.onEngineDepthSettingChange = onEngineDepthSettingChange;
 window.focusUsernameInput = focusUsernameInput;
 window.renderMatchesTab = renderMatchesTab;
 window.switchTab = switchTab;
