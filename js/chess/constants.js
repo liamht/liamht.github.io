@@ -1,23 +1,26 @@
-/* chess/constants.js — Analyze Chess */
+/* chess/constants.js — Checkmate More Lite */
 
 // --- config & shared state ---
 
+/** Asset root relative to chess/app/index.html */
+const APP_ASSET_ROOT = '../../';
 const STOCKFISH_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
-const STOCKFISH_LOCAL = 'stockfish.js?v=20260803';
-const APP_BUILD = '2026-08-11a';
-const CACHE_VERSION = 10;
+const STOCKFISH_LOCAL = APP_ASSET_ROOT + 'stockfish.js?v=20260803';
+const APP_BUILD = '2026-08-11c';
+const CACHE_VERSION = 11;
 /** Soft ceiling for estimated Game ELO (IM territory). */
 const GAME_ELO_IM = 2400;
 /** Hard cap for estimated Game ELO (GM territory) — high accuracy asymptotes here. */
 const GAME_ELO_GM = 2500;
-// Relative to the page URL so this works on a server and when opened locally
-const EXTERNAL_BOOK_URL = 'openings.json';
-const FAMOUS_GAMES_URL = 'famous-games.json';
+// Relative to the app page URL so this works on a server and when opened locally
+const EXTERNAL_BOOK_URL = APP_ASSET_ROOT + 'openings.json';
+const FAMOUS_GAMES_URL = APP_ASSET_ROOT + 'famous-games.json';
 /** Default Stockfish depth for profile / single-game scans (plies of search). */
 const ENGINE_DEPTH = 5;
 const ENGINE_DEPTH_MIN = 3;
 const ENGINE_DEPTH_MAX = 12;
-const SETTINGS_STORAGE_KEY = 'chessAnalyze:settings:v1';
+const SETTINGS_STORAGE_KEY = 'chessAnalyze:settings:v2';
+const SETTINGS_STORAGE_KEY_LEGACY = 'chessAnalyze:settings:v1';
 /** Extra depth for sharp first-pass moments only (mates / large CPL). */
 const CRITICAL_ENGINE_DEPTH_OFFSET = 2;
 const CRITICAL_ENGINE_DEPTH_CAP = 12;
@@ -27,6 +30,67 @@ const REVIEW_ENGINE_DEPTH = 12;
 const REVIEW_MULTIPV = 2;
 const REVIEW_ENGINE_TIMEOUT_MS = 8000;
 const CRITICAL_ENGINE_TIMEOUT_MS = 4500;
+
+/**
+ * Named Stockfish scan presets (persisted as analysisPreset).
+ * criticalOffset 0 = no key-move re-search (Familiar / Lite).
+ */
+const ANALYSIS_PRESETS = {
+    lite: {
+        id: 'lite',
+        name: 'Lite Rapid',
+        speed: 'Super fast',
+        depth: 3,
+        criticalOffset: 0,
+        criticalCap: 3,
+        noiseFloor: 130,
+        blurb: 'Quickest scans. Fine for a first look; labels are noisier and fewer key moments are re-checked.'
+    },
+    familiar: {
+        id: 'familiar',
+        name: 'Familiar',
+        speed: 'Balanced',
+        depth: 4,
+        criticalOffset: 0,
+        criticalCap: 4,
+        noiseFloor: 115,
+        badge: 'Closest to Chess.com',
+        blurb: 'Similar depth and scaling to other online analysis engines. Blunder counts, accuracy, and Game ELO should feel familiar.'
+    },
+    recommended: {
+        id: 'recommended',
+        name: 'Recommended',
+        speed: 'Fast enough',
+        depth: 5,
+        criticalOffset: 2,
+        criticalCap: 12,
+        noiseFloor: 100,
+        badge: 'Suggested',
+        blurb: 'Depth 5 with deeper re-search on sharp moments. Slightly harsher than Familiar — our house default.'
+    },
+    deep: {
+        id: 'deep',
+        name: 'Deep',
+        speed: 'Slow',
+        depth: 7,
+        criticalOffset: 2,
+        criticalCap: 14,
+        noiseFloor: 90,
+        blurb: 'Depth 7 plus key-move deepen. Sharper labels; profile scans take longer.'
+    },
+    imgm: {
+        id: 'imgm',
+        name: 'IM & GM',
+        speed: 'Very slow',
+        depth: 12,
+        criticalOffset: 0,
+        criticalCap: 15,
+        noiseFloor: 75,
+        blurb: 'Depth 12 on every move. Title-level thoroughness — expect long waits per game.'
+    }
+};
+const DEFAULT_ANALYSIS_PRESET = 'recommended';
+const ANALYSIS_PRESET_ORDER = ['lite', 'familiar', 'recommended', 'deep', 'imgm'];
 /** Max NEW (uncached) games to analyze in one scan. Cached games accumulate beyond this. */
 const SCAN_NEW_LIMIT = 100;
 /** Newest-first archive walk stops after this many consecutive already-cached games. */
@@ -345,8 +409,12 @@ const MOVE_QUALITY_ORDER = [
     { label: 'Blunder', className: 'cls-blunder', color: 'var(--accent)' }
 ];
 
-/** Runtime user settings (persisted). engineDepth defaults to ENGINE_DEPTH (5). */
-let userSettings = { engineDepth: ENGINE_DEPTH };
+/** Runtime user settings (persisted). */
+let userSettings = {
+    analysisPreset: DEFAULT_ANALYSIS_PRESET,
+    analysisPresetChosen: false,
+    engineDepth: ENGINE_DEPTH
+};
 
 function clampEngineDepth(n) {
     const v = Number(n);
@@ -354,44 +422,128 @@ function clampEngineDepth(n) {
     return Math.max(ENGINE_DEPTH_MIN, Math.min(ENGINE_DEPTH_MAX, Math.round(v)));
 }
 
+function getAnalysisPresetDef(id) {
+    const key = id && ANALYSIS_PRESETS[id] ? id : DEFAULT_ANALYSIS_PRESET;
+    return ANALYSIS_PRESETS[key];
+}
+
+function presetIdFromDepth(depth) {
+    const d = clampEngineDepth(depth);
+    let best = DEFAULT_ANALYSIS_PRESET;
+    let bestDist = Infinity;
+    for (const id of ANALYSIS_PRESET_ORDER) {
+        const dist = Math.abs(ANALYSIS_PRESETS[id].depth - d);
+        if (dist < bestDist) {
+            bestDist = dist;
+            best = id;
+        }
+    }
+    return best;
+}
+
+function settingsFromPreset(presetId, chosen = true) {
+    const def = getAnalysisPresetDef(presetId);
+    return {
+        analysisPreset: def.id,
+        analysisPresetChosen: !!chosen,
+        engineDepth: clampEngineDepth(def.depth)
+    };
+}
+
 function loadUserSettings() {
     try {
-        const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
+        let raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
+        let fromLegacy = false;
+        if (!raw) {
+            raw = localStorage.getItem(SETTINGS_STORAGE_KEY_LEGACY);
+            fromLegacy = !!raw;
+        }
         const parsed = raw ? JSON.parse(raw) : null;
         if (parsed && typeof parsed === 'object') {
-            userSettings = {
-                engineDepth: clampEngineDepth(parsed.engineDepth ?? ENGINE_DEPTH)
-            };
+            let presetId = parsed.analysisPreset;
+            let chosen = parsed.analysisPresetChosen === true;
+            if (!presetId && parsed.engineDepth != null) {
+                presetId = presetIdFromDepth(parsed.engineDepth);
+                // Returning users who already picked a numeric depth — don't force the modal
+                chosen = true;
+            }
+            if (!ANALYSIS_PRESETS[presetId]) presetId = DEFAULT_ANALYSIS_PRESET;
+            userSettings = settingsFromPreset(presetId, chosen);
+            if (fromLegacy) {
+                try { localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(userSettings)); } catch (_) {}
+            }
             return userSettings;
         }
     } catch (_) {}
-    userSettings = { engineDepth: ENGINE_DEPTH };
+    userSettings = settingsFromPreset(DEFAULT_ANALYSIS_PRESET, false);
     return userSettings;
 }
 
 function saveUserSettings(partial = {}) {
-    userSettings = {
-        ...userSettings,
-        ...partial,
-        engineDepth: clampEngineDepth(partial.engineDepth ?? userSettings.engineDepth ?? ENGINE_DEPTH)
-    };
+    let next = { ...userSettings, ...partial };
+    if (partial.analysisPreset != null || (partial.engineDepth != null && partial.analysisPreset === undefined)) {
+        const presetId = partial.analysisPreset != null
+            ? partial.analysisPreset
+            : presetIdFromDepth(partial.engineDepth);
+        const chosen = partial.analysisPresetChosen != null
+            ? !!partial.analysisPresetChosen
+            : true;
+        next = { ...next, ...settingsFromPreset(presetId, chosen) };
+    } else {
+        next.engineDepth = clampEngineDepth(next.engineDepth ?? ENGINE_DEPTH);
+        next.analysisPresetChosen = !!next.analysisPresetChosen;
+        if (!ANALYSIS_PRESETS[next.analysisPreset]) next.analysisPreset = DEFAULT_ANALYSIS_PRESET;
+    }
+    userSettings = next;
     try {
         localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(userSettings));
     } catch (_) {}
     return userSettings;
 }
 
-/** Effective Stockfish depth for profile / single-game scans. */
-function getScanEngineDepth() {
-    return clampEngineDepth(userSettings?.engineDepth ?? ENGINE_DEPTH);
+function hasAnalysisPresetChosen() {
+    return !!(userSettings && userSettings.analysisPresetChosen);
 }
 
-/** Critical-moment re-search depth (scan depth + offset, capped). */
+function getActiveAnalysisPreset() {
+    return getAnalysisPresetDef(userSettings?.analysisPreset);
+}
+
+/** Effective Stockfish depth for profile / single-game scans. */
+function getScanEngineDepth() {
+    const def = getActiveAnalysisPreset();
+    return clampEngineDepth(def?.depth ?? userSettings?.engineDepth ?? ENGINE_DEPTH);
+}
+
+/** Critical-moment re-search depth (scan depth + offset, capped). Offset 0 disables deepen. */
 function getCriticalEngineDepth() {
+    const def = getActiveAnalysisPreset();
     const base = getScanEngineDepth();
-    const offset = typeof CRITICAL_ENGINE_DEPTH_OFFSET === 'number' ? CRITICAL_ENGINE_DEPTH_OFFSET : 4;
-    const cap = typeof CRITICAL_ENGINE_DEPTH_CAP === 'number' ? CRITICAL_ENGINE_DEPTH_CAP : 15;
+    const offset = def?.criticalOffset != null
+        ? def.criticalOffset
+        : (typeof CRITICAL_ENGINE_DEPTH_OFFSET === 'number' ? CRITICAL_ENGINE_DEPTH_OFFSET : 2);
+    if (offset <= 0) return base;
+    const cap = def?.criticalCap != null
+        ? def.criticalCap
+        : (typeof CRITICAL_ENGINE_DEPTH_CAP === 'number' ? CRITICAL_ENGINE_DEPTH_CAP : 12);
     return Math.min(cap, base + offset);
+}
+
+/** Adaptive noise floor for expected-points / CPL (preset-aware). */
+function getEvalNoiseFloorCp() {
+    const def = getActiveAnalysisPreset();
+    if (def?.noiseFloor != null) return def.noiseFloor;
+    return typeof EVAL_NOISE_FLOOR_CP === 'number' ? EVAL_NOISE_FLOOR_CP : 100;
+}
+
+/** Per-move engine timeout for the active scan depth. */
+function getScanEngineTimeoutMs(depth) {
+    const d = depth != null ? depth : getScanEngineDepth();
+    if (d >= 12) return 12000;
+    if (d >= 9) return 8000;
+    if (d >= 7) return 5500;
+    if (d >= 5) return 3200;
+    return 2500;
 }
 
 loadUserSettings();

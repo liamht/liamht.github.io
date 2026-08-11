@@ -124,7 +124,9 @@ function computeEvalDelta(bestBefore, actualAfter, opts = {}) {
     const afterForPlayer = -scoreForSideToMove(actualAfter);
     const rawCpl = Math.max(0, before - afterForPlayer);
 
-    let noise = opts.noiseFloor != null ? opts.noiseFloor : EVAL_NOISE_FLOOR_CP;
+    let noise = opts.noiseFloor != null
+        ? opts.noiseFloor
+        : (typeof getEvalNoiseFloorCp === 'function' ? getEvalNoiseFloorCp() : EVAL_NOISE_FLOOR_CP);
     if (bestBefore?.isMate || actualAfter?.isMate) noise = Math.min(noise, 35);
     const gap = opts.engineGapCp != null ? opts.engineGapCp : topEngineGapCp(bestBefore);
     if (gap != null && gap >= 180) noise = Math.min(noise, 45);
@@ -172,7 +174,11 @@ function getEngineAnalysis(engine, fen, opts = {}) {
     const depth = opts.depth ?? (typeof getScanEngineDepth === 'function' ? getScanEngineDepth() : ENGINE_DEPTH);
     const multiPv = Math.max(1, opts.multiPv ?? 1);
     const baseDepth = typeof getScanEngineDepth === 'function' ? getScanEngineDepth() : ENGINE_DEPTH;
-    const timeoutMs = opts.timeoutMs ?? (depth > baseDepth ? REVIEW_ENGINE_TIMEOUT_MS : 2500);
+    const timeoutMs = opts.timeoutMs ?? (
+        depth > baseDepth
+            ? REVIEW_ENGINE_TIMEOUT_MS
+            : (typeof getScanEngineTimeoutMs === 'function' ? getScanEngineTimeoutMs(depth) : 2500)
+    );
 
     return new Promise((resolve) => {
         if (!enginesReady || !engine) {
@@ -450,7 +456,11 @@ async function analyzeGame(game, user, engine, onMove, opts = {}) {
     const depth = opts.depth ?? (typeof getScanEngineDepth === 'function' ? getScanEngineDepth() : ENGINE_DEPTH);
     const multiPv = opts.multiPv ?? 1;
     const baseDepth = typeof getScanEngineDepth === 'function' ? getScanEngineDepth() : ENGINE_DEPTH;
-    const timeoutMs = opts.timeoutMs ?? (depth > baseDepth ? REVIEW_ENGINE_TIMEOUT_MS : 2500);
+    const timeoutMs = opts.timeoutMs ?? (
+        depth > baseDepth
+            ? REVIEW_ENGINE_TIMEOUT_MS
+            : (typeof getScanEngineTimeoutMs === 'function' ? getScanEngineTimeoutMs(depth) : 2500)
+    );
 
     const chess = new Chess();
     chess.load_pgn(game.pgn);

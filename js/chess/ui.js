@@ -2072,43 +2072,142 @@ function switchAboutTab(name, el) {
 function renderAboutSettings() {
     const el = document.getElementById('about-settings-content');
     if (!el) return;
-    const depth = typeof getScanEngineDepth === 'function' ? getScanEngineDepth() : ENGINE_DEPTH;
-    const crit = typeof getCriticalEngineDepth === 'function' ? getCriticalEngineDepth() : depth + 4;
-    const options = [];
-    for (let d = ENGINE_DEPTH_MIN; d <= ENGINE_DEPTH_MAX; d++) {
-        options.push(`<option value="${d}"${d === depth ? ' selected' : ''}>Depth ${d}${d === ENGINE_DEPTH ? ' (default)' : ''}</option>`);
-    }
+    const active = typeof getActiveAnalysisPreset === 'function'
+        ? getActiveAnalysisPreset()
+        : ANALYSIS_PRESETS[DEFAULT_ANALYSIS_PRESET];
+    const depth = typeof getScanEngineDepth === 'function' ? getScanEngineDepth() : active.depth;
+    const crit = typeof getCriticalEngineDepth === 'function' ? getCriticalEngineDepth() : depth;
+    const deepenNote = crit > depth
+        ? `Sharp moments re-search at depth <strong>${crit}</strong>`
+        : 'No extra key-move re-search on this preset';
+    const cards = (ANALYSIS_PRESET_ORDER || Object.keys(ANALYSIS_PRESETS)).map(id => {
+        const p = ANALYSIS_PRESETS[id];
+        const selected = p.id === active.id;
+        const badge = p.badge ? `<span class="preset-badge">${p.badge}</span>` : '';
+        return `
+            <button type="button" class="preset-card${selected ? ' is-selected' : ''}"
+                onclick="onAnalysisPresetSettingChange('${p.id}')" aria-pressed="${selected}">
+                <div class="preset-card-top">
+                    <span class="preset-card-name">${p.name}</span>
+                    ${badge}
+                </div>
+                <div class="preset-card-speed">${p.speed} · depth ${p.depth}</div>
+                <div class="preset-card-blurb">${p.blurb}</div>
+            </button>
+        `;
+    }).join('');
     el.innerHTML = `
-        <h3 class="about-section-title" style="margin-top:0">Engine analysis</h3>
-        <p class="faq-def mb-3">Profile scans and single-game reviews use Stockfish search depth (plies). Higher is slower but labels are sharper. Default is <strong>${ENGINE_DEPTH}</strong>.</p>
-        <div class="settings-row mb-3">
-            <label class="settings-label" for="setting-engine-depth">Scan depth</label>
-            <select id="setting-engine-depth" class="p-inputtext p-component" onchange="onEngineDepthSettingChange(this.value)">
-                ${options.join('')}
-            </select>
-        </div>
+        <h3 class="about-section-title" style="margin-top:0">Engine analysis preset</h3>
+        <p class="faq-def mb-3">Choose how deep Stockfish searches during profile scans and single-game reviews. Higher presets are slower but sharper. Cached games are stored per depth — switching presets may re-analyze.</p>
+        <div class="preset-grid mb-3">${cards}</div>
         <div class="settings-meta text-color-secondary text-sm mb-3">
-            <div>Current scan depth: <strong>${depth}</strong></div>
-            <div>Sharp moments (mates / large first-pass swings) re-search at depth <strong>${crit}</strong></div>
+            <div>Active: <strong>${active.name}</strong> (depth <strong>${depth}</strong>)</div>
+            <div>${deepenNote}</div>
+            <div>Noise floor: <strong>${typeof getEvalNoiseFloorCp === 'function' ? getEvalNoiseFloorCp() : EVAL_NOISE_FLOOR_CP}cp</strong></div>
             <div>Deepen analysis (per game) stays at depth <strong>${REVIEW_ENGINE_DEPTH}</strong> with MultiPV ${REVIEW_MULTIPV}</div>
         </div>
-        <p class="faq-def">Changing depth applies to the <em>next</em> scan or single-game analysis. Already cached games keep their previous depth until you re-analyze them.</p>
+        <p class="faq-def">Changing preset applies to the <em>next</em> scan or single-game analysis.</p>
         <div id="settings-save-status" class="settings-status text-sm mt-2"></div>
     `;
 }
 
-function onEngineDepthSettingChange(value) {
-    const next = typeof clampEngineDepth === 'function' ? clampEngineDepth(value) : Number(value);
-    if (typeof saveUserSettings === 'function') saveUserSettings({ engineDepth: next });
+function onAnalysisPresetSettingChange(presetId) {
+    if (typeof saveUserSettings === 'function') {
+        saveUserSettings({ analysisPreset: presetId, analysisPresetChosen: true });
+    }
+    const active = typeof getActiveAnalysisPreset === 'function' ? getActiveAnalysisPreset() : null;
     const status = document.getElementById('settings-save-status');
-    const crit = typeof getCriticalEngineDepth === 'function' ? getCriticalEngineDepth() : next + 4;
-    if (status) {
-        status.textContent = `Saved — scans will use depth ${next} (critical re-search ${crit}).`;
+    if (status && active) {
+        status.textContent = `Saved — ${active.name} (depth ${active.depth}).`;
         status.classList.add('is-saved');
     }
-    if (typeof log === 'function') log(`Settings: engine depth set to ${next}`);
-    // Refresh meta lines without wiping the select focus awkwardly
+    if (typeof log === 'function' && active) log(`Settings: analysis preset → ${active.name} (d${active.depth})`);
     renderAboutSettings();
+}
+
+/** @deprecated numeric depth UI removed — kept for any leftover callers */
+function onEngineDepthSettingChange(value) {
+    const next = typeof clampEngineDepth === 'function' ? clampEngineDepth(value) : Number(value);
+    const presetId = typeof presetIdFromDepth === 'function' ? presetIdFromDepth(next) : DEFAULT_ANALYSIS_PRESET;
+    onAnalysisPresetSettingChange(presetId);
+}
+
+let _presetModalResolve = null;
+let _presetModalPendingId = null;
+
+function ensureAnalysisPresetChosen() {
+    if (typeof hasAnalysisPresetChosen === 'function' && hasAnalysisPresetChosen()) {
+        return Promise.resolve(true);
+    }
+    return new Promise((resolve) => {
+        _presetModalResolve = resolve;
+        openAnalysisPresetModal();
+    });
+}
+
+function openAnalysisPresetModal() {
+    const overlay = document.getElementById('analysis-preset-overlay');
+    if (!overlay) {
+        if (typeof saveUserSettings === 'function') {
+            saveUserSettings({ analysisPreset: DEFAULT_ANALYSIS_PRESET, analysisPresetChosen: true });
+        }
+        if (_presetModalResolve) {
+            const r = _presetModalResolve;
+            _presetModalResolve = null;
+            r(true);
+        }
+        return;
+    }
+    const activeId = userSettings?.analysisPreset || DEFAULT_ANALYSIS_PRESET;
+    _presetModalPendingId = ANALYSIS_PRESETS[activeId] ? activeId : DEFAULT_ANALYSIS_PRESET;
+    renderAnalysisPresetModalCards();
+    overlay.style.display = 'flex';
+}
+
+function renderAnalysisPresetModalCards() {
+    const list = document.getElementById('analysis-preset-list');
+    if (!list) return;
+    list.innerHTML = (ANALYSIS_PRESET_ORDER || []).map(id => {
+        const p = ANALYSIS_PRESETS[id];
+        const selected = p.id === _presetModalPendingId;
+        const badge = p.badge ? `<span class="preset-badge">${p.badge}</span>` : '';
+        return `
+            <button type="button" class="preset-card${selected ? ' is-selected' : ''}"
+                onclick="selectAnalysisPresetPending('${p.id}')" aria-pressed="${selected}">
+                <div class="preset-card-top">
+                    <span class="preset-card-name">${p.name}</span>
+                    ${badge}
+                </div>
+                <div class="preset-card-speed">${p.speed} · depth ${p.depth}</div>
+                <div class="preset-card-blurb">${p.blurb}</div>
+            </button>
+        `;
+    }).join('');
+}
+
+function selectAnalysisPresetPending(presetId) {
+    if (!ANALYSIS_PRESETS[presetId]) return;
+    _presetModalPendingId = presetId;
+    renderAnalysisPresetModalCards();
+}
+
+function confirmAnalysisPresetModal() {
+    const id = _presetModalPendingId || DEFAULT_ANALYSIS_PRESET;
+    if (typeof saveUserSettings === 'function') {
+        saveUserSettings({ analysisPreset: id, analysisPresetChosen: true });
+    }
+    const overlay = document.getElementById('analysis-preset-overlay');
+    if (overlay) overlay.style.display = 'none';
+    const active = typeof getActiveAnalysisPreset === 'function' ? getActiveAnalysisPreset() : null;
+    if (typeof log === 'function' && active) log(`Analysis preset chosen: ${active.name} (d${active.depth})`);
+    if (typeof renderAboutSettings === 'function') {
+        try { renderAboutSettings(); } catch (_) {}
+    }
+    if (_presetModalResolve) {
+        const r = _presetModalResolve;
+        _presetModalResolve = null;
+        r(true);
+    }
 }
 
 function aboutFeatureItem(term, def) {
@@ -2134,8 +2233,8 @@ function renderAboutHowItWorks() {
             <div class="about-coverage-note">Book = continuous prefix from move one in our catalog (FEN and/or move-list). Leaving the line ends Book even if a later position exists elsewhere. Theory is a separate famous-game match (≥12 plies), not the same as Book.</div>
         </div>
         <h3 class="about-section-title">How we classify your moves</h3>
-        <p class="faq-def mb-3">Profile scans use Stockfish at depth ${typeof getScanEngineDepth === 'function' ? getScanEngineDepth() : ENGINE_DEPTH} (changeable in Settings), with up to ${typeof PARALLEL_GAMES === 'number' ? PARALLEL_GAMES : 4} games analyzed in parallel. Sharp first-pass moments (mates / large eval swings) re-search a bit deeper. Open a game and use <strong>Deepen analysis</strong> for depth ${REVIEW_ENGINE_DEPTH} with MultiPV ${REVIEW_MULTIPV} on every move.</p>
-        <p class="faq-def mb-3">Severity follows Chess.com-style <strong>expected-points loss</strong> (win-probability change before → after your move). A base ${EVAL_NOISE_FLOOR_CP}cp noise floor applies on quiet samples; mates, clear PV gaps, and critical re-searches trust the engine more (lower floor). Book and Theory are our unique opening/famous-game split — not Chess.com labels.</p>
+        <p class="faq-def mb-3">Profile scans use Stockfish at depth ${typeof getScanEngineDepth === 'function' ? getScanEngineDepth() : ENGINE_DEPTH} via your analysis preset (${typeof getActiveAnalysisPreset === 'function' ? getActiveAnalysisPreset().name : 'Recommended'}), changeable in Settings. Up to ${typeof PARALLEL_GAMES === 'number' ? PARALLEL_GAMES : 4} games run in parallel. Some presets re-search sharp moments a bit deeper. Open a game and use <strong>Deepen analysis</strong> for depth ${REVIEW_ENGINE_DEPTH} with MultiPV ${REVIEW_MULTIPV} on every move.</p>
+        <p class="faq-def mb-3">Severity follows Chess.com-style <strong>expected-points loss</strong> (win-probability change before → after your move). A base ${typeof getEvalNoiseFloorCp === 'function' ? getEvalNoiseFloorCp() : EVAL_NOISE_FLOOR_CP}cp noise floor applies on quiet samples; mates, clear PV gaps, and critical re-searches trust the engine more (lower floor). Book and Theory are our unique opening/famous-game split — not Chess.com labels.</p>
         ${[
             ['Theory', 'Your move matches a famous game line (at least 12 plies of SAN continuity from move one).'],
             ['Book', 'Still inside our opening book (continuous FEN / move-list prefix), and not already tagged Theory.'],

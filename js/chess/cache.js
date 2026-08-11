@@ -7,12 +7,17 @@ function getGameKey(game) {
     return [game.end_time || '', game.white?.username || '', game.black?.username || '', (game.pgn || '').slice(0, 80)].join('|');
 }
 
+function cacheDepthTag() {
+    const d = typeof getScanEngineDepth === 'function' ? getScanEngineDepth() : ENGINE_DEPTH;
+    return `d${d}`;
+}
+
 function cacheStorageKey(username, gameKey, version = CACHE_VERSION) {
-    return `chessAnalyzed:v${version}:${username.toLowerCase()}:${gameKey}`;
+    return `chessAnalyzed:v${version}:${cacheDepthTag()}:${username.toLowerCase()}:${gameKey}`;
 }
 
 function cacheIndexKey(username, version = CACHE_VERSION) {
-    return `chessAnalyzed:v${version}:index:${username.toLowerCase()}`;
+    return `chessAnalyzed:v${version}:${cacheDepthTag()}:index:${username.toLowerCase()}`;
 }
 
 function readCacheIndex(username) {
@@ -71,7 +76,7 @@ function hydrateCachedAnalysis(analysis, pgn) {
 }
 
 function listCachedGameKeys(username) {
-    const prefix = `chessAnalyzed:v${CACHE_VERSION}:${username.toLowerCase()}:`;
+    const prefix = `chessAnalyzed:v${CACHE_VERSION}:${cacheDepthTag()}:${username.toLowerCase()}:`;
     const indexPrefix = cacheIndexKey(username);
     const keys = [];
     for (let i = 0; i < localStorage.length; i++) {
@@ -142,7 +147,7 @@ function hasCachedAnalysis(username, gameKey) {
 }
 
 function rebuildCacheIndexFromStorage(username) {
-    const prefix = `chessAnalyzed:v${CACHE_VERSION}:${username.toLowerCase()}:`;
+    const prefix = `chessAnalyzed:v${CACHE_VERSION}:${cacheDepthTag()}:${username.toLowerCase()}:`;
     const indexKey = cacheIndexKey(username);
     const index = [];
     for (let i = 0; i < localStorage.length; i++) {

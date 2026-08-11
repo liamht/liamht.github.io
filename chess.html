@@ -3,507 +3,193 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analyze Chess</title>
-    <meta name="description" content="Load your Chess.com profile or game for a customised, fully client-side engine review. Insights across recent games, openings, and learnable theory — see About for how labels work.">
-    <meta name="color-scheme" content="light dark">
+    <title>Checkmate More — Chess analysis that helps you win more</title>
+    <meta name="description" content="Checkmate More reviews your Chess.com games in the browser with Stockfish — accuracy, coaching, openings, and famous-game theory. Try the free Lite app with no account, or join the Pro waitlist.">
+    <meta name="color-scheme" content="light">
     <script>
     (function () {
         var base = 'https://cdn.jsdelivr.net/npm/primeng@17.18.15/resources/themes/';
         var light = base + 'md-light-indigo/theme.css';
-        var dark = base + 'md-dark-indigo/theme.css';
         var link = document.createElement('link');
         link.id = 'pf-theme';
         link.rel = 'stylesheet';
-        var mq = window.matchMedia('(prefers-color-scheme: dark)');
-        function apply(isDark) {
-            link.href = isDark ? dark : light;
-            document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
-            document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
-        }
-        apply(mq.matches);
+        link.href = light;
+        document.documentElement.style.colorScheme = 'light';
+        document.documentElement.dataset.theme = 'light';
         document.head.appendChild(link);
-        if (mq.addEventListener) mq.addEventListener('change', function (e) { apply(e.matches); });
-        else if (mq.addListener) mq.addListener(function (e) { apply(e.matches); });
     })();
     </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeng@17.18.15/resources/primeng.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeicons@7.0.0/primeicons.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeflex@3.3.1/primeflex.min.css">
-    <link rel="stylesheet" href="chess.css?v=20260811a">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Source+Sans+3:wght@400;600;700&display=swap">
+    <link rel="stylesheet" href="chess-landing.css?v=20260811d">
 </head>
-<body>
-<div class="app-shell">
-    <header class="app-topnav" role="banner">
-        <button type="button" class="app-brand" onclick="switchAppView('analyze')" title="Analyze Chess">
-            Analyze Chess
-        </button>
-        <nav class="app-topnav-links" aria-label="Primary">
-            <button type="button" class="app-topnav-link is-active" data-view="analyze" onclick="switchAppView('analyze')">Analyze</button>
-            <button type="button" class="app-topnav-link" data-view="about" onclick="switchAppView('about')">About</button>
-        </nav>
-    </header>
+<body class="cm-landing">
+    <div class="cm-shell">
+        <header class="cm-top">
+            <a class="cm-logo" href="chess.html">Checkmate More</a>
+            <span class="cm-top-note">Lite is free · runs in your browser</span>
+        </header>
 
-    <div id="analyze-view">
-    <div class="p-card mb-3">
-        <div class="p-card-body">
-            <div class="flex flex-column md:flex-row gap-2 align-items-stretch md:align-items-center">
-                <span class="p-input-icon-left flex-1 w-full">
-                    <i class="pi pi-user"></i>
-                    <input type="text" id="username" class="p-inputtext p-component w-full" placeholder="Chess.com Username">
-                </span>
-                <div class="flex gap-2 flex-wrap">
-                    <button id="btnScan" type="button" class="p-button p-component" onclick="startAnalysis()" disabled>
-                        <span class="p-button-icon-left pi pi-spin pi-spinner"></span>
-                        <span class="p-button-label">Initializing…</span>
-                    </button>
-                    <button id="btnSingle" type="button" class="p-button p-component p-button-outlined" onclick="openSingleGamePicker()" disabled>
-                        <span class="p-button-icon-left pi pi-eye"></span>
-                        <span class="p-button-label">Review single game</span>
-                    </button>
-                    <button id="btnStop" type="button" class="p-button p-component p-button-danger" onclick="stopAnalysis()">
-                        <span class="p-button-icon-left pi pi-stop"></span>
-                        <span class="p-button-label">Stop</span>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="single-game-overlay" class="single-game-overlay" style="display:none" onclick="if (event.target === this) closeSingleGamePicker()">
-        <div class="p-card single-game-dialog" role="dialog" aria-modal="true" aria-labelledby="single-game-title">
-            <div class="p-card-body">
-                <div class="flex justify-content-between align-items-center mb-3">
-                    <div>
-                        <div id="single-game-title" class="p-card-title mb-1" style="margin-bottom:0.25rem">Pick a game</div>
-                        <div id="single-game-sub" class="text-color-secondary text-sm">Last 10 games · most recent first</div>
-                    </div>
-                    <button type="button" class="p-button p-component p-button-text p-button-rounded" onclick="closeSingleGamePicker()" title="Close">
-                        <span class="p-button-icon pi pi-times"></span>
-                    </button>
-                </div>
-                <div id="single-game-status" class="text-color-secondary text-sm mb-3">Loading…</div>
-                <div id="single-game-list" class="single-game-list"></div>
-            </div>
-        </div>
-    </div>
-
-    <div id="dashboard">
-        <div class="p-card mb-3" id="profile-header">
-            <div class="p-card-body">
-                <div class="flex gap-3 align-items-center">
-                    <img id="profile-avatar" class="profile-avatar" alt="avatar" src="">
-                    <div class="flex-1">
-                        <div id="profile-display-name" class="text-2xl font-bold mb-1">Analyze Chess</div>
-                        <div id="profile-header-sub" class="text-color-secondary text-sm mb-3">Load your Chess.com profile or game for a customised, fully client-side engine review. Insights across recent games, openings, and learnable theory — open About in the top menu for how labels work.</div>
-                        <div class="flex flex-wrap gap-2" id="profile-stat-row"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div id="dash-tabs" class="p-tabview p-component">
-            <div class="p-tabview-nav-container">
-                <div class="p-tabview-nav-content">
-                    <ul class="p-tabview-nav" role="tablist">
-                        <li class="p-highlight" role="presentation">
-                            <a href="#" class="p-tabview-nav-link" data-tab="overview" onclick="switchDashTab('overview', this); return false;" role="tab">
-                                <span class="p-tabview-title">Overview</span>
-                            </a>
-                        </li>
-                        <li role="presentation">
-                            <a href="#" class="p-tabview-nav-link" data-tab="matches" onclick="switchDashTab('matches', this); return false;" role="tab">
-                                <span class="p-tabview-title">Matches</span>
-                            </a>
-                        </li>
-                        <li role="presentation">
-                            <a href="#" class="p-tabview-nav-link" data-tab="coaching" onclick="switchDashTab('coaching', this); return false;" role="tab">
-                                <span class="p-tabview-title">Coaching</span>
-                            </a>
-                        </li>
-                        <li role="presentation">
-                            <a href="#" class="p-tabview-nav-link" data-tab="stats" onclick="switchDashTab('stats', this); return false;" role="tab">
-                                <span class="p-tabview-title">Game stats</span>
-                            </a>
-                        </li>
-                        <li role="presentation">
-                            <a href="#" class="p-tabview-nav-link" data-tab="learning" onclick="switchDashTab('learning', this); return false;" role="tab">
-                                <span class="p-tabview-title">Learn</span>
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-            <div class="p-tabview-panels">
-                <div id="tab-overview" class="p-tabview-panel dash-panel active">
-                    <div id="progress-box" class="p-card mb-3">
-                        <div class="p-card-body">
-                            <div id="progress-text" class="font-bold">Preparing...</div>
-                            <div class="progress-details">
-                                <div class="p-card">
-                                    <div class="p-card-body py-2">
-                                        <div class="prog-label">Games</div>
-                                        <div id="prog-val-games" class="prog-val">0 / 0</div>
-                                    </div>
-                                </div>
-                                <div class="p-card">
-                                    <div class="p-card-body py-2">
-                                        <div class="prog-label">Moves (Current)</div>
-                                        <div id="prog-val-moves" class="prog-val">0 / 0</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="p-progressbar p-component p-progressbar-determinate mt-3" style="height:0.5rem">
-                                <div id="progress-fill" class="p-progressbar-value p-progressbar-value-animate" style="width:0%"></div>
-                            </div>
-                        </div>
-                    </div>
-                    <div id="overview-empty" class="tab-empty-state"></div>
-                    <div id="overview-content" class="overview-grid">
-                        <div class="p-card full">
-                            <div class="p-card-body">
-                                <div class="p-card-title mb-1">Accuracy form</div>
-                                <div class="text-color-secondary text-sm mb-3">Average move accuracy across analyzed games · click a point to open that game</div>
-                                <div id="overview-accuracy" class="overview-accuracy"></div>
-                            </div>
-                        </div>
-                        <div class="p-card full">
-                            <div class="p-card-body">
-                                <div class="p-card-title mb-1">Chess.com ELO &amp; Game ELO</div>
-                                <div class="text-color-secondary text-sm mb-3">Stable Chess.com rating vs volatile estimated Game ELO from each game’s move accuracy — stems show the gap · click a point to open that game</div>
-                                <div id="overview-elo-chart" class="overview-elo-chart"></div>
-                            </div>
-                        </div>
-                        <div class="p-card">
-                            <div class="p-card-body">
-                                <div class="p-card-title mb-3">Move quality</div>
-                                <div id="overview-quality"></div>
-                            </div>
-                        </div>
-                        <div class="p-card">
-                            <div class="p-card-body">
-                                <div class="p-card-title mb-1">Quality form</div>
-                                <div class="text-color-secondary text-sm mb-3">Distribution of game quality scores and your current streak.</div>
-                                <div id="overview-form"></div>
-                            </div>
-                        </div>
-                        <div class="p-card">
-                            <div class="p-card-body">
-                                <div class="p-card-title mb-3">Best &amp; worst</div>
-                                <div class="best-worst-grid" id="overview-best-worst"></div>
-                            </div>
-                        </div>
-                        <div class="p-card full">
-                            <div class="p-card-body">
-                                <div class="p-card-title mb-3">Last 5 games</div>
-                                <div class="mini-game-list" id="overview-recent"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="tab-matches" class="p-tabview-panel dash-panel">
-                    <div id="matches-empty" class="tab-empty-state"></div>
-                    <div id="matches-content">
-                        <div class="flex flex-wrap gap-2 mb-3 align-items-center">
-                            <select id="filter-color" class="p-inputtext p-component" onchange="renderMatchesTab()">
-                                <option value="all">All colours</option>
-                                <option value="white">White</option>
-                                <option value="black">Black</option>
-                            </select>
-                            <select id="filter-result" class="p-inputtext p-component" onchange="renderMatchesTab()">
-                                <option value="all">All results</option>
-                                <option value="WIN">Wins</option>
-                                <option value="LOSS">Losses</option>
-                                <option value="DRAW">Draws</option>
-                            </select>
-                            <select id="filter-time" class="p-inputtext p-component" onchange="renderMatchesTab()">
-                                <option value="all">All time controls</option>
-                                <option value="bullet">Bullet</option>
-                                <option value="blitz">Blitz</option>
-                                <option value="rapid">Rapid</option>
-                                <option value="classical">Classical</option>
-                                <option value="daily">Daily</option>
-                            </select>
-                            <div id="match-sort-chip" class="match-sort-chip p-tag p-component">
-                                <span id="match-sort-label">Sorted by Best %</span>
-                                <button type="button" class="p-button p-button-text p-button-sm p-component" onclick="clearMatchesSort()">Clear</button>
-                            </div>
-                        </div>
-                        <div id="game-list-view"></div>
-                    </div>
-                </div>
-
-                <div id="tab-coaching" class="p-tabview-panel dash-panel">
-                    <div id="coaching-empty" class="tab-empty-state"></div>
-                    <div id="coaching-content">
-                        <div class="p-card mb-3">
-                            <div class="p-card-body">
-                                <div class="p-card-title mb-1">Coach notes</div>
-                                <div class="text-color-secondary text-sm mb-3">Overview plus opening / middlegame / endgame reads — built from openings, phases, tactics, material events, and move quality.</div>
-                                <div id="analysis-coach"></div>
-                            </div>
-                        </div>
-                        <div class="p-card mb-3">
-                            <div class="p-card-body">
-                                <div class="p-card-title mb-1">Theme frequency</div>
-                                <div class="text-color-secondary text-sm mb-3">How often each tactical or positional theme shows up across your games — click evidence to jump to the move.</div>
-                                <div id="analysis-themes"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="tab-stats" class="p-tabview-panel dash-panel">
-                    <div id="stats-empty" class="tab-empty-state"></div>
-                    <div id="stats-content">
-                        <div class="p-card mb-3">
-                            <div class="p-card-body">
-                                <div class="p-card-title mb-1">Form &amp; finishes</div>
-                                <div class="text-color-secondary text-sm mb-3">Accuracy, CPL by phase, eval swings, finishes, rating-gap bands, and time-control splits.</div>
-                                <div id="analysis-form"></div>
-                            </div>
-                        </div>
-                        <div class="p-card mb-3">
-                            <div class="p-card-body">
-                                <div class="p-card-title mb-1">Tactics, engine &amp; opponents</div>
-                                <div class="text-color-secondary text-sm mb-3">Material-event rates, missed engine captures/checks, MultiPV top-2 hits, and whether you punish opponent slips.</div>
-                                <div id="analysis-tactics"></div>
-                            </div>
-                        </div>
-                        <div class="p-card mb-3">
-                            <div class="p-card-body">
-                                <div class="p-card-title mb-1">Player tendencies</div>
-                                <div class="text-color-secondary text-sm mb-3">Favourite openings and where your pieces land most often.</div>
-                                <div class="profile-kicker mb-2">Favourite openings</div>
-                                <div class="grid mb-3">
-                                    <div class="col-12 md:col-6">
-                                        <div class="tendency-subcard">
-                                            <div class="profile-kicker">As White</div>
-                                            <div class="opening-rank-list" id="profile-white-openings"></div>
-                                        </div>
-                                    </div>
-                                    <div class="col-12 md:col-6">
-                                        <div class="tendency-subcard">
-                                            <div class="profile-kicker">As Black</div>
-                                            <div class="opening-rank-list" id="profile-black-defences"></div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="profile-kicker mb-2">Move heatmaps</div>
-                                <div class="heatmap-note mb-2">Your destination squares as White and Black, split by opening / middlegame / endgame. Boards are shown from your side.</div>
-                                <div id="player-move-heatmap" class="heatmap-matrix-wrap"></div>
-                            </div>
-                        </div>
-                        <div class="insights-pair mb-3">
-                            <div class="p-card">
-                                <div class="p-card-body">
-                                    <div class="p-card-title mb-1">How long each piece survives</div>
-                                    <div class="text-color-secondary text-sm mb-3">Average life (in moves) of each starting piece as White and as Black.</div>
-                                    <div id="analysis-piece-survival"></div>
-                                </div>
-                            </div>
-                            <div class="p-card">
-                                <div class="p-card-body">
-                                    <div class="p-card-title mb-1">Checkmate with</div>
-                                    <div class="text-color-secondary text-sm mb-3">Which piece delivered your checkmate wins, by percentage.</div>
-                                    <div id="analysis-checkmates"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="tab-learning" class="p-tabview-panel dash-panel">
-                    <div id="learn-browse">
-                        <div class="p-buttonset mb-3">
-                            <button type="button" class="p-button p-component learn-subtab" data-learn="openings" onclick="switchLearnSection('openings', this)">Openings</button>
-                            <button type="button" class="p-button p-component p-button-outlined learn-subtab" data-learn="famous" onclick="switchLearnSection('famous', this)">Famous games</button>
-                        </div>
-                        <span class="p-input-icon-left w-full mb-3 block">
-                            <i class="pi pi-search"></i>
-                            <input type="search" id="learn-search" class="p-inputtext p-component w-full" placeholder="Search openings or famous games…" oninput="renderLearningBrowse()">
-                        </span>
-                        <div id="learn-groups"></div>
-                    </div>
-                    <div id="learn-detail" style="display:none"></div>
-                </div>
-
-            </div>
-        </div>
-    </div>
-
-    <div id="review-view">
-        <div class="review-main">
-            <div class="flex flex-wrap gap-2 align-items-center mb-3">
-                <button type="button" class="p-button p-component p-button-secondary" onclick="exitReview()">
-                    <span class="p-button-icon-left pi pi-arrow-left"></span>
-                    <span class="p-button-label">Back to profile</span>
-                </button>
-                <button type="button" id="btn-deepen" class="p-button p-component" onclick="deepenCurrentReview()" title="Re-analyze this game at higher engine depth">
+        <section class="cm-hero" aria-label="Introduction">
+            <h1 class="cm-brand">Checkmate More</h1>
+            <p class="cm-headline">Turn Chess.com games into clearer coaching — without uploading your life to a server.</p>
+            <p class="cm-lede">Stockfish runs on your machine. You get move labels, accuracy, openings, famous-game theory, and habits you can actually train.</p>
+            <div class="cm-cta-row">
+                <button type="button" class="p-button p-component" onclick="openProWaitlistModal()">
                     <span class="p-button-icon-left pi pi-bolt"></span>
-                    <span class="p-button-label">Deepen analysis</span>
+                    <span class="p-button-label">Join Pro Waitlist</span>
                 </button>
-                <span id="review-depth-badge" class="review-depth-badge"></span>
-                <span id="review-deepen-status" class="text-color-secondary text-sm"></span>
+                <a href="chess/app/" class="p-button p-component p-button-outlined">
+                    <span class="p-button-icon-left pi pi-play"></span>
+                    <span class="p-button-label">Use Lite App (No Account Required)</span>
+                </a>
             </div>
+        </section>
 
-            <div id="review-matchup" class="review-matchup mb-3"></div>
+        <section class="cm-section" id="what">
+            <p class="cm-kicker">What we do</p>
+            <h2>Game review that talks like a coach, not a spreadsheet.</h2>
+            <p>Paste a Chess.com username. We pull your recent games, run an engine pass in the browser, and build a profile of how you actually play — not a generic tip dump.</p>
+            <ul class="cm-points">
+                <li>
+                    <strong>Move quality you can trust the shape of</strong>
+                    <span>Expected-points labels aligned with modern review (Best → Blunder), plus our Book / Theory split so openings and famous games stay distinct.</span>
+                </li>
+                <li>
+                    <strong>Form across many games</strong>
+                    <span>Accuracy trends, Game ELO estimates, phase CPL, punish rates, piece habits, and heatmaps — so one blunder doesn’t define the story.</span>
+                </li>
+                <li>
+                    <strong>Coaching with receipts</strong>
+                    <span>Theme tags, material events, and clickable evidence moves. Learn openings and theory lines from the same catalog we use to classify your games.</span>
+                </li>
+            </ul>
+        </section>
 
-            <div id="game-story-box" class="p-card game-story mb-3" style="display:none">
-                <div class="p-card-body">
-                    <div class="game-story-kicker" id="game-story-kicker">Why you won</div>
-                    <div class="game-story-headline" id="game-story-headline"></div>
-                    <div class="game-story-detail" id="game-story-detail"></div>
-                    <div class="game-story-link" id="game-story-link" style="display:none">Jump to key moment →</div>
+        <section class="cm-section" id="how">
+            <p class="cm-kicker">How we do it</p>
+            <h2>Local Stockfish. Your data stays with you.</h2>
+            <p>Lite is fully client-side: Chess.com’s public API for games, Stockfish in a web worker for analysis, and localStorage for your cache. Depth presets from Lite Rapid to IM &amp; GM let you trade speed for sharpness.</p>
+            <ul class="cm-points">
+                <li>
+                    <strong>Parallel game scans</strong>
+                    <span>Multiple engine workers chew through new games while already-analyzed ones load from cache at the depth you chose.</span>
+                </li>
+                <li>
+                    <strong>Critical moments, not noise</strong>
+                    <span>On deeper presets we re-search sharp swings; Familiar stays closer to what other online engines feel like day to day.</span>
+                </li>
+                <li>
+                    <strong>Privacy by architecture</strong>
+                    <span>No Checkmate More account for Lite. Analysis never leaves your browser session’s machine.</span>
+                </li>
+            </ul>
+        </section>
+
+        <section class="cm-section" id="plans">
+            <p class="cm-kicker">Lite &amp; Pro</p>
+            <h2>Start free. Pro is on the way.</h2>
+            <div class="cm-split">
+                <div class="cm-panel">
+                    <h3>Lite — available now</h3>
+                    <p>Full local engine review for your Chess.com games: presets, coaching, openings, theory, and stats. No signup. Perfect for grinding your own games tonight.</p>
+                </div>
+                <div class="cm-panel">
+                    <h3>Pro — coming soon</h3>
+                    <p>Cloud history, automatic sync, play modes, and cross-platform sources — so coaching can see months of patterns, not just what fits in localStorage.</p>
                 </div>
             </div>
+        </section>
 
-            <div id="current-move-info" class="p-card mb-3">
-                <div class="p-card-body">
-                    <span id="move-opening" class="opening-tag"></span>
-                    <div class="flex justify-content-between align-items-center">
-                        <div id="move-title" class="text-xl font-bold">Select a move</div>
-                        <div id="move-badge"></div>
-                    </div>
-                    <div id="move-desc" class="text-color-secondary text-sm mt-2">Detailed analysis results appear here.</div>
-                    <div id="move-alt" class="move-alt text-color-secondary text-sm mt-2" style="display:none"></div>
-                </div>
-            </div>
-
-            <div class="review-nav review-nav-jump flex flex-wrap gap-2 mb-3">
-                <button type="button" class="p-button p-component p-button-secondary" onclick="goToStart()" title="Start of game">
-                    <span class="p-button-icon-left pi pi-step-backward"></span>
-                    <span class="p-button-label">Start</span>
+        <section class="cm-section" id="roadmap">
+            <p class="cm-kicker">Pro roadmap</p>
+            <h2>Where Checkmate More is headed.</h2>
+            <p>Pro unlocks the long game: unlimited history, always-fresh stats, and ways to play that train the same habits we measure.</p>
+            <ul class="cm-roadmap">
+                <li>
+                    <strong>Cloud game storage</strong>
+                    <span>Unlimited analyzed games so the coach can show patterns you’ve fixed — and ones you’ve slipped on — over time.</span>
+                </li>
+                <li>
+                    <strong>Automatic data sync</strong>
+                    <span>Our backend polls your Chess.com profile and scans new games for you, so stats update without waiting on local engines.</span>
+                </li>
+                <li>
+                    <strong>Cross-platform compatibility</strong>
+                    <span>More than Chess.com — Lichess &amp; Duolingo integrations, plus onboard games with data import and API push.</span>
+                </li>
+                <li>
+                    <strong>Play mode</strong>
+                    <span>Bot levels that play differently each game, with customisable human “traits” so practice feels less scripted.</span>
+                </li>
+                <li>
+                    <strong>Multiplayer</strong>
+                    <span>Play vs friends or in ranked for ELO — keep competing while you keep learning.</span>
+                </li>
+                <li>
+                    <strong>Beat yourself mode</strong>
+                    <span>Train against a bot built from your scanned games — see how opponents experience your style by beating yourself.</span>
+                </li>
+                <li>
+                    <strong>Variant game modes</strong>
+                    <span>Bots and online play in custom variants with different pieces and rules.</span>
+                </li>
+                <li>
+                    <strong>Android &amp; iOS apps</strong>
+                    <span>Take Checkmate More with you — review and play on the go.</span>
+                </li>
+            </ul>
+            <div class="cm-cta-row" style="margin-top:1.75rem">
+                <button type="button" class="p-button p-component" onclick="openProWaitlistModal()">
+                    <span class="p-button-label">Join Pro Waitlist</span>
                 </button>
-                <button type="button" id="btn-key-move" class="p-button p-component" onclick="goToKeyMove()" title="Jump to key moment" disabled>
-                    <span class="p-button-icon-left pi pi-star-fill"></span>
-                    <span class="p-button-label">Key</span>
-                </button>
-                <button type="button" class="p-button p-component p-button-secondary" onclick="goToEnd()" title="End of game">
-                    <span class="p-button-label">End</span>
-                    <span class="p-button-icon-right pi pi-step-forward"></span>
-                </button>
+                <a href="chess/app/" class="p-button p-component p-button-outlined">
+                    <span class="p-button-label">Open Lite App</span>
+                </a>
             </div>
+        </section>
 
-            <div class="board-wrapper" id="board-container">
-                <div id="active-board" class="chess-board"></div>
-                <svg id="arrow-overlay" class="arrow-overlay" viewBox="0 0 100 100">
-                    <defs>
-                        <marker id="arrowhead" markerWidth="4" markerHeight="4" refX="2" refY="2" orient="auto">
-                            <path d="M0,0 L4,2 L0,4 Z" fill="rgba(52, 211, 153, 0.9)" />
-                        </marker>
-                    </defs>
-                    <line id="best-move-arrow" x1="0" y1="0" x2="0" y2="0" stroke="rgba(52, 211, 153, 0.75)" stroke-width="2" stroke-linecap="round" marker-end="url(#arrowhead)" display="none" />
-                </svg>
-            </div>
+        <footer class="cm-footer">
+            <span>© Checkmate More</span>
+            <a href="chess/app/">Open Lite app</a>
+        </footer>
+    </div>
 
-            <div class="eval-bar-container player-white" id="eval-bar">
-                <div id="eval-fill" class="eval-bar-fill" style="width: 50%"></div>
-                <div id="eval-label" class="eval-text">0.0</div>
-            </div>
-
-            <div class="review-nav review-nav-step flex flex-wrap gap-2 mt-3">
-                <button type="button" class="p-button p-component p-button-secondary" onclick="stepMove(-1)" title="Previous move">
-                    <span class="p-button-icon-left pi pi-caret-left"></span>
-                    <span class="p-button-label">Prev</span>
+    <div id="pro-waitlist-overlay" class="cm-modal-overlay" role="presentation" onclick="if (event.target === this) closeProWaitlistModal()">
+        <div class="cm-modal" role="dialog" aria-modal="true" aria-labelledby="pro-waitlist-title">
+            <h2 id="pro-waitlist-title">Coming soon</h2>
+            <p>The Pro waitlist isn’t open for emails yet — we’re finishing the product. Thanks for the interest; check back soon, or jump into the Lite app meanwhile.</p>
+            <div class="flex justify-content-end gap-2">
+                <a href="chess/app/" class="p-button p-component p-button-outlined">
+                    <span class="p-button-label">Try Lite</span>
+                </a>
+                <button type="button" class="p-button p-component" onclick="closeProWaitlistModal()">
+                    <span class="p-button-label">Got it</span>
                 </button>
-                <button type="button" class="p-button p-component p-button-secondary" onclick="stepMove(1)" title="Next move">
-                    <span class="p-button-label">Next</span>
-                    <span class="p-button-icon-right pi pi-caret-right"></span>
-                </button>
-            </div>
-        </div>
-
-        <div class="review-side">
-            <div class="p-tabview p-component">
-                <div class="p-tabview-nav-container">
-                    <div class="p-tabview-nav-content">
-                        <ul class="p-tabview-nav" role="tablist">
-                            <li class="p-highlight" role="presentation">
-                                <a href="#" class="p-tabview-nav-link" data-review-tab="coaching" onclick="switchTab('coaching', this); return false;" role="tab"><span class="p-tabview-title">Coaching</span></a>
-                            </li>
-                            <li role="presentation">
-                                <a href="#" class="p-tabview-nav-link" data-review-tab="stats" onclick="switchTab('stats', this); return false;" role="tab"><span class="p-tabview-title">Game stats</span></a>
-                            </li>
-                            <li role="presentation">
-                                <a href="#" class="p-tabview-nav-link" data-review-tab="moves" onclick="switchTab('moves', this); return false;" role="tab"><span class="p-tabview-title">Moves</span></a>
-                            </li>
-                            <li role="presentation">
-                                <a href="#" class="p-tabview-nav-link" data-review-tab="graph" onclick="switchTab('graph', this); return false;" role="tab"><span class="p-tabview-title">Graph</span></a>
-                            </li>
-                        </ul>
-                    </div>
-                </div>
-                <div class="p-tabview-panels">
-                    <div id="coach-tab" class="p-tabview-panel" style="max-height:400px;overflow:auto"></div>
-                    <div id="stats-tab" class="p-tabview-panel" style="display:none;max-height:400px;overflow:auto"></div>
-                    <div id="moves-tab" class="p-tabview-panel" style="display:none;max-height:400px;overflow:auto"></div>
-                    <div id="graph-tab" class="p-tabview-panel" style="display:none;height:400px">
-                        <div id="eval-graph" class="graph-container"></div>
-                    </div>
-                </div>
             </div>
         </div>
     </div>
-    </div><!-- /#analyze-view -->
 
-    <div id="about-view" class="about-view" style="display:none">
-        <div class="p-card">
-            <div class="p-card-body">
-                <h2 class="about-title mb-1">About Analyze Chess</h2>
-                <p class="faq-def mb-3">Everything runs in your browser — Stockfish, cache, coaching, and stats.</p>
-                <div class="p-tabview p-component about-tabs">
-                    <div class="p-tabview-nav-container">
-                        <div class="p-tabview-nav-content">
-                            <ul class="p-tabview-nav" role="tablist">
-                                <li class="p-highlight" role="presentation">
-                                    <a href="#" class="p-tabview-nav-link" data-about="how" onclick="switchAboutTab('how', this); return false;" role="tab">
-                                        <span class="p-tabview-title">How it works</span>
-                                    </a>
-                                </li>
-                                <li role="presentation">
-                                    <a href="#" class="p-tabview-nav-link" data-about="features" onclick="switchAboutTab('features', this); return false;" role="tab">
-                                        <span class="p-tabview-title">Feature set</span>
-                                    </a>
-                                </li>
-                                <li role="presentation">
-                                    <a href="#" class="p-tabview-nav-link" data-about="settings" onclick="switchAboutTab('settings', this); return false;" role="tab">
-                                        <span class="p-tabview-title">Settings</span>
-                                    </a>
-                                </li>
-                            </ul>
-                        </div>
-                    </div>
-                    <div class="p-tabview-panels">
-                        <div id="about-panel-how" class="p-tabview-panel about-panel active">
-                            <div id="faq-content"></div>
-                        </div>
-                        <div id="about-panel-features" class="p-tabview-panel about-panel" style="display:none">
-                            <div id="about-features-content"></div>
-                        </div>
-                        <div id="about-panel-settings" class="p-tabview-panel about-panel" style="display:none">
-                            <div id="about-settings-content"></div>
-                        </div>
-                    </div>
-                </div>
-                <details class="about-debug mt-4">
-                    <summary class="about-debug-summary">Debug log</summary>
-                    <div id="debug-log" class="mt-3">System initializing...</div>
-                </details>
-            </div>
-        </div>
-    </div>
-</div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
-<script src="js/chess/constants.js?v=20260811a"></script>
-<script src="js/chess/tactics.js?v=20260811a"></script>
-<script src="js/chess/openings.js?v=20260811a"></script>
-<script src="js/chess/learning.js?v=20260811a"></script>
-<script src="js/chess/cache.js?v=20260811a"></script>
-<script src="js/chess/analysis.js?v=20260811a"></script>
-<script src="js/chess/pieces.js?v=20260811a"></script>
-<script src="js/chess/ui.js?v=20260811a"></script>
-<script src="js/chess/insights.js?v=20260811a"></script>
-<script src="js/chess/app.js?v=20260811a"></script>
+    <script>
+    function openProWaitlistModal() {
+        var el = document.getElementById('pro-waitlist-overlay');
+        if (el) {
+            el.classList.add('is-open');
+            el.setAttribute('aria-hidden', 'false');
+        }
+    }
+    function closeProWaitlistModal() {
+        var el = document.getElementById('pro-waitlist-overlay');
+        if (el) {
+            el.classList.remove('is-open');
+            el.setAttribute('aria-hidden', 'true');
+        }
+    }
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') closeProWaitlistModal();
+    });
+    </script>
 </body>
 </html>

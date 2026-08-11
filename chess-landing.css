@@ -1,0 +1,372 @@
+/* Checkmate More — marketing landing (chess.html) */
+
+:root {
+    --cm-ink: #1a2419;
+    --cm-forest: #1f4d3a;
+    --cm-forest-deep: #143528;
+    --cm-mint: #3d8f6e;
+    --cm-cream: #f3efe6;
+    --cm-cream-soft: #e8e2d4;
+    --cm-sand: #c4b89a;
+    --cm-accent: #c45c26;
+    --cm-line: color-mix(in srgb, var(--cm-forest) 18%, transparent);
+}
+
+html, body {
+    margin: 0;
+    min-height: 100%;
+}
+
+body.cm-landing {
+    font-family: "Source Sans 3", system-ui, sans-serif;
+    color: var(--cm-ink);
+    background:
+        radial-gradient(1200px 700px at 85% -10%, color-mix(in srgb, var(--cm-mint) 22%, transparent), transparent 55%),
+        radial-gradient(900px 600px at -10% 30%, color-mix(in srgb, var(--cm-sand) 35%, transparent), transparent 50%),
+        linear-gradient(165deg, var(--cm-cream) 0%, var(--cm-cream-soft) 45%, #ddd6c6 100%);
+    background-attachment: fixed;
+}
+
+.cm-landing a { color: inherit; }
+
+.cm-shell {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 1.25rem 4rem;
+}
+
+/* —— Top bar —— */
+.cm-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.1rem 0 0.5rem;
+    animation: cm-fade-up 0.7s ease both;
+}
+
+.cm-logo {
+    font-family: Fraunces, Georgia, serif;
+    font-weight: 700;
+    font-size: 1.35rem;
+    letter-spacing: -0.03em;
+    text-decoration: none;
+    color: var(--cm-forest-deep);
+}
+
+.cm-top-note {
+    font-size: 0.85rem;
+    color: color-mix(in srgb, var(--cm-ink) 55%, transparent);
+    font-weight: 600;
+}
+
+/* —— Hero (first viewport = one composition) —— */
+.cm-hero {
+    position: relative;
+    min-height: min(88vh, 760px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 2.5rem 0 3.5rem;
+    isolation: isolate;
+}
+
+.cm-hero::before {
+    content: "";
+    position: absolute;
+    inset: 8% -8% -5% 40%;
+    z-index: -1;
+    background:
+        repeating-conic-gradient(
+            from 0deg at 50% 50%,
+            color-mix(in srgb, var(--cm-forest) 9%, transparent) 0deg 90deg,
+            color-mix(in srgb, var(--cm-sand) 14%, transparent) 90deg 180deg
+        );
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse 70% 65% at 55% 45%, #000 20%, transparent 75%);
+    opacity: 0.9;
+    transform: rotate(-8deg) scale(1.05);
+    animation: cm-board-drift 18s ease-in-out infinite alternate;
+}
+
+.cm-brand {
+    font-family: Fraunces, Georgia, serif;
+    font-weight: 700;
+    font-size: clamp(2.8rem, 8vw, 5.2rem);
+    line-height: 0.95;
+    letter-spacing: -0.04em;
+    color: var(--cm-forest-deep);
+    margin: 0 0 1.1rem;
+    max-width: 12ch;
+    animation: cm-fade-up 0.75s ease 0.05s both;
+}
+
+.cm-headline {
+    font-family: Fraunces, Georgia, serif;
+    font-weight: 600;
+    font-size: clamp(1.25rem, 2.6vw, 1.75rem);
+    line-height: 1.25;
+    letter-spacing: -0.02em;
+    max-width: 28ch;
+    margin: 0 0 0.85rem;
+    color: var(--cm-ink);
+    animation: cm-fade-up 0.75s ease 0.12s both;
+}
+
+.cm-lede {
+    font-size: clamp(1.05rem, 1.6vw, 1.2rem);
+    line-height: 1.5;
+    max-width: 36ch;
+    margin: 0 0 1.75rem;
+    color: color-mix(in srgb, var(--cm-ink) 78%, transparent);
+    animation: cm-fade-up 0.75s ease 0.18s both;
+}
+
+.cm-cta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1rem;
+    align-items: center;
+    animation: cm-fade-up 0.75s ease 0.26s both;
+}
+
+.cm-cta-row .p-button {
+    font-family: "Source Sans 3", system-ui, sans-serif;
+    font-weight: 700;
+    padding: 0.85rem 1.35rem;
+}
+
+.cm-cta-row .p-button.p-button-outlined {
+    background: color-mix(in srgb, var(--cm-cream) 70%, transparent);
+    border-color: var(--cm-forest);
+    color: var(--cm-forest-deep);
+}
+
+.cm-cta-row .p-button.p-button-outlined:enabled:hover {
+    background: color-mix(in srgb, var(--cm-forest) 10%, var(--cm-cream));
+    border-color: var(--cm-forest-deep);
+    color: var(--cm-forest-deep);
+}
+
+.cm-cta-row .p-button:not(.p-button-outlined) {
+    background: var(--cm-forest);
+    border-color: var(--cm-forest);
+}
+
+.cm-cta-row .p-button:not(.p-button-outlined):enabled:hover {
+    background: var(--cm-forest-deep);
+    border-color: var(--cm-forest-deep);
+}
+
+/* —— Sections —— */
+.cm-section {
+    padding: 3.25rem 0 1rem;
+    border-top: 1px solid var(--cm-line);
+    animation: cm-fade-up 0.8s ease both;
+}
+
+.cm-kicker {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--cm-mint);
+    margin: 0 0 0.65rem;
+}
+
+.cm-section h2 {
+    font-family: Fraunces, Georgia, serif;
+    font-weight: 700;
+    font-size: clamp(1.6rem, 3vw, 2.15rem);
+    letter-spacing: -0.03em;
+    margin: 0 0 0.75rem;
+    max-width: 22ch;
+    color: var(--cm-forest-deep);
+}
+
+.cm-section > p {
+    font-size: 1.05rem;
+    line-height: 1.55;
+    max-width: 52ch;
+    margin: 0 0 1.5rem;
+    color: color-mix(in srgb, var(--cm-ink) 80%, transparent);
+}
+
+.cm-points {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 1.15rem;
+    max-width: 640px;
+}
+
+.cm-points li {
+    padding-left: 1.1rem;
+    border-left: 3px solid var(--cm-mint);
+}
+
+.cm-points strong {
+    display: block;
+    font-size: 1.05rem;
+    margin-bottom: 0.2rem;
+    color: var(--cm-forest-deep);
+}
+
+.cm-points span {
+    font-size: 0.98rem;
+    line-height: 1.45;
+    color: color-mix(in srgb, var(--cm-ink) 72%, transparent);
+}
+
+.cm-roadmap {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 1.15rem 1.5rem;
+}
+@media (min-width: 720px) {
+    .cm-roadmap {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+.cm-roadmap li {
+    padding: 0 0 0 1.1rem;
+    border-left: 3px solid var(--cm-forest);
+}
+.cm-roadmap strong {
+    display: block;
+    font-family: Fraunces, Georgia, serif;
+    font-size: 1.12rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.3rem;
+    color: var(--cm-forest-deep);
+}
+.cm-roadmap span {
+    font-size: 0.95rem;
+    line-height: 1.45;
+    color: color-mix(in srgb, var(--cm-ink) 72%, transparent);
+}
+
+.cm-split {
+    display: grid;
+    gap: 1.5rem;
+}
+@media (min-width: 768px) {
+    .cm-split {
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+        align-items: start;
+    }
+}
+
+.cm-panel {
+    padding: 1.25rem 0 0;
+}
+
+.cm-panel h3 {
+    font-family: Fraunces, Georgia, serif;
+    font-size: 1.35rem;
+    margin: 0 0 0.5rem;
+    letter-spacing: -0.02em;
+    color: var(--cm-forest-deep);
+}
+
+.cm-panel p {
+    margin: 0;
+    line-height: 1.5;
+    color: color-mix(in srgb, var(--cm-ink) 75%, transparent);
+}
+
+.cm-footer {
+    margin-top: 3.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--cm-line);
+    font-size: 0.9rem;
+    color: color-mix(in srgb, var(--cm-ink) 55%, transparent);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.25rem;
+    justify-content: space-between;
+}
+
+.cm-footer a {
+    color: var(--cm-forest);
+    font-weight: 600;
+    text-decoration: none;
+}
+.cm-footer a:hover { text-decoration: underline; }
+
+/* —— Coming soon modal —— */
+.cm-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1300;
+    background: rgba(20, 53, 40, 0.55);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    backdrop-filter: blur(4px);
+}
+.cm-modal-overlay.is-open { display: flex; }
+
+.cm-modal {
+    width: min(420px, 100%);
+    background: var(--cm-cream);
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, var(--cm-forest) 20%, transparent);
+    box-shadow: 0 24px 60px rgba(20, 53, 40, 0.28);
+    padding: 1.5rem 1.4rem 1.25rem;
+    animation: cm-modal-in 0.28s ease both;
+}
+
+.cm-modal h2 {
+    font-family: Fraunces, Georgia, serif;
+    font-size: 1.55rem;
+    margin: 0 0 0.5rem;
+    color: var(--cm-forest-deep);
+    letter-spacing: -0.02em;
+}
+
+.cm-modal p {
+    margin: 0 0 1.25rem;
+    line-height: 1.5;
+    color: color-mix(in srgb, var(--cm-ink) 78%, transparent);
+}
+
+.cm-modal .p-button {
+    font-weight: 700;
+    background: var(--cm-forest);
+    border-color: var(--cm-forest);
+}
+
+@keyframes cm-fade-up {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes cm-board-drift {
+    from { transform: rotate(-8deg) scale(1.05) translate(0, 0); }
+    to { transform: rotate(-6deg) scale(1.08) translate(-1.5%, 1%); }
+}
+
+@keyframes cm-modal-in {
+    from { opacity: 0; transform: translateY(10px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cm-hero::before,
+    .cm-top,
+    .cm-brand,
+    .cm-headline,
+    .cm-lede,
+    .cm-cta-row,
+    .cm-section,
+    .cm-modal {
+        animation: none !important;
+    }
+}

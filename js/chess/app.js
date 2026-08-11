@@ -1,4 +1,4 @@
-/* chess/app.js — Analyze Chess */
+/* chess/app.js — Checkmate More Lite */
 
 function setScanButtonsReady() {
     const btn = document.getElementById('btnScan');
@@ -63,12 +63,12 @@ async function initApp() {
 
     // Learning + empty tab states are usable before a profile is loaded
     document.getElementById('dashboard').style.display = 'block';
-    document.getElementById('profile-display-name').innerText = 'Analyze Chess';
+    document.getElementById('profile-display-name').innerText = 'CheckmateMore Lite';
     document.getElementById('profile-header-sub').innerText =
         "Load your Chess.com profile or game for a customised, fully client-side engine review. Insights across recent games, openings, and learnable theory — open About in the top menu for how labels work.";
     refreshDashboard();
 
-    log(`Initializing up to ${PARALLEL_GAMES} engines (scan depth ${typeof getScanEngineDepth === 'function' ? getScanEngineDepth() : ENGINE_DEPTH})...`);
+        log(`Initializing up to ${PARALLEL_GAMES} engines (preset ${typeof getActiveAnalysisPreset === 'function' ? getActiveAnalysisPreset().name : '?'} · depth ${typeof getScanEngineDepth === 'function' ? getScanEngineDepth() : ENGINE_DEPTH})...`);
     try {
         const workerUrl = await resolveStockfishWorkerUrl();
         log(`Worker URL: ${workerUrl}`);
@@ -157,6 +157,7 @@ async function openSingleGamePicker() {
         return;
     }
     if (!enginesReady || isScanning || singleGameBusy) return;
+    await ensureAnalysisPresetChosen();
 
     const overlay = document.getElementById('single-game-overlay');
     const status = document.getElementById('single-game-status');
@@ -361,6 +362,7 @@ async function fetchNewGamesToAnalyze(username, cachedKeys, limit = SCAN_NEW_LIM
 async function startAnalysis() {
     const user = document.getElementById('username').value.trim();
     if (!user || !enginesReady || singleGameBusy) return;
+    await ensureAnalysisPresetChosen();
     closeSingleGamePicker();
     isScanning = true;
     setScanButtonsBusy(true);
