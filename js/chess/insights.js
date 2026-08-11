@@ -243,7 +243,7 @@ function collectInsightCorpus(profile) {
                         pieceEvidence[piece].bad = { g, m, i };
                     }
                 }
-                if (label === 'Best') {
+                if (label === 'Best' || label === 'Excellent') {
                     if (!pieceEvidence[piece].good) pieceEvidence[piece].good = { g, m, i };
                 }
             }
@@ -307,7 +307,7 @@ function phaseQualitySummary(bucket) {
     if (!total) return null;
     const blunders = bucket.labels.Blunder || 0;
     const mistakes = bucket.labels.Mistake || 0;
-    const best = bucket.labels.Best || 0;
+    const best = (bucket.labels.Best || 0) + (bucket.labels.Excellent || 0);
     const good = bucket.labels.Good || 0;
     const rated = total - (bucket.labels.Book || 0) - (bucket.labels.Theory || 0);
     return {
@@ -430,8 +430,8 @@ function phaseAccuracyCard(phase, corpus) {
             ? `${phase[0].toUpperCase()}${phase.slice(1)} accuracy dip`
             : `${phase[0].toUpperCase()}${phase.slice(1)} looks clean`,
         body: softBody(conf, isBad
-            ? `About ${blPct}% of your ${phase} moves are Blunders (${bestPct}% Best among rated tries).`
-            : `About ${bestPct}% Best among rated ${phase} moves, with blunders near ${blPct}%.`),
+            ? `About ${blPct}% of your ${phase} moves are Blunders (${bestPct}% Best/Excellent among rated tries).`
+            : `About ${bestPct}% Best/Excellent among rated ${phase} moves, with blunders near ${blPct}%.`),
         advice: isBad
             ? `Spend training time on ${phase} calculation — review the cited slips before the next session.`
             : `Keep converting calm ${phase} positions the same way.`,
@@ -999,7 +999,7 @@ function buildByPieceInsights(profile, survivalData, corpus) {
             };
         }
 
-        const best = b.labels.Best || 0;
+        const best = (b.labels.Best || 0) + (b.labels.Excellent || 0);
         const goodN = b.labels.Good || 0;
         const blunders = b.labels.Blunder || 0;
         const mistakes = b.labels.Mistake || 0;
@@ -1009,9 +1009,9 @@ function buildByPieceInsights(profile, survivalData, corpus) {
         const blPct = Math.round((blunders / rated) * 1000) / 10;
 
         if (bestPct >= 45) {
-            good.push(`Clean mover: ${bestPct}% of rated ${label.toLowerCase()} moves are Best/Good.`);
+            good.push(`Clean mover: ${bestPct}% of rated ${label.toLowerCase()} moves are Best/Excellent/Good.`);
         } else if (bestPct >= 32) {
-            good.push(`Respectable accuracy — ${bestPct}% Best/Good on rated ${label.toLowerCase()} moves.`);
+            good.push(`Respectable accuracy — ${bestPct}% Best/Excellent/Good on rated ${label.toLowerCase()} moves.`);
         }
         if (b.captures >= 3) {
             good.push(`Picks up material often with this piece (${b.captures} winning captures in the sample).`);
@@ -1202,7 +1202,7 @@ function byPieceCoachHtml(pieces) {
                 <div class="piece-coach-card">
                     <div class="piece-coach-head">
                         <span class="piece-coach-name">${escInsightHtml(p.label)}</span>
-                        <span class="piece-coach-meta">${p.total} move${p.total === 1 ? '' : 's'}${p.bestPct != null ? ` · ${p.bestPct}% Best/Good` : ''}</span>
+                        <span class="piece-coach-meta">${p.total} move${p.total === 1 ? '' : 's'}${p.bestPct != null ? ` · ${p.bestPct}% Best/Excellent/Good` : ''}</span>
                     </div>
                     <div class="game-coach-cols">
                         <div>
@@ -1617,7 +1617,7 @@ function generateGameCoachNotes(analysis) {
 
         for (const { m, i } of bucket.moves) {
             const label = m.classification.label;
-            if (label === 'Best') best += 1;
+            if (label === 'Best' || label === 'Excellent') best += 1;
             else if (label === 'Good') good += 1;
             else if (label === 'Blunder') {
                 blunders += 1;
@@ -1666,9 +1666,9 @@ function generateGameCoachNotes(analysis) {
             pushUnique(bucket.good, `Stayed in book/theory for ${book} of your opening moves.`);
         }
         if (best + good >= 2) {
-            pushUnique(bucket.good, `${best + good} Best/Good moves out of ${n} in this phase.`);
+            pushUnique(bucket.good, `${best + good} Best/Excellent/Good moves out of ${n} in this phase.`);
         } else if (best >= 1) {
-            pushUnique(bucket.good, `Found ${best} Best move${best === 1 ? '' : 's'} here.`);
+            pushUnique(bucket.good, `Found ${best} Best/Excellent move${best === 1 ? '' : 's'} here.`);
         }
 
         const topGoodTheme = Object.entries(themeGood).sort((a, b) => b[1] - a[1])[0];
@@ -1693,7 +1693,7 @@ function generateGameCoachNotes(analysis) {
                 (ex ? ` (e.g. ${formatMoveRef(ex.m)})` : '') + '.');
         }
         if (misses && !blunders) {
-            pushUnique(bucket.bad, `${misses} miss${misses === 1 ? '' : 'es'} — something clearly better was available.`);
+            pushUnique(bucket.bad, `${misses} miss${misses === 1 ? '' : 'es'} — failed to convert after an opponent error.`);
         }
         const topBadTheme = Object.entries(themeBad).sort((a, b) => b[1] - a[1])[0];
         if (topBadTheme && THEME_CATALOG[topBadTheme[0]]) {
@@ -1792,10 +1792,10 @@ function buildGameByPieceNotes(analysis) {
         if (!b.total) {
             return { type, label, total: 0, good: ['Not used this game.'], bad: [] };
         }
-        const best = (b.labels.Best || 0) + (b.labels.Good || 0);
+        const best = (b.labels.Best || 0) + (b.labels.Excellent || 0) + (b.labels.Good || 0);
         const blunders = b.labels.Blunder || 0;
         const mistakes = b.labels.Mistake || 0;
-        if (best) good.push(`${best} Best/Good move${best === 1 ? '' : 's'} with the ${label.toLowerCase()}.`);
+        if (best) good.push(`${best} Best/Excellent/Good move${best === 1 ? '' : 's'} with the ${label.toLowerCase()}.`);
         if (b.captures) good.push(`Won material with it (${b.captures}×).`);
         if (b.castles) good.push('Castled to safety.');
         if (blunders) bad.push(`${blunders} blunder${blunders === 1 ? '' : 's'} with the ${label.toLowerCase()}.`);

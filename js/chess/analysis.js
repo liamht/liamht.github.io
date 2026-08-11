@@ -93,8 +93,9 @@ function scoreForSideToMove(analysis) {
 
 /** Map player-centric centipawns → expected score / win probability in [0, 1]. */
 function evalCpToWinProb(cp) {
+    // Slightly softer than 0.65 so shallow-depth CP wobble doesn't inflate EP loss vs Chess.com.
     const pawns = Math.max(-12, Math.min(12, (Number(cp) || 0) / 100));
-    return 1 / (1 + Math.exp(-0.65 * pawns));
+    return 1 / (1 + Math.exp(-0.55 * pawns));
 }
 
 function topEngineGapCp(bestBefore) {
@@ -255,13 +256,13 @@ function getEngineAnalysis(engine, fen, opts = {}) {
 }
 
 /**
- * Classify by expected-points loss (win probability), with CPL as a secondary signal.
- * Already-decided positions need a larger swing to earn Mistake/Blunder.
+ * Chess.com-style expected-points bands (V2 help-center cutoffs).
+ * Miss is applied separately via maybeUpgradeToMiss (not an EP band).
+ * CPL is fallback only when winLoss is missing.
  */
 function classifyMove({
     evalDelta = 0,
     winLoss = null,
-    winBefore = 0.5,
     isPlayer,
     isBook,
     isTheory,
@@ -293,28 +294,25 @@ function classifyMove({
         };
     }
 
-    // Competitive weight: swings from ~equal hurt more than swings in a dead lost/won game
-    const competitive = Math.min(1, Math.max(0.35, 1 - Math.abs((winBefore ?? 0.5) - 0.5) * 1.5));
-    const wl = winLoss != null && Number.isFinite(winLoss) ? winLoss : null;
-    // Blend win-prob loss with a softened CPL proxy when winLoss missing
-    const cplProxy = Math.min(0.55, (evalDelta || 0) / 8);
-    const severity = wl != null
-        ? (wl * (0.5 + 0.5 * competitive) + Math.min(wl, 0.12) * 0.25)
-        : cplProxy;
+    // EP loss in [0,1]; CPL pawns only if EP unavailable
+    const ep = winLoss != null && Number.isFinite(winLoss)
+        ? Math.max(0, winLoss)
+        : Math.min(1, Math.max(0, (evalDelta || 0) / 5));
 
-    if (playedBest || severity <= 0.02 || (evalDelta || 0) <= 0.45) {
+    if (playedBest || ep <= 0) {
         return {
             label: 'Best',
             class: 'cls-best',
             desc: stem(
-                playedBest ? 'Engine top choice.' : 'Negligible expected-points loss.',
-                playedBest ? 'Opponent played the engine top choice.' : 'Negligible expected-points loss for the opponent.'
+                playedBest ? 'Engine top choice.' : 'No expected-points loss.',
+                playedBest ? 'Opponent played the engine top choice.' : 'No expected-points loss for the opponent.'
             )
         };
     }
 
+    // Unreliable shallow samples: never Mistake/Blunder
     if (!reliable) {
-        if (severity <= 0.06 || (evalDelta || 0) <= 1.20) {
+        if (ep <= 0.05) {
             return {
                 label: 'Good',
                 class: 'cls-good',
@@ -322,37 +320,37 @@ function classifyMove({
             };
         }
         return {
-            label: 'Okay',
-            class: 'cls-okay',
+            label: 'Inaccuracy',
+            class: 'cls-inaccuracy',
             desc: stem(
-                'Uncertain engine sample — treated as playable.',
-                'Uncertain engine sample — opponent move treated as playable.'
+                'Uncertain engine sample — treated as a small concession.',
+                'Uncertain engine sample — opponent move treated as a small concession.'
             )
         };
     }
 
-    if (severity <= 0.055 || (evalDelta || 0) <= 1.10) {
+    if (ep <= 0.02) {
+        return {
+            label: 'Excellent',
+            class: 'cls-excellent',
+            desc: stem('Nearly best — tiny expected-points dip.', 'Nearly best for the opponent.')
+        };
+    }
+    if (ep <= 0.05) {
         return {
             label: 'Good',
             class: 'cls-good',
-            desc: stem('Slight pull; still healthy.', 'Slight pull for the opponent; still healthy.')
+            desc: stem('Sound move; slight expected-points concession.', 'Sound opponent move; slight concession.')
         };
     }
-    if (severity <= 0.10 || (evalDelta || 0) <= 1.85) {
+    if (ep <= 0.10) {
         return {
-            label: 'Okay',
-            class: 'cls-okay',
-            desc: stem('Visible concession, not serious.', 'Opponent concession, not serious.')
+            label: 'Inaccuracy',
+            class: 'cls-inaccuracy',
+            desc: stem('Small slip — clearly better was available.', 'Opponent inaccuracy — small slip.')
         };
     }
-    if (severity <= 0.18 || (evalDelta || 0) <= 2.75) {
-        return {
-            label: 'Miss',
-            class: 'cls-miss',
-            desc: stem('Missed something clearly better.', 'Opponent missed something clearly better.')
-        };
-    }
-    if (severity <= 0.28 || (evalDelta || 0) <= 4.0) {
+    if (ep <= 0.20) {
         return {
             label: 'Mistake',
             class: 'cls-mistake',
@@ -363,6 +361,32 @@ function classifyMove({
         label: 'Blunder',
         class: 'cls-blunder',
         desc: stem('Heavy expected-points collapse.', 'Opponent blunder — heavy expected-points collapse.')
+    };
+}
+
+/**
+ * Chess.com-style Miss: failed to capitalize after an opponent Mistake/Blunder
+ * when you had a clearly winning chance and still gave back expected points.
+ */
+function maybeUpgradeToMiss(cls, {
+    isPlayer,
+    prevOppLabel,
+    winBefore,
+    playedBest
+} = {}) {
+    if (!cls || !isPlayer || playedBest) return cls;
+    if (['Book', 'Theory', 'Best', 'Excellent', 'Good', 'Miss', 'Blunder'].includes(cls.label)) return cls;
+    if (!['Mistake', 'Blunder'].includes(prevOppLabel)) return cls;
+    // ~+1.2 pawns or better on our logistic ≈ winning chances worth converting
+    if (winBefore == null || !Number.isFinite(winBefore) || winBefore < 0.68) return cls;
+    // Only Inaccuracy / Mistake upgrade to Miss; keep true Blunders as Blunders
+    if (!['Inaccuracy', 'Mistake'].includes(cls.label)) return cls;
+    return {
+        label: 'Miss',
+        class: 'cls-miss',
+        desc: isPlayer
+            ? 'Missed a chance to convert after the opponent’s error.'
+            : cls.desc
     };
 }
 
@@ -451,6 +475,7 @@ async function analyzeGame(game, user, engine, onMove, opts = {}) {
     const moveThemeCounts = {};
     const tempChess = new Chess();
     let lastEval = { score: 0, isMate: false, bestMove: '', reliable: false, altMoves: [] };
+    let prevOppLabel = null;
 
     for (let i = 0; i < history.length; i++) {
         if (!analysisStillRunning()) return null;
@@ -522,10 +547,9 @@ async function analyzeGame(game, user, engine, onMove, opts = {}) {
             lastEval = actual;
         }
 
-        const cls = classifyMove({
+        let cls = classifyMove({
             evalDelta,
             winLoss,
-            winBefore,
             isPlayer: isUserTurn,
             isBook,
             isTheory,
@@ -533,6 +557,12 @@ async function analyzeGame(game, user, engine, onMove, opts = {}) {
             reliable,
             theoryName: theoryMatch.name,
             openingName: openingMatch.name
+        });
+        cls = maybeUpgradeToMiss(cls, {
+            isPlayer: isUserTurn,
+            prevOppLabel,
+            winBefore,
+            playedBest
         });
 
         let themes = [];
@@ -568,11 +598,14 @@ async function analyzeGame(game, user, engine, onMove, opts = {}) {
                 moveThemeCounts[id] = (moveThemeCounts[id] || 0) + 1;
             }
             if (cls.label === 'Blunder') counters.blunders++;
-            if (cls.label === 'Best' || cls.label === 'Good') counters.great++;
+            if (cls.label === 'Best' || cls.label === 'Excellent' || cls.label === 'Good') counters.great++;
             if (cls.label === 'Book' || cls.label === 'Theory') counters.book++;
         } else if (!isBook && !isTheory) {
             // Opponent side: still prefer concrete wording when we later attach themes (none today)
             enrichClassificationDesc(cls, { narrative: cls.desc, isPlayer: false });
+            prevOppLabel = cls.label;
+        } else {
+            prevOppLabel = cls.label;
         }
 
         // Always white-centric: after the move, STM is the other side

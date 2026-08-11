@@ -297,8 +297,11 @@ function ingestAnalysis(profile, analysis, gameKey) {
 
 function gameQualityScore(analysis) {
     const weights = {
-        Best: 5, Good: 4, Okay: 3, Book: 3.5, Theory: 3.5,
-        Miss: 1.5, Mistake: 0.5, Blunder: 0
+        Best: 5, Excellent: 4.6, Good: 4, Inaccuracy: 2.8,
+        Book: 3.5, Theory: 3.5,
+        Miss: 1.8, Mistake: 0.8, Blunder: 0,
+        // Legacy cached labels
+        Okay: 2.8
     };
     const moves = (analysis.moves || []).filter(m =>
         m.classification?.label && isPlayerMove(analysis, m)
@@ -313,19 +316,21 @@ function gameQualityScore(analysis) {
 function moveAccuracyScore(move) {
     const label = move?.classification?.label;
     if (!label || label === 'Book' || label === 'Theory') return null;
-    // Prefer expected-points loss when present (aligned with new severity model)
+    // Prefer expected-points loss when present (Chess.com-aligned curve)
     if (move.winLoss != null && Number.isFinite(move.winLoss)) {
-        // 0→100, 0.05→~78, 0.12→~55, 0.25→~30, 0.4→~15
-        return Math.max(0, Math.min(100, 100 * Math.exp(-6.2 * Math.max(0, move.winLoss))));
+        // 0→100, 0.02→~91, 0.05→~82, 0.10→~67, 0.20→~45, 0.35→~27
+        return Math.max(0, Math.min(100, 100 * Math.exp(-4.0 * Math.max(0, move.winLoss))));
     }
     if (move.evalDeltaCp != null && Number.isFinite(move.evalDeltaCp)) {
         const pawns = Math.max(0, move.evalDeltaCp) / 100;
-        return Math.max(0, Math.min(100, 100 * Math.exp(-0.55 * pawns)));
+        return Math.max(0, Math.min(100, 100 * Math.exp(-0.45 * pawns)));
     }
     const byLabel = {
-        Best: 100, Good: 78, Okay: 52, Miss: 22, Mistake: 8, Blunder: 0
+        Best: 100, Excellent: 96, Good: 86, Inaccuracy: 70,
+        Miss: 42, Mistake: 28, Blunder: 0,
+        Okay: 70
     };
-    return byLabel[label] ?? 45;
+    return byLabel[label] ?? 55;
 }
 
 function sideMoveStats(analysis, forPlayer) {
@@ -739,7 +744,7 @@ function computeProfileAnalytics(profile) {
                         break;
                     }
                 }
-                if (nextYou && ['Best', 'Good'].includes(nextYou.classification?.label)) {
+                if (nextYou && ['Best', 'Excellent', 'Good'].includes(nextYou.classification?.label)) {
                     punishedOpp += 1;
                     pushExample(punishExamples, 'punish', {
                         gameKey: g.gameKey, moveIndex: nextIdx, san: nextYou.san,
@@ -761,7 +766,7 @@ function computeProfileAnalytics(profile) {
                         break;
                     }
                 }
-                if (nextOpp && ['Best', 'Good'].includes(nextOpp.classification?.label)) {
+                if (nextOpp && ['Best', 'Excellent', 'Good'].includes(nextOpp.classification?.label)) {
                     oppPunishedYou += 1;
                     pushExample(outplayExamples, 'outplay', {
                         gameKey: g.gameKey, moveIndex: i, san: m.san,
@@ -822,7 +827,7 @@ function computeProfileAnalytics(profile) {
                 const hitAlt = alts.some(a => a.move && played && a.move === played);
                 if (hitAlt) altTop2Hits += 1;
             }
-            if (matchedBest || ['Best', 'Good'].includes(label)) continue;
+            if (matchedBest || ['Best', 'Excellent', 'Good'].includes(label)) continue;
 
             const fen = fenBeforeMove(g, i);
             const kind = classifyBestEngineMove(fen, best);
@@ -1005,28 +1010,27 @@ function computeProfileAnalytics(profile) {
 /**
  * Rough single-game performance rating from accuracy.
  * High accuracy soft-caps at IM (2400) and hard-caps at GM (2500).
+ * Tuned so ~80–85% with 1–2 blunders lands in a plausible club band (not ~200).
  */
 function estimateGameElo(accuracy, counts, ratedN) {
     if (accuracy == null || !Number.isFinite(accuracy) || !ratedN) return null;
     const a = Math.max(0, Math.min(100, accuracy)) / 100;
-    // Club → master curve; soft-caps above IM. ~70%→~550, 90%→~1550, 97%→~2200, 100%→~2450 raw
-    let elo = 80 + 2380 * Math.pow(a, 4.6);
+    // ~70%→~900, 80%→~1250, 85%→~1450, 90%→~1700, 97%→~2150, 100%→~2450 raw
+    let elo = 200 + 2250 * Math.pow(a, 3.2);
 
-    const best = counts.Best || 0;
+    const best = (counts.Best || 0) + (counts.Excellent || 0);
     const blunders = counts.Blunder || 0;
     const mistakes = counts.Mistake || 0;
     const misses = counts.Miss || 0;
     const bestRate = best / ratedN;
-    const badWeight = (blunders * 1.6 + mistakes + misses * 0.45) / ratedN;
+    const badWeight = (blunders * 1.15 + mistakes * 0.7 + misses * 0.35) / ratedN;
 
-    elo += (bestRate - 0.55) * 260;
-    elo -= badWeight * 850;
-    // Extra hit when multiple blunders appear in a short game
-    if (blunders >= 2) elo -= 60 + (blunders - 2) * 35;
+    elo += (bestRate - 0.40) * 180;
+    elo -= badWeight * 420;
+    if (blunders >= 3) elo -= 40 + (blunders - 3) * 25;
 
     const im = typeof GAME_ELO_IM === 'number' ? GAME_ELO_IM : 2400;
     const gm = typeof GAME_ELO_GM === 'number' ? GAME_ELO_GM : 2500;
-    // Compress anything above IM toward GM so near-perfect games read as titles, not 2700+
     if (elo > im) {
         const over = elo - im;
         elo = im + (gm - im) * (1 - Math.exp(-over / 140));
@@ -2131,16 +2135,17 @@ function renderAboutHowItWorks() {
         </div>
         <h3 class="about-section-title">How we classify your moves</h3>
         <p class="faq-def mb-3">Profile scans use Stockfish at depth ${typeof getScanEngineDepth === 'function' ? getScanEngineDepth() : ENGINE_DEPTH} (changeable in Settings), with up to ${typeof PARALLEL_GAMES === 'number' ? PARALLEL_GAMES : 4} games analyzed in parallel. Sharp first-pass moments (mates / large eval swings) re-search a bit deeper. Open a game and use <strong>Deepen analysis</strong> for depth ${REVIEW_ENGINE_DEPTH} with MultiPV ${REVIEW_MULTIPV} on every move.</p>
-        <p class="faq-def mb-3">Severity is based mainly on <strong>expected-points loss</strong> (change in win probability from the eval before → after your move), not raw centipawns alone. Swings from equal positions count more than swings in already-decided games. A base ${EVAL_NOISE_FLOOR_CP}cp noise floor applies on quiet samples; mates, clear PV gaps, and critical re-searches trust the engine more (lower floor).</p>
+        <p class="faq-def mb-3">Severity follows Chess.com-style <strong>expected-points loss</strong> (win-probability change before → after your move). A base ${EVAL_NOISE_FLOOR_CP}cp noise floor applies on quiet samples; mates, clear PV gaps, and critical re-searches trust the engine more (lower floor). Book and Theory are our unique opening/famous-game split — not Chess.com labels.</p>
         ${[
             ['Theory', 'Your move matches a famous game line (at least 12 plies of SAN continuity from move one).'],
             ['Book', 'Still inside our opening book (continuous FEN / move-list prefix), and not already tagged Theory.'],
-            ['Best', 'Engine top move, or tiny expected-points loss (roughly ≤2%).'],
-            ['Good', 'Small expected-points dip — still a healthy practical choice.'],
-            ['Okay', 'Visible concession, not serious. Also the cap when the engine sample is marked unreliable (never Mistake/Blunder then).'],
-            ['Miss', 'Clear expected-points drop — something better was available without a full collapse.'],
-            ['Mistake', 'Real damage to winning chances (larger expected-points loss).'],
-            ['Blunder', 'Heavy expected-points collapse. Descriptions prefer the concrete theme when we have one (e.g. “Blunder — hung the knight”).']
+            ['Best', 'Engine top move, or zero expected-points loss.'],
+            ['Excellent', 'Expected-points loss up to 0.02 — nearly best.'],
+            ['Good', 'Expected-points loss 0.02–0.05 — sound practical play.'],
+            ['Inaccuracy', 'Expected-points loss 0.05–0.10. Also the cap when the engine sample is unreliable (never Mistake/Blunder then).'],
+            ['Miss', 'Special: after an opponent Mistake/Blunder you had a winning chance and failed to convert (not an EP band).'],
+            ['Mistake', 'Expected-points loss 0.10–0.20 — real damage to winning chances.'],
+            ['Blunder', 'Expected-points loss ≥ 0.20. Descriptions prefer the concrete theme when we have one (e.g. “Blunder — hung the knight”).']
         ].map(([term, def]) => aboutFeatureItem(term, def)).join('')}
         <h3 class="about-section-title">Material &amp; structure themes</h3>
         <p class="faq-def mb-3">Besides tactics, we tag fianchetto completion/trades, doubled pawns, isolated pawns, and hemmed “bad bishops”. These feed coach cards and Miss/Mistake/Blunder headlines.</p>
@@ -3057,7 +3062,7 @@ function renderBoard(fen, move) {
     }
 
     const arrow = document.getElementById('best-move-arrow');
-    if (move.bestEngineMove && !['Best', 'Book', 'Theory', 'Good'].includes(move.classification?.label)) {
+    if (move.bestEngineMove && !['Best', 'Excellent', 'Good', 'Book', 'Theory'].includes(move.classification?.label)) {
         const fromSq = move.bestEngineMove.substring(0, 2);
         const toSq = move.bestEngineMove.substring(2, 4);
         

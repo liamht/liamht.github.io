@@ -206,7 +206,7 @@ function describePlayerMove(opts) {
     const bits = [];
     const opp = userColor === 'w' ? 'b' : 'w';
     const isNegative = ['Miss', 'Mistake', 'Blunder'].includes(clsLabel);
-    const isPositive = ['Best', 'Good'].includes(clsLabel);
+    const isPositive = ['Best', 'Excellent', 'Good'].includes(clsLabel);
     let materialEvent = null;
 
     if (move.san === 'O-O' || move.san === 'O-O-O') {
@@ -461,8 +461,10 @@ function describePlayerMove(opts) {
 
     if (!bits.length) {
         if (clsLabel === 'Best') bits.push('Precise — matched the engine idea');
+        else if (clsLabel === 'Excellent') bits.push('Nearly best — tiny expected-points dip');
         else if (clsLabel === 'Good') bits.push('Solid improving move');
-        else if (clsLabel === 'Okay') bits.push('Quiet move that keeps the position playable');
+        else if (clsLabel === 'Inaccuracy' || clsLabel === 'Okay') bits.push('Quiet move that keeps the position playable');
+        else if (clsLabel === 'Miss') bits.push('Missed a chance to convert the opponent’s error');
         else if (clsLabel === 'Book') bits.push('Followed the opening book');
         else if (clsLabel === 'Theory') bits.push('Followed a famous theoretical line');
         else bits.push('Changed the tension without a clear tactical label');

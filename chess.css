@@ -317,8 +317,10 @@ html, body {
     margin-left: auto; font-weight: 700; text-transform: uppercase;
 }
 .cls-best { background: var(--success); color: #062; }
+.cls-excellent { background: color-mix(in srgb, var(--success) 70%, var(--excellent)); color: #062; }
 .cls-good { background: var(--excellent); color: #043; }
-.cls-okay { background: var(--primary-color); color: var(--primary-color-text, #fff); }
+.cls-okay,
+.cls-inaccuracy { background: var(--primary-color); color: var(--primary-color-text, #fff); }
 .cls-miss { background: var(--warning); color: #422006; }
 .cls-mistake { background: #fb923c; color: #431407; }
 .cls-blunder { background: var(--accent); color: #450a0a; }

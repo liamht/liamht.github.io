@@ -4,8 +4,8 @@
 
 const STOCKFISH_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
 const STOCKFISH_LOCAL = 'stockfish.js?v=20260803';
-const APP_BUILD = '2026-08-10b';
-const CACHE_VERSION = 9;
+const APP_BUILD = '2026-08-11a';
+const CACHE_VERSION = 10;
 /** Soft ceiling for estimated Game ELO (IM territory). */
 const GAME_ELO_IM = 2400;
 /** Hard cap for estimated Game ELO (GM territory) — high accuracy asymptotes here. */
@@ -335,10 +335,11 @@ const THEME_LABEL_PHRASES = {
 };
 const MOVE_QUALITY_ORDER = [
     { label: 'Best', className: 'cls-best', color: 'var(--success)' },
+    { label: 'Excellent', className: 'cls-excellent', color: 'var(--excellent)' },
     { label: 'Good', className: 'cls-good', color: 'var(--excellent)' },
-    { label: 'Okay', className: 'cls-okay', color: 'var(--primary)' },
     { label: 'Book', className: 'cls-book', color: '#a29bfe' },
     { label: 'Theory', className: 'cls-theory', color: '#6c5ce7' },
+    { label: 'Inaccuracy', className: 'cls-inaccuracy', color: 'var(--primary)' },
     { label: 'Miss', className: 'cls-miss', color: 'var(--warning)' },
     { label: 'Mistake', className: 'cls-mistake', color: '#e67e22' },
     { label: 'Blunder', className: 'cls-blunder', color: 'var(--accent)' }
