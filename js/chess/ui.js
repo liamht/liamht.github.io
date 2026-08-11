@@ -297,7 +297,7 @@ function ingestAnalysis(profile, analysis, gameKey) {
 
 function gameQualityScore(analysis) {
     const weights = {
-        Best: 5, Excellent: 4.6, Good: 4, Inaccuracy: 2.8,
+        Best: 5, Great: 5, Excellent: 4.6, Good: 4, Inaccuracy: 2.8,
         Book: 3.5, Theory: 3.5,
         Miss: 1.8, Mistake: 0.8, Blunder: 0,
         // Legacy cached labels
@@ -326,7 +326,7 @@ function moveAccuracyScore(move) {
         return Math.max(0, Math.min(100, 100 * Math.exp(-0.45 * pawns)));
     }
     const byLabel = {
-        Best: 100, Excellent: 96, Good: 86, Inaccuracy: 70,
+        Best: 100, Great: 100, Excellent: 96, Good: 86, Inaccuracy: 70,
         Miss: 42, Mistake: 28, Blunder: 0,
         Okay: 70
     };
@@ -744,7 +744,7 @@ function computeProfileAnalytics(profile) {
                         break;
                     }
                 }
-                if (nextYou && ['Best', 'Excellent', 'Good'].includes(nextYou.classification?.label)) {
+                if (nextYou && ['Best', 'Great', 'Excellent', 'Good'].includes(nextYou.classification?.label)) {
                     punishedOpp += 1;
                     pushExample(punishExamples, 'punish', {
                         gameKey: g.gameKey, moveIndex: nextIdx, san: nextYou.san,
@@ -766,7 +766,7 @@ function computeProfileAnalytics(profile) {
                         break;
                     }
                 }
-                if (nextOpp && ['Best', 'Excellent', 'Good'].includes(nextOpp.classification?.label)) {
+                if (nextOpp && ['Best', 'Great', 'Excellent', 'Good'].includes(nextOpp.classification?.label)) {
                     oppPunishedYou += 1;
                     pushExample(outplayExamples, 'outplay', {
                         gameKey: g.gameKey, moveIndex: i, san: m.san,
@@ -827,7 +827,7 @@ function computeProfileAnalytics(profile) {
                 const hitAlt = alts.some(a => a.move && played && a.move === played);
                 if (hitAlt) altTop2Hits += 1;
             }
-            if (matchedBest || ['Best', 'Excellent', 'Good'].includes(label)) continue;
+            if (matchedBest || ['Best', 'Great', 'Excellent', 'Good'].includes(label)) continue;
 
             const fen = fenBeforeMove(g, i);
             const kind = classifyBestEngineMove(fen, best);
@@ -2238,13 +2238,14 @@ function renderAboutHowItWorks() {
         ${[
             ['Theory', 'Your move matches a famous game line (at least 12 plies of SAN continuity from move one).'],
             ['Book', 'Still inside our opening book (continuous FEN / move-list prefix), and not already tagged Theory.'],
-            ['Best', 'Engine top move, or zero expected-points loss.'],
-            ['Excellent', 'Expected-points loss up to 0.02 — nearly best.'],
-            ['Good', 'Expected-points loss 0.02–0.05 — sound practical play.'],
-            ['Inaccuracy', 'Expected-points loss 0.05–0.10. Also the cap when the engine sample is unreliable (never Mistake/Blunder then).'],
-            ['Miss', 'Special: after an opponent Mistake/Blunder you had a winning chance and failed to convert (not an EP band).'],
-            ['Mistake', 'Expected-points loss 0.10–0.20 — real damage to winning chances.'],
-            ['Blunder', 'Expected-points loss ≥ 0.20. Descriptions prefer the concrete theme when we have one (e.g. “Blunder — hung the knight”).']
+            ['Great', 'Critical only-move (large gap to the engine’s second choice). Enabled on Familiar via MultiPV.'],
+            ['Best', 'Engine top move (or near-tied top move on Familiar).'],
+            ['Excellent', 'Expected-points loss up to ~0.02 — nearly best.'],
+            ['Good', 'Expected-points loss ~0.02–0.05 — sound practical play.'],
+            ['Inaccuracy', 'Expected-points loss ~0.05–0.10. Also the cap when the engine sample is unreliable (never Mistake/Blunder then).'],
+            ['Miss', 'Special: after an opponent Mistake/Blunder you had a winning chance and failed to convert (or missed a hanging capture).'],
+            ['Mistake', 'Expected-points loss ~0.10–0.20 — real damage to winning chances.'],
+            ['Blunder', 'Expected-points loss ≥ ~0.20. Descriptions prefer the concrete theme when we have one (e.g. “Blunder — hung the knight”).']
         ].map(([term, def]) => aboutFeatureItem(term, def)).join('')}
         <h3 class="about-section-title">Material &amp; structure themes</h3>
         <p class="faq-def mb-3">Besides tactics, we tag fianchetto completion/trades, doubled pawns, isolated pawns, and hemmed “bad bishops”. These feed coach cards and Miss/Mistake/Blunder headlines.</p>
@@ -3161,7 +3162,7 @@ function renderBoard(fen, move) {
     }
 
     const arrow = document.getElementById('best-move-arrow');
-    if (move.bestEngineMove && !['Best', 'Excellent', 'Good', 'Book', 'Theory'].includes(move.classification?.label)) {
+    if (move.bestEngineMove && !['Best', 'Great', 'Excellent', 'Good', 'Book', 'Theory'].includes(move.classification?.label)) {
         const fromSq = move.bestEngineMove.substring(0, 2);
         const toSq = move.bestEngineMove.substring(2, 4);
         

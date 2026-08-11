@@ -206,7 +206,7 @@ function describePlayerMove(opts) {
     const bits = [];
     const opp = userColor === 'w' ? 'b' : 'w';
     const isNegative = ['Miss', 'Mistake', 'Blunder'].includes(clsLabel);
-    const isPositive = ['Best', 'Excellent', 'Good'].includes(clsLabel);
+    const isPositive = ['Best', 'Excellent', 'Good', 'Great'].includes(clsLabel);
     let materialEvent = null;
 
     if (move.san === 'O-O' || move.san === 'O-O-O') {

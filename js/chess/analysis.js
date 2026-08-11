@@ -78,6 +78,25 @@ function moveToUci(move) {
     return move.from + move.to + promo;
 }
 
+/** True if played UCI is PV1, or PV2 within tieCp of PV1 (Familiar-style near-best). */
+function isEngineTopOrTied(best, move, tieCp = 0) {
+    if (!best?.bestMove || !move) return false;
+    const uci = moveToUci(move);
+    const topUci = String(best.bestMove).toLowerCase();
+    if (uci === topUci) return true;
+    if (!tieCp || tieCp <= 0) return false;
+    const alt = (best.altMoves || [])[0];
+    if (!alt?.move || String(alt.move).toLowerCase() !== uci) return false;
+    if (alt.scoreCp == null || best.score == null) return false;
+    const top = scoreForSideToMove(best);
+    let altCp = alt.scoreCp;
+    if (alt.isMate) {
+        const n = Math.abs(altCp) || 1;
+        altCp = altCp > 0 ? (600 - Math.min(n, 10) * 10) : (-600 + Math.min(n, 10) * 10);
+    }
+    return Math.abs(top - altCp) <= tieCp;
+}
+
 function scoreForSideToMove(analysis) {
     if (!analysis) return 0;
     if (analysis.isMate) {
@@ -92,10 +111,14 @@ function scoreForSideToMove(analysis) {
 }
 
 /** Map player-centric centipawns → expected score / win probability in [0, 1]. */
-function evalCpToWinProb(cp) {
-    // Slightly softer than 0.65 so shallow-depth CP wobble doesn't inflate EP loss vs Chess.com.
+function evalCpToWinProb(cp, k) {
+    const coeff = (k != null && Number.isFinite(k))
+        ? k
+        : (typeof getActiveAnalysisPreset === 'function' && getActiveAnalysisPreset()?.winProbK != null
+            ? getActiveAnalysisPreset().winProbK
+            : 0.55);
     const pawns = Math.max(-12, Math.min(12, (Number(cp) || 0) / 100));
-    return 1 / (1 + Math.exp(-0.55 * pawns));
+    return 1 / (1 + Math.exp(-coeff * pawns));
 }
 
 function topEngineGapCp(bestBefore) {
@@ -136,9 +159,11 @@ function computeEvalDelta(bestBefore, actualAfter, opts = {}) {
     const evalDeltaCp = Math.max(0, rawCpl - noise);
     const winBefore = evalCpToWinProb(before);
     const winAfter = evalCpToWinProb(afterForPlayer);
-    // Expected points lost (0–1). Tiny raw wobbles under noise don't count as win-loss either.
+    // Expected points lost (0–1). Apply a softer zeroing so Familiar still sees Excellent-tier dips.
     const winLossRaw = Math.max(0, winBefore - winAfter);
-    const winLoss = rawCpl < noise * 0.5 ? 0 : winLossRaw;
+    const zeroBelow = noise * (typeof getActiveAnalysisPreset === 'function'
+        && getActiveAnalysisPreset()?.id === 'familiar' ? 0.25 : 0.5);
+    const winLoss = rawCpl < zeroBelow ? 0 : winLossRaw;
 
     return {
         rawCpl,
@@ -263,8 +288,8 @@ function getEngineAnalysis(engine, fen, opts = {}) {
 
 /**
  * Chess.com-style expected-points bands (V2 help-center cutoffs).
- * Miss is applied separately via maybeUpgradeToMiss (not an EP band).
- * CPL is fallback only when winLoss is missing.
+ * Best = engine top choice only. Excellent = tiny EP loss (including near-zero non-best).
+ * Great / Miss applied afterward.
  */
 function classifyMove({
     evalDelta = 0,
@@ -300,25 +325,30 @@ function classifyMove({
         };
     }
 
-    // EP loss in [0,1]; CPL pawns only if EP unavailable
-    const ep = winLoss != null && Number.isFinite(winLoss)
+    let ep = winLoss != null && Number.isFinite(winLoss)
         ? Math.max(0, winLoss)
         : Math.min(1, Math.max(0, (evalDelta || 0) / 5));
+    const preset = typeof getActiveAnalysisPreset === 'function' ? getActiveAnalysisPreset() : null;
+    if (preset?.epScale != null && Number.isFinite(preset.epScale)) {
+        ep *= Math.max(0.2, Math.min(1.5, preset.epScale));
+    }
+    const bands = preset?.epBands || {};
+    const excellentCap = bands.excellent != null ? bands.excellent : 0.02;
+    const goodCap = bands.good != null ? bands.good : 0.05;
+    const inaccCap = bands.inaccuracy != null ? bands.inaccuracy : 0.10;
+    const mistakeCap = bands.mistake != null ? bands.mistake : 0.20;
 
-    if (playedBest || ep <= 0) {
+    // Chess.com: Best = engine top choice. Zero EP after noise without matching top → Excellent.
+    if (playedBest) {
         return {
             label: 'Best',
             class: 'cls-best',
-            desc: stem(
-                playedBest ? 'Engine top choice.' : 'No expected-points loss.',
-                playedBest ? 'Opponent played the engine top choice.' : 'No expected-points loss for the opponent.'
-            )
+            desc: stem('Engine top choice.', 'Opponent played the engine top choice.')
         };
     }
 
-    // Unreliable shallow samples: never Mistake/Blunder
     if (!reliable) {
-        if (ep <= 0.05) {
+        if (ep <= goodCap) {
             return {
                 label: 'Good',
                 class: 'cls-good',
@@ -335,28 +365,28 @@ function classifyMove({
         };
     }
 
-    if (ep <= 0.02) {
+    if (ep <= excellentCap) {
         return {
             label: 'Excellent',
             class: 'cls-excellent',
             desc: stem('Nearly best — tiny expected-points dip.', 'Nearly best for the opponent.')
         };
     }
-    if (ep <= 0.05) {
+    if (ep <= goodCap) {
         return {
             label: 'Good',
             class: 'cls-good',
             desc: stem('Sound move; slight expected-points concession.', 'Sound opponent move; slight concession.')
         };
     }
-    if (ep <= 0.10) {
+    if (ep <= inaccCap) {
         return {
             label: 'Inaccuracy',
             class: 'cls-inaccuracy',
             desc: stem('Small slip — clearly better was available.', 'Opponent inaccuracy — small slip.')
         };
     }
-    if (ep <= 0.20) {
+    if (ep <= mistakeCap) {
         return {
             label: 'Mistake',
             class: 'cls-mistake',
@@ -370,29 +400,74 @@ function classifyMove({
     };
 }
 
+/** Upgrade Best → Great when MultiPV shows a clear only-move. */
+function maybeUpgradeToGreat(cls, { playedBest, engineGapCp } = {}) {
+    if (!cls || !playedBest || cls.label !== 'Best') return cls;
+    const preset = typeof getActiveAnalysisPreset === 'function' ? getActiveAnalysisPreset() : null;
+    const need = preset?.greatGapCp != null ? preset.greatGapCp : 160;
+    if (engineGapCp == null || engineGapCp < need) return cls;
+    return {
+        label: 'Great',
+        class: 'cls-great',
+        desc: 'Critical only-move — much better than the alternatives.'
+    };
+}
+
 /**
- * Chess.com-style Miss: failed to capitalize after an opponent Mistake/Blunder
- * when you had a clearly winning chance and still gave back expected points.
+ * Chess.com-style Miss: failed to punish / convert, or missed a hanging capture.
+ * Applied for whichever side just moved (not only the profile user).
  */
 function maybeUpgradeToMiss(cls, {
-    isPlayer,
     prevOppLabel,
     winBefore,
-    playedBest
+    winLoss,
+    playedBest,
+    materialEvent
 } = {}) {
-    if (!cls || !isPlayer || playedBest) return cls;
-    if (['Book', 'Theory', 'Best', 'Excellent', 'Good', 'Miss', 'Blunder'].includes(cls.label)) return cls;
-    if (!['Mistake', 'Blunder'].includes(prevOppLabel)) return cls;
-    // ~+1.2 pawns or better on our logistic ≈ winning chances worth converting
-    if (winBefore == null || !Number.isFinite(winBefore) || winBefore < 0.68) return cls;
-    // Only Inaccuracy / Mistake upgrade to Miss; keep true Blunders as Blunders
-    if (!['Inaccuracy', 'Mistake'].includes(cls.label)) return cls;
-    return {
+    if (!cls || playedBest) return cls;
+    if (['Book', 'Theory', 'Best', 'Excellent', 'Good', 'Great', 'Miss'].includes(cls.label)) return cls;
+
+    const missCls = {
         label: 'Miss',
         class: 'cls-miss',
-        desc: isPlayer
-            ? 'Missed a chance to convert after the opponent’s error.'
-            : cls.desc
+        desc: 'Missed a chance to convert after the opponent’s error.'
+    };
+
+    if (materialEvent?.kind === 'missed_capture' && ['Inaccuracy', 'Mistake', 'Blunder'].includes(cls.label)) {
+        return {
+            ...missCls,
+            desc: materialEvent.captured
+                ? `Missed a hanging ${pieceLabel(materialEvent.captured)}.`
+                : 'Missed a hanging piece.'
+        };
+    }
+
+    // Strict: opponent just Mistake/Blundered, we were better, and we failed to punish
+    const oppGaveChance = prevOppLabel === 'Blunder'
+        || (prevOppLabel === 'Mistake' && winBefore != null && winBefore >= 0.72);
+    const wasBetter = winBefore != null && Number.isFinite(winBefore) && winBefore >= 0.66;
+    if (oppGaveChance && wasBetter && ['Mistake', 'Blunder'].includes(cls.label)) {
+        return missCls;
+    }
+    if (oppGaveChance && wasBetter && cls.label === 'Inaccuracy' && (winLoss || 0) >= 0.05) {
+        return missCls;
+    }
+    return cls;
+}
+
+/** Soft-preset: demote borderline Blunders that aren’t hangs / mates. */
+function maybeSoftDemoteBlunder(cls, { materialEvent, best, winLoss } = {}) {
+    const preset = typeof getActiveAnalysisPreset === 'function' ? getActiveAnalysisPreset() : null;
+    if (!preset?.softBlunders || !cls || cls.label !== 'Blunder') return cls;
+    if (materialEvent?.kind === 'hang') return cls;
+    if (best?.isMate) return cls;
+    const ep = winLoss != null && Number.isFinite(winLoss) ? winLoss : 0;
+    const keep = preset.softBlunderKeepEp != null ? preset.softBlunderKeepEp : 0.28;
+    if (ep >= keep) return cls;
+    return {
+        label: 'Mistake',
+        class: 'cls-mistake',
+        desc: 'Real damage to winning chances.'
     };
 }
 
@@ -437,8 +512,12 @@ function enrichClassificationDesc(cls, { themes = [], materialEvent = null, narr
 
 function isPlayerMove(analysis, move) {
     if (!move) return false;
+    // Prefer side-to-move vs analysis colour (stored flags can go stale across cache/hydrate)
+    if (analysis && typeof analysis.isWhite === 'boolean' && (move.turn === 'w' || move.turn === 'b')) {
+        return analysis.isWhite ? move.turn === 'w' : move.turn === 'b';
+    }
     if (typeof move.isPlayerMove === 'boolean') return move.isPlayerMove;
-    return analysis?.isWhite ? move.turn === 'w' : move.turn === 'b';
+    return false;
 }
 
 /** Convert a side-to-move UCI score (after a move) into white-centric centipawns. */
@@ -453,8 +532,9 @@ function analysisStillRunning() {
 }
 
 async function analyzeGame(game, user, engine, onMove, opts = {}) {
+    const preset = typeof getActiveAnalysisPreset === 'function' ? getActiveAnalysisPreset() : null;
     const depth = opts.depth ?? (typeof getScanEngineDepth === 'function' ? getScanEngineDepth() : ENGINE_DEPTH);
-    const multiPv = opts.multiPv ?? 1;
+    const multiPv = opts.multiPv ?? preset?.multiPv ?? 1;
     const baseDepth = typeof getScanEngineDepth === 'function' ? getScanEngineDepth() : ENGINE_DEPTH;
     const timeoutMs = opts.timeoutMs ?? (
         depth > baseDepth
@@ -509,12 +589,14 @@ async function analyzeGame(game, user, engine, onMove, opts = {}) {
         let playedBest = false;
         let reliable = true;
         let moveDepth = depth;
+        let engineGapCp = null;
 
         // Classify both sides after leaving book/theory (same quality labels)
         if (!isBook && !isTheory) {
             best = await getEngineAnalysis(engine, fenBefore, { depth, multiPv, timeoutMs });
             actual = await getEngineAnalysis(engine, fenAfter, { depth, multiPv: 1, timeoutMs });
             let gap = topEngineGapCp(best);
+            engineGapCp = gap;
             let rawProbe = computeEvalDelta(best, actual, { engineGapCp: gap });
             const critical = isCriticalMoment(beforeSnap, history[i], best, rawProbe.rawCpl);
             const critDepth = typeof getCriticalEngineDepth === 'function'
@@ -527,7 +609,7 @@ async function analyzeGame(game, user, engine, onMove, opts = {}) {
                     : Math.max(timeoutMs, 4000);
                 best = await getEngineAnalysis(engine, fenBefore, {
                     depth: critDepth,
-                    multiPv: 1,
+                    multiPv: Math.max(multiPv, 2),
                     timeoutMs: deepTimeout
                 });
                 actual = await getEngineAnalysis(engine, fenAfter, {
@@ -536,6 +618,7 @@ async function analyzeGame(game, user, engine, onMove, opts = {}) {
                     timeoutMs: deepTimeout
                 });
                 gap = topEngineGapCp(best);
+                engineGapCp = gap;
                 rawProbe = computeEvalDelta(best, actual, {
                     engineGapCp: gap,
                     critical: true,
@@ -552,7 +635,11 @@ async function analyzeGame(game, user, engine, onMove, opts = {}) {
             evalDelta = rawProbe.evalDelta;
             winLoss = rawProbe.winLoss;
             winBefore = rawProbe.winBefore;
-            playedBest = !!(best.bestMove && moveToUci(history[i]) === best.bestMove.toLowerCase());
+            playedBest = isEngineTopOrTied(
+                best,
+                history[i],
+                (typeof getActiveAnalysisPreset === 'function' ? getActiveAnalysisPreset()?.bestTieCp : 0) || 0
+            );
             reliable = !!(best.reliable && actual.reliable);
             lastEval = actual;
         }
@@ -568,24 +655,20 @@ async function analyzeGame(game, user, engine, onMove, opts = {}) {
             theoryName: theoryMatch.name,
             openingName: openingMatch.name
         });
-        cls = maybeUpgradeToMiss(cls, {
-            isPlayer: isUserTurn,
-            prevOppLabel,
-            winBefore,
-            playedBest
-        });
 
         let themes = [];
         let narrative = cls.desc || '';
         let materialEvent = null;
-        if (isUserTurn) {
+        // Material/themes for both colours so Miss/Great match Chess.com's full-game review
+        if (!isBook && !isTheory) {
             try {
+                const moverColor = history[i].color || (i % 2 === 0 ? 'w' : 'b');
                 const described = describePlayerMove({
                     before: beforeSnap,
                     after: tempChess,
                     move: history[i],
                     bestMoveUci: best.bestMove,
-                    userColor,
+                    userColor: moverColor,
                     clsLabel: cls.label,
                     futureMoves: history.slice(i + 1),
                     evalDelta
@@ -593,26 +676,38 @@ async function analyzeGame(game, user, engine, onMove, opts = {}) {
                 themes = described.themes;
                 materialEvent = described.materialEvent || null;
                 narrative = described.narrative || cls.desc;
-                enrichClassificationDesc(cls, {
-                    themes,
-                    materialEvent,
-                    narrative,
-                    isPlayer: true
-                });
-            } catch (_) {
-                cls.desc = narrative || cls.desc;
-            }
+            } catch (_) {}
 
+            cls = maybeUpgradeToGreat(cls, { playedBest, engineGapCp });
+            cls = maybeSoftDemoteBlunder(cls, { materialEvent, best, winLoss });
+            cls = maybeUpgradeToMiss(cls, {
+                prevOppLabel,
+                winBefore,
+                winLoss,
+                playedBest,
+                materialEvent
+            });
+            enrichClassificationDesc(cls, {
+                themes,
+                materialEvent,
+                narrative: narrative || cls.desc,
+                isPlayer: isUserTurn
+            });
+        }
+
+        if (isUserTurn) {
             for (const id of themes) {
                 moveThemes.push(id);
                 moveThemeCounts[id] = (moveThemeCounts[id] || 0) + 1;
             }
             if (cls.label === 'Blunder') counters.blunders++;
-            if (cls.label === 'Best' || cls.label === 'Excellent' || cls.label === 'Good') counters.great++;
+            if (cls.label === 'Best' || cls.label === 'Excellent' || cls.label === 'Good' || cls.label === 'Great') {
+                counters.great++;
+            }
             if (cls.label === 'Book' || cls.label === 'Theory') counters.book++;
-        } else if (!isBook && !isTheory) {
-            // Opponent side: still prefer concrete wording when we later attach themes (none today)
-            enrichClassificationDesc(cls, { narrative: cls.desc, isPlayer: false });
+        }
+
+        if (!isBook && !isTheory) {
             prevOppLabel = cls.label;
         } else {
             prevOppLabel = cls.label;

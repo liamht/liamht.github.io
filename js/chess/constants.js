@@ -6,8 +6,8 @@
 const APP_ASSET_ROOT = '../../';
 const STOCKFISH_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
 const STOCKFISH_LOCAL = APP_ASSET_ROOT + 'stockfish.js?v=20260803';
-const APP_BUILD = '2026-08-11c';
-const CACHE_VERSION = 11;
+const APP_BUILD = '2026-08-11g';
+const CACHE_VERSION = 13;
 /** Soft ceiling for estimated Game ELO (IM territory). */
 const GAME_ELO_IM = 2400;
 /** Hard cap for estimated Game ELO (GM territory) — high accuracy asymptotes here. */
@@ -36,6 +36,31 @@ const CRITICAL_ENGINE_TIMEOUT_MS = 4500;
  * criticalOffset 0 = no key-move re-search (Familiar / Lite).
  */
 const ANALYSIS_PRESETS = {
+    familiar: {
+        id: 'familiar',
+        name: 'Familiar',
+        speed: 'Balanced',
+        depth: 5,
+        criticalOffset: 0,
+        criticalCap: 5,
+        /** MultiPV for Great (only-move) detection. */
+        multiPv: 2,
+        noiseFloor: 90,
+        epScale: 0.95,
+        winProbK: 0.55,
+        epBands: {
+            excellent: 0.018,
+            good: 0.07,
+            inaccuracy: 0.13,
+            mistake: 0.22
+        },
+        greatGapCp: 420,
+        bestTieCp: 40,
+        softBlunders: true,
+        softBlunderKeepEp: 0.36,
+        badge: 'Closest to Chess.com',
+        blurb: 'Tuned toward Chess.com Game Review: depth 5, MultiPV 2 for Great moves, calibrated expected-points bands.'
+    },
     lite: {
         id: 'lite',
         name: 'Lite Rapid',
@@ -43,19 +68,11 @@ const ANALYSIS_PRESETS = {
         depth: 3,
         criticalOffset: 0,
         criticalCap: 3,
-        noiseFloor: 130,
+        noiseFloor: 150,
+        epScale: 0.48,
+        winProbK: 0.34,
+        softBlunders: true,
         blurb: 'Quickest scans. Fine for a first look; labels are noisier and fewer key moments are re-checked.'
-    },
-    familiar: {
-        id: 'familiar',
-        name: 'Familiar',
-        speed: 'Balanced',
-        depth: 4,
-        criticalOffset: 0,
-        criticalCap: 4,
-        noiseFloor: 115,
-        badge: 'Closest to Chess.com',
-        blurb: 'Similar depth and scaling to other online analysis engines. Blunder counts, accuracy, and Game ELO should feel familiar.'
     },
     recommended: {
         id: 'recommended',
@@ -398,6 +415,7 @@ const THEME_LABEL_PHRASES = {
     missed_capture: 'missed a capture'
 };
 const MOVE_QUALITY_ORDER = [
+    { label: 'Great', className: 'cls-great', color: '#38bdf8' },
     { label: 'Best', className: 'cls-best', color: 'var(--success)' },
     { label: 'Excellent', className: 'cls-excellent', color: 'var(--excellent)' },
     { label: 'Good', className: 'cls-good', color: 'var(--excellent)' },
