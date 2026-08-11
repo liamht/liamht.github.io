@@ -1,15 +1,11 @@
-/* Checkmate More — marketing landing (chess.html) */
+/* Checkmate More — marketing landing (aligned with Lite app / PrimeNG indigo themes) */
 
 :root {
-    --cm-ink: #1a2419;
-    --cm-forest: #1f4d3a;
-    --cm-forest-deep: #143528;
-    --cm-mint: #3d8f6e;
-    --cm-cream: #f3efe6;
-    --cm-cream-soft: #e8e2d4;
-    --cm-sand: #c4b89a;
-    --cm-accent: #c45c26;
-    --cm-line: color-mix(in srgb, var(--cm-forest) 18%, transparent);
+    --board-white: #ebecd0;
+    --board-black: #779556;
+    --cm-accent: #f87171;
+    --cm-success: #34d399;
+    --cm-line: color-mix(in srgb, var(--text-color, #1e293b) 12%, transparent);
 }
 
 html, body {
@@ -18,13 +14,14 @@ html, body {
 }
 
 body.cm-landing {
-    font-family: "Source Sans 3", system-ui, sans-serif;
-    color: var(--cm-ink);
+    font-family: var(--font-family, "Inter var", system-ui, sans-serif);
+    color: var(--text-color, #1e293b);
     background:
-        radial-gradient(1200px 700px at 85% -10%, color-mix(in srgb, var(--cm-mint) 22%, transparent), transparent 55%),
-        radial-gradient(900px 600px at -10% 30%, color-mix(in srgb, var(--cm-sand) 35%, transparent), transparent 50%),
-        linear-gradient(165deg, var(--cm-cream) 0%, var(--cm-cream-soft) 45%, #ddd6c6 100%);
+        radial-gradient(1100px 640px at 88% -8%, color-mix(in srgb, var(--primary-color, #3f51b5) 18%, transparent), transparent 55%),
+        radial-gradient(900px 560px at -12% 28%, color-mix(in srgb, var(--board-black) 22%, transparent), transparent 52%),
+        var(--surface-ground, #f8fafc);
     background-attachment: fixed;
+    color-scheme: light dark;
 }
 
 .cm-landing a { color: inherit; }
@@ -46,17 +43,59 @@ body.cm-landing {
 }
 
 .cm-logo {
-    font-family: Fraunces, Georgia, serif;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    font-family: Fraunces, "Iowan Old Style", Georgia, serif;
     font-weight: 700;
     font-size: 1.35rem;
     letter-spacing: -0.03em;
     text-decoration: none;
-    color: var(--cm-forest-deep);
+    color: var(--text-color, #1e293b);
+}
+.cm-logo:hover { color: var(--primary-color, #3f51b5); }
+
+.cm-logo-icons {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.12rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+.cm-logo-king {
+    font-size: 1.35rem;
+    line-height: 1;
+    display: inline-block;
+}
+.cm-logo-king-white {
+    color: #f8fafc;
+    text-shadow:
+        0 0 1px #0f172a,
+        1px 0 0 #0f172a,
+        -1px 0 0 #0f172a,
+        0 1px 0 #0f172a,
+        0 -1px 0 #0f172a;
+}
+.cm-logo-king-black {
+    color: #0f172a;
+    transform: rotate(180deg);
+}
+html[data-theme="dark"] .cm-logo-king-white {
+    color: #f1f5f9;
+    text-shadow:
+        0 0 1px #020617,
+        1px 0 0 #94a3b8,
+        -1px 0 0 #94a3b8,
+        0 1px 0 #94a3b8,
+        0 -1px 0 #94a3b8;
+}
+html[data-theme="dark"] .cm-logo-king-black {
+    color: #e2e8f0;
 }
 
 .cm-top-note {
     font-size: 0.85rem;
-    color: color-mix(in srgb, var(--cm-ink) 55%, transparent);
+    color: var(--text-color-secondary, #64748b);
     font-weight: 600;
 }
 
@@ -79,37 +118,40 @@ body.cm-landing {
     background:
         repeating-conic-gradient(
             from 0deg at 50% 50%,
-            color-mix(in srgb, var(--cm-forest) 9%, transparent) 0deg 90deg,
-            color-mix(in srgb, var(--cm-sand) 14%, transparent) 90deg 180deg
+            color-mix(in srgb, var(--board-black) 28%, transparent) 0deg 90deg,
+            color-mix(in srgb, var(--board-white) 55%, transparent) 90deg 180deg
         );
     background-size: 48px 48px;
     mask-image: radial-gradient(ellipse 70% 65% at 55% 45%, #000 20%, transparent 75%);
-    opacity: 0.9;
+    opacity: 0.55;
     transform: rotate(-8deg) scale(1.05);
     animation: cm-board-drift 18s ease-in-out infinite alternate;
 }
+html[data-theme="dark"] .cm-hero::before {
+    opacity: 0.28;
+}
 
 .cm-brand {
-    font-family: Fraunces, Georgia, serif;
+    font-family: Fraunces, "Iowan Old Style", Georgia, serif;
     font-weight: 700;
     font-size: clamp(2.8rem, 8vw, 5.2rem);
     line-height: 0.95;
     letter-spacing: -0.04em;
-    color: var(--cm-forest-deep);
+    color: var(--text-color, #1e293b);
     margin: 0 0 1.1rem;
     max-width: 12ch;
     animation: cm-fade-up 0.75s ease 0.05s both;
 }
 
 .cm-headline {
-    font-family: Fraunces, Georgia, serif;
+    font-family: Fraunces, "Iowan Old Style", Georgia, serif;
     font-weight: 600;
     font-size: clamp(1.25rem, 2.6vw, 1.75rem);
     line-height: 1.25;
     letter-spacing: -0.02em;
     max-width: 28ch;
     margin: 0 0 0.85rem;
-    color: var(--cm-ink);
+    color: var(--text-color, #1e293b);
     animation: cm-fade-up 0.75s ease 0.12s both;
 }
 
@@ -118,7 +160,7 @@ body.cm-landing {
     line-height: 1.5;
     max-width: 36ch;
     margin: 0 0 1.75rem;
-    color: color-mix(in srgb, var(--cm-ink) 78%, transparent);
+    color: var(--text-color-secondary, #64748b);
     animation: cm-fade-up 0.75s ease 0.18s both;
 }
 
@@ -131,37 +173,16 @@ body.cm-landing {
 }
 
 .cm-cta-row .p-button {
-    font-family: "Source Sans 3", system-ui, sans-serif;
     font-weight: 700;
     padding: 0.85rem 1.35rem;
 }
 
-.cm-cta-row .p-button.p-button-outlined {
-    background: color-mix(in srgb, var(--cm-cream) 70%, transparent);
-    border-color: var(--cm-forest);
-    color: var(--cm-forest-deep);
-}
-
-.cm-cta-row .p-button.p-button-outlined:enabled:hover {
-    background: color-mix(in srgb, var(--cm-forest) 10%, var(--cm-cream));
-    border-color: var(--cm-forest-deep);
-    color: var(--cm-forest-deep);
-}
-
-.cm-cta-row .p-button:not(.p-button-outlined) {
-    background: var(--cm-forest);
-    border-color: var(--cm-forest);
-}
-
-.cm-cta-row .p-button:not(.p-button-outlined):enabled:hover {
-    background: var(--cm-forest-deep);
-    border-color: var(--cm-forest-deep);
-}
+/* Let PrimeNG theme own primary / outlined button colors */
 
 /* —— Sections —— */
 .cm-section {
     padding: 3.25rem 0 1rem;
-    border-top: 1px solid var(--cm-line);
+    border-top: 1px solid var(--surface-border, var(--cm-line));
     animation: cm-fade-up 0.8s ease both;
 }
 
@@ -170,18 +191,18 @@ body.cm-landing {
     font-weight: 700;
     letter-spacing: 0.12em;
     text-transform: uppercase;
-    color: var(--cm-mint);
+    color: var(--primary-color, #3f51b5);
     margin: 0 0 0.65rem;
 }
 
 .cm-section h2 {
-    font-family: Fraunces, Georgia, serif;
+    font-family: Fraunces, "Iowan Old Style", Georgia, serif;
     font-weight: 700;
     font-size: clamp(1.6rem, 3vw, 2.15rem);
     letter-spacing: -0.03em;
     margin: 0 0 0.75rem;
     max-width: 22ch;
-    color: var(--cm-forest-deep);
+    color: var(--text-color, #1e293b);
 }
 
 .cm-section > p {
@@ -189,7 +210,7 @@ body.cm-landing {
     line-height: 1.55;
     max-width: 52ch;
     margin: 0 0 1.5rem;
-    color: color-mix(in srgb, var(--cm-ink) 80%, transparent);
+    color: var(--text-color-secondary, #64748b);
 }
 
 .cm-points {
@@ -203,20 +224,20 @@ body.cm-landing {
 
 .cm-points li {
     padding-left: 1.1rem;
-    border-left: 3px solid var(--cm-mint);
+    border-left: 3px solid var(--board-black);
 }
 
 .cm-points strong {
     display: block;
     font-size: 1.05rem;
     margin-bottom: 0.2rem;
-    color: var(--cm-forest-deep);
+    color: var(--text-color, #1e293b);
 }
 
 .cm-points span {
     font-size: 0.98rem;
     line-height: 1.45;
-    color: color-mix(in srgb, var(--cm-ink) 72%, transparent);
+    color: var(--text-color-secondary, #64748b);
 }
 
 .cm-roadmap {
@@ -233,21 +254,21 @@ body.cm-landing {
 }
 .cm-roadmap li {
     padding: 0 0 0 1.1rem;
-    border-left: 3px solid var(--cm-forest);
+    border-left: 3px solid var(--primary-color, #3f51b5);
 }
 .cm-roadmap strong {
     display: block;
-    font-family: Fraunces, Georgia, serif;
+    font-family: Fraunces, "Iowan Old Style", Georgia, serif;
     font-size: 1.12rem;
     font-weight: 700;
     letter-spacing: -0.02em;
     margin-bottom: 0.3rem;
-    color: var(--cm-forest-deep);
+    color: var(--text-color, #1e293b);
 }
 .cm-roadmap span {
     font-size: 0.95rem;
     line-height: 1.45;
-    color: color-mix(in srgb, var(--cm-ink) 72%, transparent);
+    color: var(--text-color-secondary, #64748b);
 }
 
 .cm-split {
@@ -267,25 +288,25 @@ body.cm-landing {
 }
 
 .cm-panel h3 {
-    font-family: Fraunces, Georgia, serif;
+    font-family: Fraunces, "Iowan Old Style", Georgia, serif;
     font-size: 1.35rem;
     margin: 0 0 0.5rem;
     letter-spacing: -0.02em;
-    color: var(--cm-forest-deep);
+    color: var(--text-color, #1e293b);
 }
 
 .cm-panel p {
     margin: 0;
     line-height: 1.5;
-    color: color-mix(in srgb, var(--cm-ink) 75%, transparent);
+    color: var(--text-color-secondary, #64748b);
 }
 
 .cm-footer {
     margin-top: 3.5rem;
     padding-top: 1.5rem;
-    border-top: 1px solid var(--cm-line);
+    border-top: 1px solid var(--surface-border, var(--cm-line));
     font-size: 0.9rem;
-    color: color-mix(in srgb, var(--cm-ink) 55%, transparent);
+    color: var(--text-color-secondary, #64748b);
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem 1.25rem;
@@ -293,7 +314,7 @@ body.cm-landing {
 }
 
 .cm-footer a {
-    color: var(--cm-forest);
+    color: var(--primary-color, #3f51b5);
     font-weight: 600;
     text-decoration: none;
 }
@@ -304,7 +325,7 @@ body.cm-landing {
     position: fixed;
     inset: 0;
     z-index: 1300;
-    background: rgba(20, 53, 40, 0.55);
+    background: color-mix(in srgb, var(--maskbg, #0f172a) 55%, transparent);
     display: none;
     align-items: center;
     justify-content: center;
@@ -315,32 +336,31 @@ body.cm-landing {
 
 .cm-modal {
     width: min(420px, 100%);
-    background: var(--cm-cream);
+    background: var(--surface-card, var(--surface-ground, #fff));
+    color: var(--text-color, #1e293b);
     border-radius: 12px;
-    border: 1px solid color-mix(in srgb, var(--cm-forest) 20%, transparent);
-    box-shadow: 0 24px 60px rgba(20, 53, 40, 0.28);
+    border: 1px solid var(--surface-border, var(--cm-line));
+    box-shadow: 0 24px 60px color-mix(in srgb, #0f172a 28%, transparent);
     padding: 1.5rem 1.4rem 1.25rem;
     animation: cm-modal-in 0.28s ease both;
 }
 
 .cm-modal h2 {
-    font-family: Fraunces, Georgia, serif;
+    font-family: Fraunces, "Iowan Old Style", Georgia, serif;
     font-size: 1.55rem;
     margin: 0 0 0.5rem;
-    color: var(--cm-forest-deep);
+    color: var(--text-color, #1e293b);
     letter-spacing: -0.02em;
 }
 
 .cm-modal p {
     margin: 0 0 1.25rem;
     line-height: 1.5;
-    color: color-mix(in srgb, var(--cm-ink) 78%, transparent);
+    color: var(--text-color-secondary, #64748b);
 }
 
 .cm-modal .p-button {
     font-weight: 700;
-    background: var(--cm-forest);
-    border-color: var(--cm-forest);
 }
 
 @keyframes cm-fade-up {

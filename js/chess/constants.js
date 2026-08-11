@@ -6,8 +6,8 @@
 const APP_ASSET_ROOT = '../../';
 const STOCKFISH_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
 const STOCKFISH_LOCAL = APP_ASSET_ROOT + 'stockfish.js?v=20260803';
-const APP_BUILD = '2026-08-11g';
-const CACHE_VERSION = 13;
+const APP_BUILD = '2026-08-11h';
+const CACHE_VERSION = 14;
 /** Soft ceiling for estimated Game ELO (IM territory). */
 const GAME_ELO_IM = 2400;
 /** Hard cap for estimated Game ELO (GM territory) — high accuracy asymptotes here. */
@@ -45,21 +45,34 @@ const ANALYSIS_PRESETS = {
         criticalCap: 5,
         /** MultiPV for Great (only-move) detection. */
         multiPv: 2,
-        noiseFloor: 90,
-        epScale: 0.95,
-        winProbK: 0.55,
+        /**
+         * Low-ELO Chess.com Game Review feel (calibrated vs familiar fixture).
+         * Soft EP scale + soft demotions; Great = only-move in a contested position.
+         */
+        noiseFloor: 55,
+        epScale: 0.8,
+        winProbK: 0.42,
         epBands: {
-            excellent: 0.018,
-            good: 0.07,
-            inaccuracy: 0.13,
-            mistake: 0.22
+            excellent: 0.02,
+            good: 0.085,
+            inaccuracy: 0.10,
+            mistake: 0.20
         },
-        greatGapCp: 420,
-        bestTieCp: 40,
+        greatGapCp: 200,
+        /** Great only when position still contested (not dead lost / trivial crush). */
+        greatMinWin: 0.35,
+        greatMaxWin: 0.95,
+        /** PV2 within this many cp of PV1 counts as Best. */
+        bestTieCp: 22,
+        /** Great requires true PV1 (not a near-tied PV2). */
+        greatRequirePv1: true,
         softBlunders: true,
-        softBlunderKeepEp: 0.36,
+        softBlunderKeepEp: 0.32,
+        softBlunderTo: 'Mistake',
+        softMistakes: true,
+        softMistakeKeepEp: 0.20,
         badge: 'Closest to Chess.com',
-        blurb: 'Tuned toward Chess.com Game Review: depth 5, MultiPV 2 for Great moves, calibrated expected-points bands.'
+        blurb: 'Calibrated on club-level Chess.com Game Review: softer EP, Great/Miss, soft Mistake demotions.'
     },
     lite: {
         id: 'lite',

@@ -5,30 +5,43 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Checkmate More — Chess analysis that helps you win more</title>
     <meta name="description" content="Checkmate More reviews your Chess.com games in the browser with Stockfish — accuracy, coaching, openings, and famous-game theory. Try the free Lite app with no account, or join the Pro waitlist.">
-    <meta name="color-scheme" content="light">
+    <meta name="color-scheme" content="light dark">
     <script>
     (function () {
         var base = 'https://cdn.jsdelivr.net/npm/primeng@17.18.15/resources/themes/';
         var light = base + 'md-light-indigo/theme.css';
+        var dark = base + 'md-dark-indigo/theme.css';
         var link = document.createElement('link');
         link.id = 'pf-theme';
         link.rel = 'stylesheet';
-        link.href = light;
-        document.documentElement.style.colorScheme = 'light';
-        document.documentElement.dataset.theme = 'light';
+        var mq = window.matchMedia('(prefers-color-scheme: dark)');
+        function apply(isDark) {
+            link.href = isDark ? dark : light;
+            document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
+            document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
+        }
+        apply(mq.matches);
         document.head.appendChild(link);
+        if (mq.addEventListener) mq.addEventListener('change', function (e) { apply(e.matches); });
+        else if (mq.addListener) mq.addListener(function (e) { apply(e.matches); });
     })();
     </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeng@17.18.15/resources/primeng.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeicons@7.0.0/primeicons.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeflex@3.3.1/primeflex.min.css">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Source+Sans+3:wght@400;600;700&display=swap">
-    <link rel="stylesheet" href="chess-landing.css?v=20260811d">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap">
+    <link rel="stylesheet" href="chess-landing.css?v=20260811h">
 </head>
 <body class="cm-landing">
     <div class="cm-shell">
         <header class="cm-top">
-            <a class="cm-logo" href="chess.html">Checkmate More</a>
+            <a class="cm-logo" href="chess.html">
+                <span class="cm-logo-icons" aria-hidden="true">
+                    <span class="cm-logo-king cm-logo-king-white">♔</span>
+                    <span class="cm-logo-king cm-logo-king-black">♚</span>
+                </span>
+                <span>Checkmate More</span>
+            </a>
             <span class="cm-top-note">Lite is free · runs in your browser</span>
         </header>
 

@@ -294,6 +294,7 @@ function getEngineAnalysis(engine, fen, opts = {}) {
 function classifyMove({
     evalDelta = 0,
     winLoss = null,
+    winBefore = null,
     isPlayer,
     isBook,
     isTheory,
@@ -338,8 +339,12 @@ function classifyMove({
     const inaccCap = bands.inaccuracy != null ? bands.inaccuracy : 0.10;
     const mistakeCap = bands.mistake != null ? bands.mistake : 0.20;
 
-    // Chess.com: Best = engine top choice. Zero EP after noise without matching top → Excellent.
-    if (playedBest) {
+    // Chess.com: Best = engine top. Familiar: also dead-equal moves when already crushing.
+    if (playedBest
+        || (preset?.id === 'familiar'
+            && ep <= 0.001
+            && winBefore != null
+            && winBefore >= 0.92)) {
         return {
             label: 'Best',
             class: 'cls-best',
@@ -400,12 +405,19 @@ function classifyMove({
     };
 }
 
-/** Upgrade Best → Great when MultiPV shows a clear only-move. */
-function maybeUpgradeToGreat(cls, { playedBest, engineGapCp } = {}) {
+/** Upgrade Best → Great when MultiPV shows a clear only-move in a contested position. */
+function maybeUpgradeToGreat(cls, { playedBest, engineGapCp, isPv1, winBefore } = {}) {
     if (!cls || !playedBest || cls.label !== 'Best') return cls;
     const preset = typeof getActiveAnalysisPreset === 'function' ? getActiveAnalysisPreset() : null;
+    if (preset?.greatRequirePv1 && isPv1 === false) return cls;
     const need = preset?.greatGapCp != null ? preset.greatGapCp : 160;
     if (engineGapCp == null || engineGapCp < need) return cls;
+    const minW = preset?.greatMinWin != null ? preset.greatMinWin : 0;
+    const maxW = preset?.greatMaxWin != null ? preset.greatMaxWin : 1;
+    if (winBefore != null && Number.isFinite(winBefore)
+        && (winBefore < minW || winBefore > maxW)) {
+        return cls;
+    }
     return {
         label: 'Great',
         class: 'cls-great',
@@ -414,8 +426,8 @@ function maybeUpgradeToGreat(cls, { playedBest, engineGapCp } = {}) {
 }
 
 /**
- * Chess.com-style Miss: failed to punish / convert, or missed a hanging capture.
- * Applied for whichever side just moved (not only the profile user).
+ * Chess.com-style Miss: missed hanging capture, or failed to punish opp Blunder/Mistake.
+ * Familiar is looser — club Game Review tags many missed conversions as Miss.
  */
 function maybeUpgradeToMiss(cls, {
     prevOppLabel,
@@ -425,15 +437,19 @@ function maybeUpgradeToMiss(cls, {
     materialEvent
 } = {}) {
     if (!cls || playedBest) return cls;
-    if (['Book', 'Theory', 'Best', 'Excellent', 'Good', 'Great', 'Miss'].includes(cls.label)) return cls;
+    if (['Book', 'Theory', 'Best', 'Excellent', 'Great', 'Miss'].includes(cls.label)) return cls;
 
     const missCls = {
         label: 'Miss',
         class: 'cls-miss',
         desc: 'Missed a chance to convert after the opponent’s error.'
     };
+    const familiar = typeof getActiveAnalysisPreset === 'function'
+        && getActiveAnalysisPreset()?.id === 'familiar';
 
-    if (materialEvent?.kind === 'missed_capture' && ['Inaccuracy', 'Mistake', 'Blunder'].includes(cls.label)) {
+    // Missed hanging piece — Chess.com often labels these Miss even from Good/Inaccuracy
+    if (materialEvent?.kind === 'missed_capture'
+        && ['Good', 'Inaccuracy', 'Mistake', 'Blunder'].includes(cls.label)) {
         return {
             ...missCls,
             desc: materialEvent.captured
@@ -442,16 +458,21 @@ function maybeUpgradeToMiss(cls, {
         };
     }
 
-    // Strict: opponent just Mistake/Blundered, we were better, and we failed to punish
-    const oppGaveChance = prevOppLabel === 'Blunder'
-        || (prevOppLabel === 'Mistake' && winBefore != null && winBefore >= 0.72);
-    const wasBetter = winBefore != null && Number.isFinite(winBefore) && winBefore >= 0.66;
-    if (oppGaveChance && wasBetter && ['Mistake', 'Blunder'].includes(cls.label)) {
-        return missCls;
+    // Failed to punish: after opp Blunder, or after Mistake when already clearly better
+    const oppBlunder = prevOppLabel === 'Blunder';
+    const oppMistake = prevOppLabel === 'Mistake'
+        && winBefore != null
+        && winBefore >= (familiar ? 0.55 : 0.75);
+    if (!(oppBlunder || oppMistake)) return cls;
+    const minWin = familiar ? 0.50 : 0.60;
+    if (winBefore == null || !Number.isFinite(winBefore) || winBefore < minWin) return cls;
+    if (['Mistake', 'Blunder'].includes(cls.label)) return missCls;
+    if (cls.label === 'Inaccuracy') {
+        if (oppBlunder) return missCls;
+        if (familiar && (winLoss || 0) >= 0.03) return missCls;
+        if ((winLoss || 0) >= 0.07) return missCls;
     }
-    if (oppGaveChance && wasBetter && cls.label === 'Inaccuracy' && (winLoss || 0) >= 0.05) {
-        return missCls;
-    }
+    if (familiar && cls.label === 'Good' && oppBlunder && (winLoss || 0) >= 0.02) return missCls;
     return cls;
 }
 
@@ -464,10 +485,28 @@ function maybeSoftDemoteBlunder(cls, { materialEvent, best, winLoss } = {}) {
     const ep = winLoss != null && Number.isFinite(winLoss) ? winLoss : 0;
     const keep = preset.softBlunderKeepEp != null ? preset.softBlunderKeepEp : 0.28;
     if (ep >= keep) return cls;
+    const to = preset.softBlunderTo === 'Mistake' ? 'Mistake' : 'Inaccuracy';
     return {
-        label: 'Mistake',
-        class: 'cls-mistake',
-        desc: 'Real damage to winning chances.'
+        label: to,
+        class: to === 'Mistake' ? 'cls-mistake' : 'cls-inaccuracy',
+        desc: to === 'Mistake'
+            ? 'Real damage to winning chances.'
+            : 'Small slip — clearly better was available.'
+    };
+}
+
+/** Soft-preset: demote light Mistakes → Inaccuracy (club Game Review feel). */
+function maybeSoftDemoteMistake(cls, { materialEvent, winLoss } = {}) {
+    const preset = typeof getActiveAnalysisPreset === 'function' ? getActiveAnalysisPreset() : null;
+    if (!preset?.softMistakes || !cls || cls.label !== 'Mistake') return cls;
+    if (materialEvent?.kind === 'hang') return cls;
+    const ep = winLoss != null && Number.isFinite(winLoss) ? winLoss : 0;
+    const keep = preset.softMistakeKeepEp != null ? preset.softMistakeKeepEp : 0.16;
+    if (ep >= keep) return cls;
+    return {
+        label: 'Inaccuracy',
+        class: 'cls-inaccuracy',
+        desc: 'Small slip — clearly better was available.'
     };
 }
 
@@ -647,6 +686,7 @@ async function analyzeGame(game, user, engine, onMove, opts = {}) {
         let cls = classifyMove({
             evalDelta,
             winLoss,
+            winBefore,
             isPlayer: isUserTurn,
             isBook,
             isTheory,
@@ -678,8 +718,15 @@ async function analyzeGame(game, user, engine, onMove, opts = {}) {
                 narrative = described.narrative || cls.desc;
             } catch (_) {}
 
-            cls = maybeUpgradeToGreat(cls, { playedBest, engineGapCp });
+            cls = maybeUpgradeToGreat(cls, {
+                playedBest,
+                engineGapCp,
+                winBefore,
+                isPv1: !!(best?.bestMove && history[i]
+                    && moveToUci(history[i]) === String(best.bestMove).toLowerCase())
+            });
             cls = maybeSoftDemoteBlunder(cls, { materialEvent, best, winLoss });
+            cls = maybeSoftDemoteMistake(cls, { materialEvent, winLoss });
             cls = maybeUpgradeToMiss(cls, {
                 prevOppLabel,
                 winBefore,
@@ -734,6 +781,9 @@ async function analyzeGame(game, user, engine, onMove, opts = {}) {
             evalDelta: !isBook && !isTheory ? evalDelta : null,
             evalDeltaCp: !isBook && !isTheory ? evalDeltaCp : null,
             winLoss: !isBook && !isTheory ? winLoss : null,
+            winBefore: !isBook && !isTheory ? winBefore : null,
+            engineGapCp: !isBook && !isTheory ? engineGapCp : null,
+            playedBest: !isBook && !isTheory ? !!playedBest : null,
             engineDepth: !isBook && !isTheory ? moveDepth : null
         });
     }
